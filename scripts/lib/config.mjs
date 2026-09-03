@@ -22,16 +22,16 @@ export function locateHtmlCore() {
   for (const root of candidates()) {
     const extract = path.join(root, "scripts/extract-ppt-layout.mjs"), exporter = path.join(root, "scripts/export-editable-pptx.mjs"), collaboration = path.join(root, "scripts/collaboration-package.mjs"), assemble = path.join(root, "scripts/assemble-creative-report.mjs"), workflow = path.join(root, "scripts/run-creative-workflow.mjs");
     if (![extract, exporter, collaboration, assemble, workflow].every(fs.existsSync)) continue;
-    let version = null, commit = null;
+    let build = null, commit = null;
     const described = spawnSync("git", ["-C", root, "describe", "--tags", "--always"], { encoding: "utf8" });
-    if (described.status === 0) version = described.stdout.trim().replace(/^v/, "");
+    if (described.status === 0) build = described.stdout.trim();
     const revision = spawnSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" });
     if (revision.status === 0) commit = revision.stdout.trim();
     const apiFile = path.join(root, "core-api.json");
     const api = fs.existsSync(apiFile) ? JSON.parse(fs.readFileSync(apiFile, "utf8")) : null;
-    if (version && version !== requiredHtmlCore) throw new Error(`mint-report-html ${requiredHtmlCore} is required; found ${version} at ${root}`);
     if (!api || api.schemaVersion !== "1" || api.interfaces?.themeEnvironment !== "MINT_PPT_THEME_FILE" || api.interfaces?.packSectionSync !== "scripts/collaboration-package.mjs pack-section-sync") throw new Error(`mint-report-html at ${root} does not expose the required PPT core API; update it to the compatible ${requiredHtmlCore} build`);
-    return { root, version: version || "compatible-unversioned", commit, extract, exporter, collaboration, assemble, workflow };
+    if (api.skillVersion !== requiredHtmlCore) throw new Error(`mint-report-html ${requiredHtmlCore} is required; found ${api.skillVersion || "unknown"} at ${root}`);
+    return { root, version: api.skillVersion, build, commit, extract, exporter, collaboration, assemble, workflow };
   }
   throw new Error(`mint-report-html ${requiredHtmlCore} is required. Install or update it before using mint-report-ppt.`);
 }
