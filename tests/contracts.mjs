@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createTaskCard } from "../scripts/lib/task-card.mjs";
+import { skillVersion, theme } from "../scripts/lib/config.mjs";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const skill = fs.readFileSync(path.join(root, "SKILL.md"), "utf8"), workflow = fs.readFileSync(path.join(root, "references/ppt-workflow.md"), "utf8"), failures = fs.readFileSync(path.join(root, "references/ppt-failure-prevention.md"), "utf8");
+assert.match(skill, /final HTML is the publication artifact/);
+assert.match(skill, /Supported round-trip edits/);
+assert.match(skill, /Do not use or modify `mint-report-deck`/);
+assert.match(workflow, /Finalize one HTML/);
+assert.match(failures, /Source content disappeared/);
+assert.equal(theme.themeVersion, "mint-fresh/1");
+assert.equal(theme.palette.ink, "#24312E");
+assert.equal(theme.palette.mint, "#49A991");
+assert.deepEqual(theme.chartSeries.slice(0, 2), ["#2F86A6", "#F08A5D"]);
+const card = createTaskCard({ reportId: "weekly-review", title: "经营例会", sections: [{ id: "product", title: "产品", owner: "A", order: 1, outlineItems: ["1"] }] });
+assert.equal(card.requiredSkill, "mint-report-ppt");
+assert.equal(card.skillVersion, skillVersion);
+assert.equal(card.publication.collaboration, "section-pptx");
+assert.equal(card.publication.primary, "html");
+console.log(JSON.stringify({ passed: true, tests: 13 }));

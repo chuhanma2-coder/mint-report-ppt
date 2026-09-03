@@ -1,0 +1,7 @@
+interface:
+  display_name: "Mint Report PPT"
+  short_description: "PPT协作编辑，最终发布Mint HTML"
+  brand_color: "#2F86A6"
+  default_prompt: "Use $mint-report-ppt to create my native editable Mint section PPTX for review, synchronize supported PowerPoint edits, and publish one complete offline interactive HTML in task-card order."
+policy:
+  allow_implicit_invocation: true

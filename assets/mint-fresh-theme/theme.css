@@ -1,0 +1,17 @@
+:root {
+  --mint-page: #F6F8F7;
+  --mint-paper: #FFFFFF;
+  --mint-ink: #24312E;
+  --mint-muted: #68736F;
+  --mint-blue: #2F86A6;
+  --mint-jade: #49A991;
+  --mint-jade-support: #7BC4B1;
+  --mint-coral: #F08A5D;
+  --mint-subtle: #E9F6F2;
+  --mint-risk-bg: #FFF0E9;
+  --mint-risk-text: #9C4328;
+  --mint-line: #DCE6E2;
+  --mint-on-dark: #FFFFFF;
+  --mint-on-dark-secondary: #EAF4F8;
+  --mint-edit-focus: #F08A5D;
+}

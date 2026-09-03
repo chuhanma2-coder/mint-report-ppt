@@ -1,0 +1,9 @@
+{
+  "name": "mint-report-ppt",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/contracts.mjs && node tests/metadata.e2e.mjs && node tests/object-names.e2e.mjs && node tests/facade-read.e2e.mjs"
+  }
+}

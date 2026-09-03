@@ -1,0 +1,21 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+import { writePptxMetadata, readPptxMetadata, inspectPptxPackage, writePptxSyncPayload, readPptxSyncPayload } from "../scripts/lib/pptx-metadata.mjs";
+
+if (!process.env.RUNTIME_NODE_MODULES) throw new Error("RUNTIME_NODE_MODULES is required");
+const require = createRequire(path.join(process.env.RUNTIME_NODE_MODULES, "package.json"));
+const { Presentation, PresentationFile } = await import(pathToFileURL(require.resolve("@oai/artifact-tool")).href);
+const folder = fs.mkdtempSync(path.join(os.tmpdir(), "mint-ppt-meta-")), file = path.join(folder, "section.pptx");
+const deck = Presentation.create({ slideSize: { width: 1920, height: 1080 } }), slide = deck.slides.add(); slide.background.fill = "#F6F8F7";
+const shape = slide.shapes.add({ geometry: "textbox", name: "title", position: { left: 100, top: 100, width: 1000, height: 120 }, fill: "none", line: { fill: "none", width: 0 } }); shape.text = "测试章节"; shape.text.style = { fontSize: 40, color: "#24312E", typeface: "Microsoft YaHei" };
+await (await PresentationFile.exportPptx(deck)).save(file);
+const syncWritten = await writePptxSyncPayload(file, { schemaVersion: "1.0", sectionId: "s1", bindings: [{ objectName: "title" }], workfileBase64: Buffer.from("test").toString("base64") });
+await writePptxMetadata(file, { MintReportId: "r1", MintSectionId: "s1", MintThemeVersion: "mint-fresh/1", MintSyncPayloadHash: syncWritten.hash });
+const metadata = await readPptxMetadata(file), pkg = await inspectPptxPackage(file), syncRead = await readPptxSyncPayload(file);
+assert.equal(metadata.MintReportId, "r1"); assert.equal(metadata.MintSectionId, "s1"); assert.equal(pkg.slides.length, 1); assert.ok(pkg.nativeShapes >= 1); assert.ok(Math.abs(pkg.slideSize.ratio - 16 / 9) < 0.002);
+assert.equal(syncRead.hash, syncWritten.hash); assert.equal(syncRead.payload.bindings[0].objectName, "title");
+fs.rmSync(folder, { recursive: true, force: true }); console.log(JSON.stringify({ passed: true, tests: 7 }));
