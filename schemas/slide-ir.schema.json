@@ -5,9 +5,9 @@
   "type": "object",
   "required": ["schemaVersion", "slideIrVersion", "planningSchemaVersion", "reportId", "sectionId", "slides"],
   "properties": {
-    "schemaVersion": { "const": "1.1" },
-    "slideIrVersion": { "const": "1.1" },
-    "planningSchemaVersion": { "const": "2.1" },
+    "schemaVersion": { "const": "1.2" },
+    "slideIrVersion": { "const": "1.2" },
+    "planningSchemaVersion": { "const": "2.2" },
     "reportId": { "type": "string", "minLength": 1 },
     "sectionId": { "type": "string", "minLength": 1 },
     "slides": {
@@ -83,6 +83,8 @@
         "dataRef": { "type": "string" }, "data": {}, "imagePath": { "type": "string" }, "alt": { "type": "string" },
         "compositionBand": { "enum": ["lead", "primary", "result"] },
         "tableRole": { "enum": ["primary", "supporting", "reference", "detail"] },
+        "carrierPurpose": { "enum": ["primaryProof", "exactLookup", "implication", "boundary", "action", "context"] },
+        "reinforcementReason": { "type": "string" },
         "evidenceRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "dataShape": { "type": "object" }, "expression": { "type": ["object", "null"] }
       },

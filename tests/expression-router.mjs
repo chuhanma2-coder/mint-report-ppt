@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { inferDataShape, routeExpression, expressionSuitability } from "../scripts/lib/expression-router.mjs";
+import { inferDataShape, routeExpression, resolveSlideExpressions, expressionSuitability } from "../scripts/lib/expression-router.mjs";
 
 const twoPeriods = { categories: ["Y1", "Y2"], series: [{ name: "收入", values: [80, 92] }] };
 assert.equal(inferDataShape(twoPeriods).hasTime, true);
@@ -21,4 +21,7 @@ assert.equal(routeExpression({ managementQuestion: "逐项核对成本明细", s
 assert.equal(routeExpression({ semanticIntent: "process", type: "text", data: {} }).type, "text");
 const invalid = { id: "S1", modules: [{ id: "m1", type: "chart", dataShape: inferDataShape(twoPeriods), expression: { type: "chart", variant: "line" } }] };
 assert.equal(expressionSuitability(invalid).length, 1);
-console.log(JSON.stringify({ passed: true, tests: 16 }));
+const focused = resolveSlideExpressions({ claim: "人力与IT是主要压降项", managementQuestion: "主要压降项是什么？", semanticIntent: "ranking", modules: [{ id: "m", type: "chart", semanticRole: "primaryEvidence", data: { categories: ["人力", "IT", "职场"], series: [{ name: "压降额", values: [203.3, 89.6, 42.8] }] } }] });
+assert.deepEqual(focused.modules[0].expression.focusCategories, ["人力", "IT"]);
+assert.equal(focused.modules[0].expression.annotationIntent, "rank");
+console.log(JSON.stringify({ passed: true, tests: 18 }));

@@ -74,34 +74,6 @@ export function chapterCompositionIssues(slides) {
 
 export function compositeProfile(value) { return composite.has(value); }
 
-function inferredBand(module) {
-  if (module.compositionBand) return module.compositionBand;
-  if (["managementConclusion", "decision", "risk", "action", "boundary"].includes(module.semanticRole) || ["supporting", "reference"].includes(module.tableRole)) return "result";
-  if (module.semanticRole === "context" || module.type === "metric") return "lead";
-  return "primary";
-}
-
-function exactEvidenceModule(slide, refs, { id, title, semanticRole, compositionBand }) {
-  const selected = [...new Set(refs || [])].slice(0, 4), byId = new Map((slide.sourceEvidence || []).map(item => [String(item.id), item.text]));
-  const text = selected.map(ref => byId.get(String(ref))).filter(Boolean).join("；");
-  if (!text) return null;
-  return { id: `${slide.id}-${id}`, type: "callout", title, text, semanticRole, compositionBand, evidenceRefs: selected, generatedFromEvidenceBundle: true };
-}
-
-export function materializeCompositeEvidence(slide) {
-  if (slide.role !== "content" || !compositeProfile(slide.pageComposition)) return slide;
-  const modules = [...(slide.modules || [])], bands = new Set(modules.map(inferredBand)), bundle = slide.evidenceBundle || {};
-  if (!bands.has("lead")) {
-    const module = exactEvidenceModule(slide, [...(bundle.kpiRefs || []), ...(bundle.contextRefs || [])], { id: "lead-evidence", title: "关键背景", semanticRole: "context", compositionBand: "lead" });
-    if (module) modules.unshift(module);
-  }
-  if (!bands.has("primary")) {
-    const module = exactEvidenceModule(slide, [...(bundle.primaryEvidenceRefs || []), ...(bundle.chartRefs || []), ...(bundle.tableRefs || []), ...(bundle.comparisonRefs || []), ...(bundle.caseRefs || [])], { id: "primary-evidence", title: "核心证据", semanticRole: "primaryEvidence", compositionBand: "primary" });
-    if (module) modules.push(module);
-  }
-  if (!bands.has("result")) {
-    const module = exactEvidenceModule(slide, [...(bundle.decisionRefs || []), ...(bundle.actionRefs || []), ...(bundle.riskRefs || []), ...(bundle.boundaryRefs || []), ...(bundle.explanationRefs || []), ...(bundle.supportingEvidenceRefs || [])], { id: "result-evidence", title: "结论与行动", semanticRole: "managementConclusion", compositionBand: "result" });
-    if (module) modules.push(module);
-  }
-  return { ...slide, modules };
-}
+// Composite classification must never invent a fixed visible band. Evidence is
+// allocated to authored carriers later; uncovered facts are a blocking error.
+export function materializeCompositeEvidence(slide) { return slide; }

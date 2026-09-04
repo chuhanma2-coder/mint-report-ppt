@@ -14,8 +14,8 @@ const twoModuleComposite = materializeCompositeEvidence({
   sourceEvidence: Array.from({ length: 9 }, (_, index) => ({ id: `E${index + 1}`, text: `证据${index + 1}` })),
   modules: [{ type: "chart", semanticRole: "primaryEvidence", evidenceRefs: ["E3"] }, { type: "callout", semanticRole: "managementConclusion", text: "结论", evidenceRefs: ["E9"] }]
 });
-assert.ok(twoModuleComposite.modules.some(module => module.compositionBand === "lead"));
-assert.ok(twoModuleComposite.modules.length > 2);
+assert.equal(twoModuleComposite.modules.length, 2);
+assert.ok(!twoModuleComposite.modules.some(module => module.generatedFromEvidenceBundle));
 
 const chapter = classifyChapterCompositions(Array.from({ length: 6 }, (_, index) => ({
   id: `C${index + 1}`, role: "content", claim: "结论", semanticIntent: "comparison", evidenceBundle: { primaryEvidenceRefs: Array.from({ length: 8 }, (_, i) => `E${index}-${i}`) }, modules: [{ type: "chart", semanticRole: "primaryEvidence" }]

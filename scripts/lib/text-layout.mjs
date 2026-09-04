@@ -65,7 +65,7 @@ export function moduleContentDemand(module, width, theme) {
     return { minHeight: Math.min(680, Math.max(180, rowCount * rowHeight)), desiredHeight: Math.min(760, Math.max(220, rowCount * 52)), visual: module.tableRole === "primary" || module.tableRole === "detail" };
   }
   if (type === "metric") return { minHeight: 190, desiredHeight: 300, visual: false };
-  const title = String(module.title || ""), body = String(module.text || ""), bodyRange = module.semanticRole === "managementConclusion" ? [18, 15] : module.density === "dense" ? [16, 13] : [18, 14];
+  const title = String(module.title || ""), body = String(module.text || ""), bodyRange = module.semanticRole === "managementConclusion" ? [20, 17] : module.density === "dense" ? [18, 16] : [20, 17];
   const innerWidth = Math.max(80, width - 56);
   const titleHeight = title ? measureWrappedText(title, { fontFamily: theme.fonts.cjk, fontSizePt: 18, maxWidth: innerWidth, bold: true, lineHeight: 1.25 }).height + 18 : 0;
   const bodyMeasure = measureWrappedText(body, { fontFamily: theme.fonts.cjk, fontSizePt: bodyRange[0], maxWidth: innerWidth, lineHeight: 1.4 });

@@ -24,4 +24,13 @@ assert.ok(dense.layout.occupancy >= theme.constraints.evidenceRichMinimumOccupan
 assert.equal(layoutIssues(dense, theme).length, 0);
 const supportingTable = { ...slide, semanticIntent: "comparison", pageComposition: "standard", modules: [{ type: "chart", semanticRole: "primaryEvidence", expression: { type: "chart", variant: "sorted-bar" } }, { type: "table", semanticRole: "supportingEvidence", tableRole: "supporting", expression: { type: "table", variant: "highlighted-table" } }] };
 assert.equal(chooseGeometry(supportingTable), "primary-secondary");
-console.log(JSON.stringify({ passed: true, tests: 10 }));
+const imageRail = layoutSlide({ id: "IMG", role: "content", claim: "架构图为主证据", density: "standard", pageComposition: "evidence-rich", modules: [
+  { id: "image", type: "image", semanticRole: "primaryEvidence", visualPriority: "P0" },
+  { id: "a", type: "callout", semanticRole: "supportingEvidence", text: "Mint职责", visualPriority: "P1" },
+  { id: "b", type: "callout", semanticRole: "supportingEvidence", text: "Sinova职责", visualPriority: "P1" },
+  { id: "c", type: "callout", semanticRole: "supportingEvidence", text: "本地生态", visualPriority: "P2" }
+] }, theme);
+assert.match(imageRail.layout.layoutVariant, /primary-rail/);
+assert.ok(imageRail.layout.modules[0].width > imageRail.layout.modules[1].width);
+assert.ok(imageRail.layout.modules[2].top > imageRail.layout.modules[1].top);
+console.log(JSON.stringify({ passed: true, tests: 13 }));

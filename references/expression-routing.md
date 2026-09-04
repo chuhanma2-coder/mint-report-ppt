@@ -8,7 +8,7 @@ Route the complete Page Evidence Bundle, not isolated source atoms. First identi
 
 Use `managementQuestion`, `claim`, `semanticIntent`, computed `dataShape`, exact-lookup need, decision intent, units, targets, time, signs, whole/part status, ordering, process/hierarchy/direction, label length, and data volume. Output `{type, variant, reason, alternatives}`. `reason` and `alternatives` remain internal.
 
-`exactLookup=true` preserves detail but does not automatically force the primary expression to be a table. When the management question asks for change, rank, contribution, target attainment, or comparison, route the primary proof visually and preserve the full table in an appendix or notes. Use a table as the primary expression only when lookup/reconciliation is itself the management purpose.
+`exactLookup=true` preserves detail but does not automatically force the primary expression to be a table. When the management question asks for change, rank, contribution, target attainment, or comparison, route the primary proof visually. Preserve additional rows in the same body page or a normal body detail page; do not use an appendix unless explicitly authorized. Use a table as the primary expression only when lookup/reconciliation is itself the management purpose.
 
 Every table declares `tableRole`: `primary`, `supporting`, `reference`, or `detail`. Table is a content carrier, never a geometry. Only a primary table may dominate a page; supporting/reference/detail tables obey the page's main expression and cannot force matrix geometry.
 
@@ -51,7 +51,13 @@ The same data may route differently. `A=80, B=72, C=55` becomes a sorted bar for
 
 Use native PowerPoint chart first, editable-shape chart second, and table only when precise lookup is genuinely the intended expression. If a selected expression does not fit, try another geometry and compact variant, then split by an independent conclusion. Return to the router only when the expression itself is unreadable; never let the renderer silently replace it.
 
-For multi-dimensional country/product comparisons, use a decision matrix when dimensions are ordinal or qualitative. For scale plus quality measures with incompatible units, use aligned small multiples rather than one axis or a plain table. For a long cost table whose title names key drivers, show the driver ranking/variance first and preserve all rows in an appendix table.
+For multi-dimensional country/product comparisons, use a decision matrix when dimensions are ordinal or qualitative. For scale plus quality measures with incompatible units, use aligned small multiples rather than one axis or a plain table. For a long cost table whose title names key drivers, show the driver ranking/variance first and preserve all rows in a normal body detail page when they cannot fit legibly.
+
+## Carrier budget and conclusion encoding
+
+Each carrier declares one purpose: `primaryProof`, `exactLookup`, `implication`, `boundary`, `action`, or `context`. A chart with exact labels normally replaces a duplicate lookup table. Chart + table is permitted only when the table adds dimensions the chart cannot encode or exact lookup is itself a decision need. A callout must state implication, boundary, or action rather than restate the same numbers.
+
+The router records `focusCategories`, `focusSeries`, `focusRows`, `comparisonDirection`, and `annotationIntent`. The renderer must highlight the categories, rows, series, gaps, or contributions named by the page claim and mute non-focus evidence. A correct chart type without conclusion encoding fails QA.
 
 ## Semantic color
 

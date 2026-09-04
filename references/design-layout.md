@@ -20,7 +20,7 @@ Use the derived `pageComposition` to choose composition density without inventin
 
 Each band may contain at most four modules. Modules in a band share horizontal space, while the three bands receive different vertical weight. Do not create a uniform card grid for unequal evidence.
 
-Capacity order: change geometry; rebalance module shares; use the compact variant; move secondary evidence to a support area or appendix; split only on an independent management conclusion. Never delete evidence or shrink without limit.
+Capacity order: change geometry; rebalance module shares; use the compact variant; move secondary evidence to a support area or a normal body detail page; split only on an independent management conclusion. Appendices are forbidden unless the task card explicitly authorizes them. Never delete evidence or shrink without limit.
 
 Track three independent diagnostics: Visual Occupancy, Information Density, and Story Completeness. Occupancy is diagnostic, not a fill target. Standard pages below 55% and explicitly dense pages below 65% fail for consolidation review; composite classification does not raise the visual-area target by itself because its information-density and story-completeness gates are checked separately. A single large image, chart, or table is not high-density merely because it occupies most of the canvas; it must also provide enough supporting evidence and a complete Claim/Evidence/Meaning chain. Inspect one-point pagination, undersized visuals, and short tables without interpretation. Above 92%, inspect crowding and auto-shrink. Do not stretch empty cards/tables or add decoration to improve the ratio. Hero, cover, section, and closing slides may intentionally use more whitespace.
 
@@ -39,11 +39,23 @@ The engine measures real text with the configured CJK font before rendering and 
 | Core metric | 28–44pt |
 | Body | 14–18pt |
 | Dense supporting body | 13–16pt |
-| Table label | 11–14pt |
+| Body | 17–20pt; 16pt absolute floor |
+| Supporting body | 15–17pt |
+| Chart axis/category | 15–18pt |
+| Chart value | 16–19pt |
+| Table | 14–16pt |
+| Diagram node | 15–18pt |
+| Diagram edge | 13–15pt |
 | Chart axis/category/value label | 13.5–15pt (18–20px in native chart API) |
 | Caption | 10–12pt |
 
-Choose within the range using role, text length, language, available width, and reading distance. Reserve 13pt for supporting information. Keep titles to one or two lines. If the lower bound still fails, rewrite without changing meaning or change the page structure. Default to no more than four primary size levels; captions, labels, and necessary table sizes are excluded.
+Choose within the range using role, text length, language, available width, and reading distance. Keep titles to one or two lines. If the lower bound still fails, change geometry or split at an independent conclusion. Do not use PowerPoint shrink-to-fit as a capacity strategy. Default to no more than four primary size levels; captions and necessary labels are excluded.
+
+## Dominant artifact and support rail
+
+When one source image, chart, diagram, or primary table is the main proof and the remaining modules explain it, use an internal `primary-rail` variant: 55–65% for the dominant artifact on the left, 35–45% for smaller support modules stacked vertically on the right, and an optional 12–18% decision/action strip below. Do not divide width equally by module count.
+
+Every page has one P0 object, one or two P1 objects, and subordinate P2 context. Occupancy is an anomaly signal, not a reason to inflate empty cards. Repeated geometry is acceptable only when it remains the best expression; four consecutive identical variants trigger review.
 
 `managementQuestion` is hidden by default. It may be shown only when the question itself improves the audience's understanding; never repeat a gray question line mechanically on every slide.
 

@@ -28,6 +28,7 @@ export function createTaskCard(input) {
     reportId: safe(input.reportId),
     title: String(input.title).trim(),
     purpose: String(input.purpose || "管理汇报").trim(),
+    allowAppendix: input.allowAppendix === true,
     outlineOrder: [...(input.outlineOrder || sections.flatMap(item => item.outlineItems))].map(String),
     warnings: [...(input.warnings || [])].map(String),
     sections,

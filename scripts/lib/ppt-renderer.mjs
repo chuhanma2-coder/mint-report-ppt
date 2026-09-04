@@ -16,15 +16,16 @@ const solid = color => ({ type: "solid", color });
 function addText(slide, text, frame, style, name) {
   const box = slide.shapes.add({ geometry: "textbox", name, position: frame, fill: "none", line: noLine });
   box.text = String(text ?? "");
-  const fontSizePx = style.fontSizePt != null ? style.fontSizePt * 96 / 72 : style.fontSize ?? 18;
+  const fontSizePx = (style.fontSizePt ?? style.fontSize ?? 18) * 96 / 72;
   box.text.style = { typeface: style.typeface, fontSize: fontSizePx, bold: !!style.bold, color: style.color, autoFit: "none", verticalAlignment: style.verticalAlignment || "top" };
   box.text.verticalAlignment = style.verticalAlignment || "top";
   return box;
 }
 
 function surface(slide, frame, theme, role, name) {
-  const p = theme.palette, fill = role === "risk" ? p.coralLight : role === "decision" ? p.blueLight : p.paper;
-  return slide.shapes.add({ geometry: "rect", name, position: frame, fill: solid(fill), line: { fill: role === "risk" ? p.coral : p.line, width: role === "primaryEvidence" ? 2 : 1 }, borderRadius: 18 });
+  const p = theme.palette, priority = role === "primaryEvidence" ? "P0" : ["managementConclusion", "decision", "risk", "action", "boundary"].includes(role) ? "P1" : "P2";
+  const fill = role === "risk" ? p.coralLight : role === "decision" ? p.blueLight : priority === "P0" ? p.paper : priority === "P1" ? p.mintLight : p.page;
+  return slide.shapes.add({ geometry: "rect", name, position: frame, fill: solid(fill), line: { fill: role === "risk" ? p.coral : priority === "P0" ? p.mint : p.line, width: priority === "P0" ? 2 : priority === "P1" ? 1 : 0.6 }, borderRadius: priority === "P0" ? 14 : 18 });
 }
 
 function moduleData(module) { return module.data && typeof module.data === "object" ? module.data : {}; }
@@ -53,7 +54,7 @@ function addNarrative(slide, module, frame, theme, font, index, typography = nul
   const title = module.title || (module.semanticRole === "managementConclusion" ? "管理结论" : "");
   if (title) addText(slide, title, { left: frame.left + pad, top: frame.top + pad, width: frame.width - 2 * pad, height: 52 }, { typeface: font, fontSizePt: typography?.title?.fontSizePt || 18, bold: true, color: theme.palette.ink }, `mint|module-title|${index}`);
   const bodyTop = frame.top + pad + (title ? 62 : 0), bodyWidth = frame.width - 2 * pad, bodyHeight = Math.max(40, frame.height - (bodyTop - frame.top) - pad);
-  addText(slide, module.text || "", { left: frame.left + pad, top: bodyTop, width: bodyWidth, height: bodyHeight }, { typeface: font, fontSizePt: typography?.body?.fontSizePt || (module.semanticRole === "managementConclusion" ? 18 : 16), bold: module.semanticRole === "managementConclusion", color: theme.palette.ink }, `mint|module-body|${index}`);
+  addText(slide, module.text || "", { left: frame.left + pad, top: bodyTop, width: bodyWidth, height: bodyHeight }, { typeface: font, fontSizePt: typography?.body?.fontSizePt || (module.semanticRole === "managementConclusion" ? 20 : 17), bold: module.semanticRole === "managementConclusion", color: theme.palette.ink }, `mint|module-body|${index}`);
 }
 
 function seriesColors(module, theme) {
@@ -78,10 +79,10 @@ function addNativeChart(slide, module, frame, theme, font, index) {
     ...(type === "bar" ? { barOptions: { direction: variant === "column" ? "column" : "bar", grouping: variant === "percent-stacked" ? "percentStacked" : "clustered", gapWidth: 48 } } : {}),
     ...(type === "scatter" ? { scatterOptions: { style: "marker", varyColors: false } } : {}),
     hasLegend: series.length > 1,
-    legend: { position: "bottom", overlay: false, textStyle: { typeface: font, fontSize: theme.chartTypographyPx?.legend || 19, fill: theme.palette.muted } },
-    dataLabels: { showValue: true, position: type === "bar" ? "outEnd" : "right", textStyle: { typeface: font, fontSize: (data.categories || []).length > 8 ? (theme.chartTypographyPx?.denseDataLabel || 18) : (theme.chartTypographyPx?.dataLabel || 20), fill: theme.palette.ink, bold: true } },
-    xAxis: { majorGridlines: { style: "solid", fill: theme.palette.line, width: 1 }, textStyle: { typeface: font, fontSize: (data.categories || []).length > 8 ? (theme.chartTypographyPx?.denseAxis || 18) : (theme.chartTypographyPx?.axis || 20), fill: theme.palette.muted } },
-    yAxis: { line: { style: "solid", fill: theme.palette.line, width: 1 }, textStyle: { typeface: font, fontSize: (data.categories || []).length > 8 ? (theme.chartTypographyPx?.denseAxis || 18) : (theme.chartTypographyPx?.axis || 20), fill: theme.palette.muted } }
+    legend: { position: "bottom", overlay: false, textStyle: { typeface: font, fontSize: (theme.chartTypographyPt?.legend || 16) * 96 / 72, fill: theme.palette.muted } },
+    dataLabels: { showValue: true, position: type === "bar" ? "outEnd" : "right", textStyle: { typeface: font, fontSize: ((data.categories || []).length > 8 ? (theme.chartTypographyPt?.denseDataLabel || 16) : (theme.chartTypographyPt?.dataLabel || 18)) * 96 / 72, fill: theme.palette.ink, bold: true } },
+    xAxis: { majorGridlines: { style: "solid", fill: theme.palette.line, width: 1 }, textStyle: { typeface: font, fontSize: ((data.categories || []).length > 8 ? (theme.chartTypographyPt?.denseAxis || 15) : (theme.chartTypographyPt?.axis || 17)) * 96 / 72, fill: theme.palette.muted } },
+    yAxis: { line: { style: "solid", fill: theme.palette.line, width: 1 }, textStyle: { typeface: font, fontSize: ((data.categories || []).length > 8 ? (theme.chartTypographyPt?.denseAxis || 15) : (theme.chartTypographyPt?.axis || 17)) * 96 / 72, fill: theme.palette.muted } }
   });
   return chart;
 }
@@ -153,13 +154,14 @@ function addShapeChart(slide, module, frame, theme, font, index) {
     surface(slide, frame, theme, "supportingEvidence", `mint|small-multiples-bg|${index}`);
     series.forEach((item, seriesIndex) => {
       const panel = { left: frame.left + 18, top: frame.top + seriesIndex * (panelH + gap) + 12, width: frame.width - 36, height: panelH - 18 };
-      addText(slide, item.name || `指标${seriesIndex + 1}`, { left: panel.left + 12, top: panel.top, width: panel.width - 24, height: 38 }, { typeface: font, fontSizePt: 15, bold: true, color: seriesIndex === 0 ? theme.palette.mint : theme.palette.blue }, `mint|small-multiple-title|${index}-${seriesIndex}`);
+      addText(slide, item.name || `指标${seriesIndex + 1}`, { left: panel.left + 12, top: panel.top, width: panel.width - 24, height: 42 }, { typeface: font, fontSizePt: 17, bold: true, color: seriesIndex === 0 ? theme.palette.mint : theme.palette.blue }, `mint|small-multiple-title|${index}-${seriesIndex}`);
       const max = Math.max(1, ...item.values.map(value => Math.abs(Number(value) || 0))), labelW = Math.min(190, panel.width * 0.25), rowH = Math.max(34, (panel.height - 42) / Math.max(1, data.categories.length));
       data.categories.forEach((label, i) => {
         const value = Number(item.values[i]) || 0, y = panel.top + 38 + i * rowH, barW = (panel.width - labelW - 120) * Math.abs(value) / max;
-        addText(slide, label, { left: panel.left + 12, top: y, width: labelW - 16, height: rowH - 4 }, { typeface: font, fontSizePt: data.categories.length > 6 ? 13 : 14, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-label|${index}-${seriesIndex}-${i}`);
-        slide.shapes.add({ geometry: "rect", position: { left: panel.left + labelW, top: y + 7, width: Math.max(2, barW), height: Math.max(10, rowH - 18) }, fill: solid(seriesIndex === 0 ? theme.palette.mint : theme.palette.blue), line: noLine, borderRadius: 5 });
-        addText(slide, `${value}${item.displayUnit || (item.unitKind === "percent" ? "%" : "")}`, { left: panel.left + labelW + barW + 8, top: y, width: 110, height: rowH - 4 }, { typeface: font, fontSizePt: data.categories.length > 6 ? 13 : 14, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-value|${index}-${seriesIndex}-${i}`);
+        const focused = module.expression?.focusCategories?.includes(String(label));
+        addText(slide, label, { left: panel.left + 12, top: y, width: labelW - 16, height: rowH - 4 }, { typeface: font, fontSizePt: data.categories.length > 6 ? 15 : 17, bold: focused, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-label|${index}-${seriesIndex}-${i}`);
+        slide.shapes.add({ geometry: "rect", position: { left: panel.left + labelW, top: y + 7, width: Math.max(2, barW), height: Math.max(10, rowH - 18) }, fill: solid(focused ? theme.palette.orange : seriesIndex === 0 ? theme.palette.mint : theme.palette.blue), line: noLine, borderRadius: 5 });
+        addText(slide, `${value}${item.displayUnit || (item.unitKind === "percent" ? "%" : "")}`, { left: panel.left + labelW + barW + 8, top: y, width: 120, height: rowH - 4 }, { typeface: font, fontSizePt: data.categories.length > 6 ? 15 : 17, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-value|${index}-${seriesIndex}-${i}`);
       });
     });
     return;
@@ -169,12 +171,13 @@ function addShapeChart(slide, module, frame, theme, font, index) {
   const rowH = Math.min(70, (frame.height - 2 * pad) / Math.max(1, categories.length)), labelW = Math.min(230, frame.width * 0.3);
   categories.forEach((label, i) => {
     const y = frame.top + pad + i * rowH, value = Number(values[i]) || 0, barW = (frame.width - labelW - 3 * pad) * Math.abs(value) / max;
-    addText(slide, label, { left: frame.left + pad, top: y, width: labelW - 10, height: rowH - 6 }, { typeface: font, fontSizePt: categories.length > 8 ? 13 : 15, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-label|${index}-${i}`);
+    const focused = module.expression?.focusCategories?.includes(String(label));
+    addText(slide, label, { left: frame.left + pad, top: y, width: labelW - 10, height: rowH - 6 }, { typeface: font, fontSizePt: categories.length > 8 ? 15 : 17, bold: focused, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-label|${index}-${i}`);
     if (["dot-plot", "dot-distribution"].includes(variant)) {
       slide.shapes.add({ geometry: "line", position: { left: frame.left + pad + labelW, top: y + rowH / 2, width: frame.width - labelW - 3 * pad, height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 1 } });
       slide.shapes.add({ geometry: "ellipse", name: `mint|shape-chart-dot|${index}-${i}`, position: { left: frame.left + pad + labelW + barW - 9, top: y + rowH / 2 - 9, width: 18, height: 18 }, fill: solid(value < 0 ? theme.palette.coral : theme.palette.mint), line: noLine });
-    } else slide.shapes.add({ geometry: "rect", name: `mint|shape-chart-bar|${index}-${i}`, position: { left: frame.left + pad + labelW, top: y + 10, width: Math.max(2, barW), height: rowH - 26 }, fill: solid(value < 0 ? theme.palette.coral : theme.palette.mint), line: noLine, borderRadius: 6 });
-    addText(slide, value, { left: frame.left + pad + labelW + barW + 8, top: y, width: 110, height: rowH - 6 }, { typeface: font, fontSizePt: categories.length > 8 ? 13 : 15, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-value|${index}-${i}`);
+    } else slide.shapes.add({ geometry: "rect", name: `mint|shape-chart-bar|${index}-${i}`, position: { left: frame.left + pad + labelW, top: y + 10, width: Math.max(2, barW), height: rowH - 26 }, fill: solid(focused ? theme.palette.orange : value < 0 ? theme.palette.coral : theme.palette.mint), line: noLine, borderRadius: 6 });
+    addText(slide, value, { left: frame.left + pad + labelW + barW + 8, top: y, width: 120, height: rowH - 6 }, { typeface: font, fontSizePt: categories.length > 8 ? 16 : 18, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-value|${index}-${i}`);
   });
 }
 
@@ -186,14 +189,14 @@ function addTable(slide, module, frame, theme, font, index) {
   table.styleOptions = { headerRow: true, bandedRows: true };
   table.borders.assign({ style: "solid", fill: theme.palette.line, width: 1 });
   const all = table.cells.block({ row: 0, column: 0, rowCount: values.length, columnCount: columns });
-  all.textStyle.fontSize = 16; all.textStyle.typeface = font; all.textStyle.color = theme.palette.ink;
+  all.textStyle.fontSize = (values.length > 10 ? 14 : 16) * 96 / 72; all.textStyle.typeface = font; all.textStyle.color = theme.palette.ink;
   const header = table.cells.block({ row: 0, column: 0, rowCount: 1, columnCount: columns });
   header.fill = theme.palette.mintLight; header.textStyle.bold = true;
   if (module.expression?.variant === "decision-matrix") {
     table.styleOptions = { headerRow: true, firstColumn: true, bandedRows: false };
     for (let row = 1; row < values.length; row++) {
       table.getCell(row, 0).fill = theme.palette.blueLight;
-      table.getCell(row, 0).text.style = { typeface: font, fontSize: 17.3, bold: true, color: theme.palette.ink };
+      table.getCell(row, 0).text.style = { typeface: font, fontSize: 16 * 96 / 72, bold: true, color: theme.palette.ink };
       for (let column = 1; column < columns; column++) {
         const headerText = String(values[0]?.[column] ?? ""), value = String(values[row]?.[column] ?? "");
         let fill = row % 2 ? theme.palette.paper : theme.palette.neutralLight;
@@ -216,8 +219,8 @@ function addDiagram(slide, module, frame, theme, font, index) {
   nodes.forEach((node, i) => {
     const nodeFrame = { left: startX + i * (nodeW + gap), top, width: nodeW, height: nodeH };
     const label = String(node.label || node.name || node.id || "");
-    const fitted = fitText(label, { width: nodeW - 36, height: nodeH - 28 }, { fontFamily: font, preferredPt: 16, minPt: 12, bold: true, lineHeight: 1.25, maxLines: 4 });
-    if (fitted.overflow) throw new Error(`Diagram node ${node.id || i} cannot fit at the 12pt readability floor`);
+    const fitted = fitText(label, { width: nodeW - 36, height: nodeH - 28 }, { fontFamily: font, preferredPt: 18, minPt: 15, bold: true, lineHeight: 1.25, maxLines: 4 });
+    if (fitted.overflow) throw new Error(`Diagram node ${node.id || i} cannot fit at the 15pt readability floor`);
     const shape = slide.shapes.add({ geometry: "rect", name: `mint|diagram-node|${index}-${i}`, position: nodeFrame, fill: solid(i === 0 ? theme.palette.mintLight : theme.palette.blueLight), line: { fill: i === 0 ? theme.palette.mint : theme.palette.blue, width: 2 }, borderRadius: 16 });
     shape.text = label; shape.text.style = { typeface: font, fontSize: fitted.fontSizePt * 96 / 72, bold: true, color: theme.palette.ink, autoFit: "none", verticalAlignment: "center" };
     shapes.set(String(node.id ?? i), shape);
@@ -232,7 +235,7 @@ function addDiagram(slide, module, frame, theme, font, index) {
       : { kind: "elbow3", fromSide: "bottom", toSide: "bottom", line: { style: "solid", fill: theme.palette.muted, width: 2 }, tail: { type: "arrow", width: "med", length: "med" } });
     if (edge.label) {
       const a = from.position, b = to.position, centerX = (a.left + a.width / 2 + b.left + b.width / 2) / 2, centerY = forward ? top + nodeH / 2 - 48 : top + nodeH + 30;
-      addText(slide, edge.label, { left: centerX - 95, top: centerY, width: 190, height: 34 }, { typeface: font, fontSizePt: 11, bold: true, color: theme.palette.muted }, `mint|diagram-edge-label|${index}-${edgeIndex}`);
+      addText(slide, edge.label, { left: centerX - 105, top: centerY, width: 210, height: 42 }, { typeface: font, fontSizePt: 14, bold: true, color: theme.palette.muted }, `mint|diagram-edge-label|${index}-${edgeIndex}`);
     }
   });
 }
@@ -255,7 +258,7 @@ export async function renderPresentation(ir, theme) {
       const rawFrame = spec.layout.modules[index] || spec.layout.modules.at(-1), type = module.expression?.type || module.type, variant = module.expression?.variant;
       const frame = { ...rawFrame, height: ["text", "callout", "metric", "table"].includes(type) ? Math.min(rawFrame.height, rawFrame.usedHeight || rawFrame.height) : rawFrame.height };
       if (type === "metric") addMetric(slide, module, frame, theme, font, index);
-      else if (type === "chart") (["line", "column", "sorted-bar", "variance-bar", "doughnut", "percent-stacked", "scatter"].includes(variant) ? addNativeChart : addShapeChart)(slide, module, frame, theme, font, index);
+      else if (type === "chart") (["line", "column", "variance-bar", "doughnut", "percent-stacked", "scatter"].includes(variant) && !(module.expression?.focusCategories || []).length ? addNativeChart : addShapeChart)(slide, module, frame, theme, font, index);
       else if (type === "table") addTable(slide, module, frame, theme, font, index);
       else if (type === "diagram") addDiagram(slide, module, frame, theme, font, index);
       else if (type === "image") addImage(slide, module, frame, index);

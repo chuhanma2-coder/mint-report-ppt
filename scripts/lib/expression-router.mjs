@@ -97,8 +97,14 @@ export function resolveSlideExpressions(slide, datasets = {}) {
   const modules = (slide.modules || []).map(module => {
     const data = module.data ?? datasets[module.dataRef] ?? {};
     const dataShape = inferDataShape(data);
-    const expression = routeExpression({ ...slide, ...module, data, dataShape });
-    const resolvedData = expression.type === "chart" && (Array.isArray(data.values) || Array.isArray(data.rows)) ? tableToChartData(data, `${slide.managementQuestion} ${slide.claim}`) : data;
+    const routed = routeExpression({ ...slide, ...module, data, dataShape });
+    const resolvedData = routed.type === "chart" && (Array.isArray(data.values) || Array.isArray(data.rows)) ? tableToChartData(data, `${slide.managementQuestion} ${slide.claim}`) : data;
+    const statement = `${slide.claim || ""} ${slide.managementQuestion || ""}`;
+    const focusCategories = (resolvedData.categories || []).filter(category => statement.includes(String(category)));
+    const focusSeries = (resolvedData.series || []).map(series => series.name).filter(name => statement.includes(String(name)));
+    const tableRows = resolvedData.values || resolvedData.rows || [];
+    const focusRows = tableRows.slice(1).map(row => String(row?.[0] ?? "")).filter(label => label && statement.includes(label));
+    const expression = { ...routed, focusCategories, focusSeries, focusRows, comparisonDirection: /最高|最大|领先|主要/.test(statement) ? "high" : /最低|最小|落后|风险/.test(statement) ? "low" : null, annotationIntent: routed.variant === "sorted-bar" ? "rank" : routed.variant?.includes("variance") ? "gap" : routed.variant === "waterfall" ? "contribution" : null };
     const tableRole = expression.type === "table" ? module.tableRole || (module.semanticRole === "primaryEvidence" ? "primary" : "supporting") : module.tableRole;
     return { ...module, tableRole, data: resolvedData, sourceTable: resolvedData === data ? undefined : data, dataShape: inferDataShape(resolvedData), expression };
   });

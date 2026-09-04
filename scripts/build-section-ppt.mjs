@@ -13,6 +13,7 @@ import { auditSourceCoverage, evidenceForSlide } from "./lib/source-coverage.mjs
 import { presentationIntentIssues } from "./lib/presentation-gates.mjs";
 import { consolidationIssues, evidenceBundleRefs } from "./lib/page-consolidation.mjs";
 import { chapterCompositionIssues, classifyChapterCompositions, materializeCompositeEvidence } from "./lib/composition-classifier.mjs";
+import { allocateSlideEvidence, evidenceAllocationIssues } from "./lib/evidence-allocation.mjs";
 import { CURRENT_PLANNING_SCHEMA_VERSION, CURRENT_SLIDE_IR_VERSION, upgradeSlideIr } from "./lib/ir-version.mjs";
 
 const [sourceArg, irArg, taskArg, sectionId, outputArg] = process.argv.slice(2);
@@ -34,6 +35,7 @@ function validateIr(ir, task, section, source) {
   for (const slide of ir.slides || []) {
     if (!slide.id || slideIds.has(slide.id)) issues.push(`Slide ID is missing or duplicated: ${slide.id || "(missing)"}`); slideIds.add(slide.id);
     if (!slide.claim || !slide.semanticIntent || !Array.isArray(slide.modules) || !slide.modules.length) issues.push(`Slide ${slide.id} lacks claim, semanticIntent, or modules`);
+    if (slide.role === "appendix" && task.allowAppendix !== true) issues.push(`APPENDIX_FORBIDDEN: slide ${slide.id} must be a normal body page unless the task card explicitly authorizes appendices`);
     if (slide.role === "content" && (!slide.outlineItem || !slide.storyCluster || !slide.evidenceBundle)) issues.push(`Slide ${slide.id} lacks outlineItem, storyCluster, or evidenceBundle`);
     if (slide.role === "content" && !slide.decisionUnit && !ir.upgradedFrom) issues.push(`Slide ${slide.id} lacks a decisionUnit required by the current planning schema`);
     const bundleRefs = evidenceBundleRefs(slide);
@@ -52,7 +54,7 @@ try {
   const sourceText = fs.readFileSync(sourceFile, "utf8"), irText = fs.readFileSync(irFile, "utf8"), task = readTaskCard(taskFile), source = JSON.parse(sourceText), authored = upgradeSlideIr(JSON.parse(irText)), section = task.sections.find(item => item.sectionId === sectionId);
   if (!section) throw new Error(`Section ${sectionId} is not assigned by the task card`);
   const structuralIssues = validateIr(authored, task, section, source); if (structuralIssues.length) throw new Error(structuralIssues.join("; "));
-  const coverage = auditSourceCoverage(source, authored);
+  const coverage = auditSourceCoverage(source, authored, { allowAppendix: task.allowAppendix === true });
   const coverageFile = `${output}.source-coverage.json`;
   fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.writeFileSync(coverageFile, `${JSON.stringify(coverage, null, 2)}\n`);
@@ -60,13 +62,17 @@ try {
   const datasets = source.datasets || {};
   const groundedSlides = authored.slides.map(slide => ({ ...slide, sourceEvidence: evidenceForSlide(source, slide) }));
   const classified = classifyChapterCompositions(groundedSlides);
-  const slides = classified.slides.map(slide => layoutSlide(resolveSlideExpressions(materializeCompositeEvidence(slide), datasets), theme));
+  const slides = classified.slides.map(slide => layoutSlide(allocateSlideEvidence(resolveSlideExpressions(materializeCompositeEvidence(slide), datasets)), theme));
   const expressionIssues = slides.flatMap(expressionSuitability);
   const presentationIssues = presentationIntentIssues({ ...authored, slides });
   const layoutWarnings = slides.flatMap(slide => layoutIssues(slide, theme));
   const consolidationWarnings = consolidationIssues(slides, theme);
   const chapterIssues = chapterCompositionIssues(slides);
-  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...layoutWarnings.map(issue => `Layout: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`), ...chapterIssues.map(issue => `Chapter: ${issue}`)];
+  const allocationIssues = evidenceAllocationIssues(slides, { allowAppendix: task.allowAppendix === true });
+  const variants = slides.filter(slide => slide.role === "content").map(slide => slide.layout?.layoutVariant || slide.geometry);
+  const patternIssues = [];
+  for (let i = 3; i < variants.length; i++) if (variants.slice(i - 3, i + 1).every(value => value === variants[i])) patternIssues.push(`LAYOUT_PATTERN_OVERUSE: ${variants[i]} repeats on four consecutive content slides`);
+  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...allocationIssues.map(issue => `Allocation: ${issue}`), ...layoutWarnings.map(issue => `Layout: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`), ...chapterIssues.map(issue => `Chapter: ${issue}`), ...patternIssues.map(issue => `Chapter: ${issue}`)];
   if (generationIssues.length) throw new Error(`Generation gates failed: ${generationIssues.join("; ")}`);
   const resolved = { ...authored, slides, compositionDiagnostics: classified.diagnostics, resolvedBy: { skillVersion, themeVersion: theme.themeVersion, slideIrVersion: CURRENT_SLIDE_IR_VERSION, planningSchemaVersion: CURRENT_PLANNING_SCHEMA_VERSION, generatedAt: new Date().toISOString() } };
   const { presentation, diagnostics } = await renderPresentation(resolved, theme);

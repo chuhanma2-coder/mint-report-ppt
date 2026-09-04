@@ -39,7 +39,18 @@ Before rendering, require 100% source-unit disposition and real-font text fit at
 Source coverage has two distinct gates:
 
 - disposition completeness: every unit has a deterministic destination or approved omission;
-- visible decision completeness: every `required-visible` unit is visible in the body, and every `supporting-visible` unit is visible in the body or appendix. Notes-only placement passes only for `traceability` units.
+- visible decision completeness: every `required-visible` and `supporting-visible` unit is visible in the body. Notes-only placement passes only for `traceability` units. Appendix placement passes only when the task card explicitly authorizes appendices.
+
+Additional deterministic blockers:
+
+- `APPENDIX_FORBIDDEN`: appendix content exists without explicit authorization.
+- `GENERIC_CONTEXT_OVERUSE`: repeated generic background/core-evidence bands replace real hierarchy.
+- `REDUNDANT_CARRIER` / `EVIDENCE_DUPLICATION`: one fact or dataset is repeated without a distinct declared purpose.
+- `DOMINANT_ARTIFACT_TOO_SMALL`: the primary image/chart/diagram/table is subordinated to support boxes.
+- `TEXT_FRAME_MISMATCH` / `TYPOGRAPHY_MINIMUM`: frame allocation and readable type do not match content demand.
+- `VISUAL_HIERARCHY_FLAT`: no single P0 focus and subordinate P1/P2 evidence.
+- `CONCLUSION_NOT_VISUALLY_ENCODED`: the claim names a focus/rank/gap but the visual does not highlight it.
+- `LAYOUT_PATTERN_OVERUSE`: four consecutive content pages use the same geometry variant without necessity.
 
 Every content slide must provide a Page Evidence Bundle, and every bundle item must appear in a visible module. Primary bundle evidence must be rendered through a `primaryEvidence` module. A slide cannot pass merely because its evidence IDs exist in notes.
 

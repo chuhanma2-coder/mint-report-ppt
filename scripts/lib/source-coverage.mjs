@@ -10,7 +10,7 @@ function visibilityClass(unit) {
   return String(unit.visibility || "required-visible");
 }
 
-export function auditSourceCoverage(source, ir) {
+export function auditSourceCoverage(source, ir, { allowAppendix = false } = {}) {
   const units = sourceUnits(source), known = new Map(), issues = [], destinations = new Map();
   for (const unit of units) {
     const id = unitId(unit);
@@ -57,7 +57,7 @@ export function auditSourceCoverage(source, ir) {
     const visible = mapped.some(item => item.kind === "visible-module"), appendix = mapped.some(item => item.kind === "appendix-module"), notes = mapped.some(item => item.kind === "speaker-notes");
     if (!mapped.length && !omission) issues.push(`Source unit ${id} has no output destination`);
     else if (!omission && visibility === "required-visible" && !visible) issues.push(`Source unit ${id} is decision-critical and must appear in a visible body module`);
-    else if (!omission && visibility === "supporting-visible" && !visible && !appendix) issues.push(`Source unit ${id} must appear in a visible body or appendix module; notes alone are insufficient`);
+    else if (!omission && visibility === "supporting-visible" && !visible && (!allowAppendix || !appendix)) issues.push(`Source unit ${id} must appear in a visible body module${allowAppendix ? " or an explicitly authorized appendix" : ""}; notes and implicit appendices are insufficient`);
     coverage.push({
       sourceUnitId: id,
       sourceText: String(unit.text ?? unit.content ?? unit.value ?? ""),
@@ -79,7 +79,7 @@ export function auditSourceCoverage(source, ir) {
     missing: coverage.length - covered - approvedOmissions,
     visibleRequired: requiredVisible.filter(item => item.status === "visible").length,
     requiredVisibleCount: requiredVisible.length,
-    visibleOrAppendixSupporting: supportingVisible.filter(item => ["visible", "appendix"].includes(item.status)).length,
+    visibleOrAppendixSupporting: supportingVisible.filter(item => item.status === "visible" || (allowAppendix && item.status === "appendix")).length,
     supportingVisibleCount: supportingVisible.length,
     notesOnly: coverage.filter(item => item.status === "notes-only").length,
     coverage,
