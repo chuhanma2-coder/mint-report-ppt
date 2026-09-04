@@ -19,8 +19,8 @@ Produce a strong first-draft PPTX that leaders can edit directly. After the firs
 ## Required pipeline
 
 1. Read all supplied material once. Build a source/evidence model without adding facts.
-2. Plan the chapter around management questions and supported conclusions. Consolidate content that answers one question before adding a slide. Write an explicit transition for every content slide after the first; the title chain alone must read as one management story.
-3. Write light Slide IR conforming to `schemas/slide-ir.schema.json`. AI writes semantic intent, not coordinates, fonts, colors, or PowerPoint code.
+2. Classify every source unit as `required-visible`, `supporting-visible`, or `traceability`. Plan story clusters around complete management conclusions and their evidence systems—not one source topic or one question per page. Consolidate adjacent candidates before adding slides. Write an explicit transition for every content slide after the first; the title chain alone must read as one management story.
+3. Build a Page Evidence Bundle for every content slide, then write light Slide IR conforming to `schemas/slide-ir.schema.json`. AI writes semantic intent and evidence hierarchy, not coordinates, fonts, colors, or PowerPoint code.
 4. Run the deterministic Expression Router. `dataShape` is computed from data. Expression and geometry are separate.
 5. Run the Geometry Engine, native PPT Renderer, content/expression/layout/artifact QA, then deliver one current section PPTX.
 6. People edit that PPTX directly, including slide insertion, deletion, reordering, splitting, merging, and object changes.
@@ -36,7 +36,9 @@ Read these only when needed:
 
 ## Non-negotiable contracts
 
-- Source completeness: every source unit must have a deterministic destination in a visible module, full-text speaker notes/appendix, or an explicit user-approved omission with a reason. `build-section-ppt` writes a source-coverage ledger and blocks any unmapped unit. Never delete evidence to fit a slide.
+- Visible source completeness: every decision-critical unit is `required-visible` and must appear in a visible body module. Supporting detail is `supporting-visible` and must appear in the body or visible appendix. Only `traceability` material may live solely in notes. Any omission requires explicit user approval and a reason. `build-section-ppt` writes a source-coverage ledger and blocks missing or hidden evidence. Never delete evidence to fit a slide.
+- Aggregation is not summarization: page consolidation may reorganize and visually downgrade information, but it may not compress away facts, caveats, risks, actions, cases, or boundaries. A page is one complete management conclusion plus its evidence system—not one management issue plus one layout.
+- Page evidence: every content slide declares `outlineItem`, `storyCluster`, `pageComposition`, and a Page Evidence Bundle. Every bundled fact maps to a visible module; primary evidence maps to `primaryEvidence` modules.
 - No invention: do not browse for business facts unless asked; label missing or conflicting information.
 - Expression: choose by management question, semantic intent, and computed data shape. Router choices are candidates, not mechanical one-to-one mappings.
 - Layout: the Layout Engine cannot silently change the selected expression. Renderer cannot change content or semantics.
@@ -57,4 +59,4 @@ Read these only when needed:
 
 ## Speed contract
 
-Use one source pass, one planning pass, one deterministic routing/layout/render pass, one visual review, and one batch repair. Large detail tables belong in appendix or must be paired with a visual summary that proves the title. Do not use equal cards when module information weight differs. Check only affected slides for ordinary edits. Recheck neighboring slides and the title chain after split, merge, add, delete, reorder, title, or conclusion changes. Merge uses zero model calls and does not re-layout.
+Use one source pass, one planning pass, one deterministic routing/layout/render pass, one visual review, and one batch repair. Page Evidence Bundles and consolidation checks are part of that same planning/build pass and add no model call. Large detail tables belong in appendix or must be paired with a visual summary that proves the title. Do not use equal cards when module information weight differs. Check only affected slides for ordinary edits. Recheck neighboring slides and the title chain after split, merge, add, delete, reorder, title, or conclusion changes. Merge uses zero model calls and does not re-layout.

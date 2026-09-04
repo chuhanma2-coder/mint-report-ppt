@@ -1,11 +1,11 @@
 {
   "schemaVersion": "1.0",
   "sourceUnits": [
-    { "id": "SU-01", "text": "Y1至Y8收入分别为10、13、16、21、25、31、38、46。" },
-    { "id": "SU-02", "text": "收入保持增长。" },
-    { "id": "SU-03", "text": "Y1为80，Y2为92。" },
-    { "id": "SU-04", "text": "人力减少10，IT减少5，运营增加3。" },
-    { "id": "SU-05", "text": "传音银行向MintFin提出业务需求，MintFin委托WeFi提供系统服务，WeFi按投入向MintFin计价。" }
+    { "id": "SU-01", "visibility": "required-visible", "text": "Y1至Y8收入分别为10、13、16、21、25、31、38、46。" },
+    { "id": "SU-02", "visibility": "supporting-visible", "text": "收入保持增长。" },
+    { "id": "SU-03", "visibility": "required-visible", "text": "Y1为80，Y2为92。" },
+    { "id": "SU-04", "visibility": "required-visible", "text": "人力减少10，IT减少5，运营增加3。" },
+    { "id": "SU-05", "visibility": "required-visible", "text": "传音银行向MintFin提出业务需求，MintFin委托WeFi提供系统服务，WeFi按投入向MintFin计价。" }
   ],
   "datasets": {
     "revenue-trend": {

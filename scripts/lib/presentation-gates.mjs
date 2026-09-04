@@ -2,6 +2,7 @@ const relationshipIntents = new Set(["process", "hierarchy", "causal-chain", "ro
 const evidenceIntents = new Set(["trend", "comparison", "ranking", "variance", "composition", "distribution", "correlation", "progression", "uncertainty", "contribution", "matrix"]);
 
 function expressionType(module) { return module.expression?.type || module.type; }
+function bundleRefs(bundle = {}) { return [...new Set(Object.values(bundle).flatMap(value => Array.isArray(value) ? value : []).map(String))]; }
 
 export function presentationIntentIssues(ir) {
   const issues = [];
@@ -9,6 +10,12 @@ export function presentationIntentIssues(ir) {
   for (const [index, slide] of contentSlides.entries()) {
     const intent = String(slide.semanticIntent || "").toLowerCase().replaceAll("_", "-");
     const types = (slide.modules || []).map(expressionType);
+    const visibleRefs = new Set((slide.modules || []).flatMap(module => module.evidenceRefs || []).map(String));
+    const bundledRefs = bundleRefs(slide.evidenceBundle);
+    if (!slide.evidenceBundle || !bundledRefs.length) issues.push(`Slide ${slide.id} has no Page Evidence Bundle`);
+    for (const ref of bundledRefs) if (!visibleRefs.has(ref)) issues.push(`Slide ${slide.id} evidence ${ref} is in the Page Evidence Bundle but not mapped to a visible module`);
+    const primaryRefs = new Set((slide.modules || []).filter(module => module.semanticRole === "primaryEvidence").flatMap(module => module.evidenceRefs || []).map(String));
+    for (const ref of slide.evidenceBundle?.primaryEvidenceRefs || []) if (!primaryRefs.has(String(ref))) issues.push(`Slide ${slide.id} primary evidence ${ref} is not rendered as primaryEvidence`);
     if (relationshipIntents.has(intent) && !types.some(type => type === "diagram" || type === "image")) issues.push(`Slide ${slide.id} expresses ${intent} but has no relationship diagram or source image`);
     const hasNumericEvidence = (slide.modules || []).some(module => (module.dataShape?.observationCount || module.dataShape?.numericCellCount || 0) > 0);
     const hasDecisionMatrix = (slide.modules || []).some(module => module.expression?.variant === "decision-matrix");

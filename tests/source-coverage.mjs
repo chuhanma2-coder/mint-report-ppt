@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import { auditSourceCoverage } from "../scripts/lib/source-coverage.mjs";
 
-const source = { sourceUnits: [{ id: "S1", text: "一" }, { id: "S2", text: "二" }] };
-const missing = auditSourceCoverage(source, { slides: [{ id: "P1", evidenceRefs: ["S1"], modules: [] }] });
+const source = { sourceUnits: [{ id: "S1", text: "一", visibility: "required-visible" }, { id: "S2", text: "二", visibility: "traceability" }, { id: "S3", text: "三", visibility: "supporting-visible" }] };
+const missing = auditSourceCoverage(source, { slides: [{ id: "P1", evidenceRefs: ["S1", "S2"], modules: [{ id: "M1", evidenceRefs: ["S3"] }] }] });
 assert.equal(missing.passed, false);
-assert.match(missing.issues.join(" "), /S2 has no output destination/);
-const covered = auditSourceCoverage(source, { slides: [{ id: "P1", evidenceRefs: ["S1"], modules: [{ id: "M1", evidenceRefs: ["S2"] }] }] });
+assert.match(missing.issues.join(" "), /S1 is decision-critical/);
+const covered = auditSourceCoverage(source, { slides: [{ id: "P1", role: "content", evidenceRefs: ["S2"], modules: [{ id: "M1", evidenceRefs: ["S1", "S3"] }] }] });
 assert.equal(covered.passed, true);
-assert.equal(covered.covered, 2);
-const omitted = auditSourceCoverage({ ...source, approvedOmissions: [{ sourceUnitId: "S2", approved: true, reason: "用户明确删除" }] }, { slides: [{ id: "P1", evidenceRefs: ["S1"], modules: [] }] });
+assert.equal(covered.visibleRequired, 1);
+assert.equal(covered.notesOnly, 1);
+const notesOnlySupporting = auditSourceCoverage(source, { slides: [{ id: "P1", role: "content", evidenceRefs: ["S2", "S3"], modules: [{ id: "M1", evidenceRefs: ["S1"] }] }] });
+assert.equal(notesOnlySupporting.passed, false);
+assert.match(notesOnlySupporting.issues.join(" "), /S3 must appear in a visible body or appendix/);
+const appendixSupporting = auditSourceCoverage(source, { slides: [{ id: "P1", role: "content", evidenceRefs: ["S2"], modules: [{ id: "M1", evidenceRefs: ["S1"] }] }, { id: "A1", role: "appendix", modules: [{ id: "A1M1", evidenceRefs: ["S3"] }] }] });
+assert.equal(appendixSupporting.passed, true);
+const omitted = auditSourceCoverage({ ...source, approvedOmissions: [{ sourceUnitId: "S3", approved: true, reason: "用户明确删除" }] }, { slides: [{ id: "P1", role: "content", evidenceRefs: ["S2"], modules: [{ id: "M1", evidenceRefs: ["S1"] }] }] });
 assert.equal(omitted.passed, true);
 assert.equal(omitted.approvedOmissions, 1);
-console.log(JSON.stringify({ passed: true, tests: 6 }));
+console.log(JSON.stringify({ passed: true, tests: 10 }));

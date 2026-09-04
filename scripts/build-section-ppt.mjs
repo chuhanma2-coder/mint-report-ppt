@@ -11,6 +11,7 @@ import { writePptxMetadata } from "./lib/pptx-metadata.mjs";
 import { auditPpt } from "./lib/audit.mjs";
 import { auditSourceCoverage, evidenceForSlide } from "./lib/source-coverage.mjs";
 import { presentationIntentIssues } from "./lib/presentation-gates.mjs";
+import { consolidationIssues, evidenceBundleRefs } from "./lib/page-consolidation.mjs";
 
 const [sourceArg, irArg, taskArg, sectionId, outputArg] = process.argv.slice(2);
 const sourceFile = path.resolve(sourceArg || ""), irFile = path.resolve(irArg || ""), taskFile = path.resolve(taskArg || ""), output = path.resolve(outputArg || "");
@@ -31,7 +32,10 @@ function validateIr(ir, task, section, source) {
   for (const slide of ir.slides || []) {
     if (!slide.id || slideIds.has(slide.id)) issues.push(`Slide ID is missing or duplicated: ${slide.id || "(missing)"}`); slideIds.add(slide.id);
     if (!slide.claim || !slide.semanticIntent || !Array.isArray(slide.modules) || !slide.modules.length) issues.push(`Slide ${slide.id} lacks claim, semanticIntent, or modules`);
-    for (const ref of [...(slide.evidenceRefs || []), ...slide.modules.flatMap(module => module.evidenceRefs || [])]) if (requireEvidence && !knownEvidence.has(String(ref))) issues.push(`Slide ${slide.id} references unknown evidence ${ref}`);
+    if (slide.role === "content" && (!slide.outlineItem || !slide.storyCluster || !slide.pageComposition || !slide.evidenceBundle)) issues.push(`Slide ${slide.id} lacks outlineItem, storyCluster, pageComposition, or evidenceBundle`);
+    const bundleRefs = evidenceBundleRefs(slide);
+    for (const ref of [...(slide.evidenceRefs || []), ...bundleRefs, ...slide.modules.flatMap(module => module.evidenceRefs || [])]) if (requireEvidence && !knownEvidence.has(String(ref))) issues.push(`Slide ${slide.id} references unknown evidence ${ref}`);
+    if (slide.role === "content") for (const ref of slide.modules.flatMap(module => module.evidenceRefs || []).map(String)) if (!bundleRefs.includes(ref)) issues.push(`Slide ${slide.id} visible module evidence ${ref} is missing from its Page Evidence Bundle`);
     for (const module of slide.modules || []) if (!["text", "metric", "chart", "table", "diagram", "image", "callout"].includes(module.type)) issues.push(`Slide ${slide.id} has unsupported module type ${module.type}`);
   }
   return issues;
@@ -52,7 +56,8 @@ try {
   const expressionIssues = slides.flatMap(expressionSuitability);
   const presentationIssues = presentationIntentIssues({ ...authored, slides });
   const layoutWarnings = slides.flatMap(slide => layoutIssues(slide, theme));
-  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...layoutWarnings.map(issue => `Layout: ${issue}`)];
+  const consolidationWarnings = consolidationIssues(slides, theme);
+  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...layoutWarnings.map(issue => `Layout: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`)];
   if (generationIssues.length) throw new Error(`Generation gates failed: ${generationIssues.join("; ")}`);
   const resolved = { ...authored, slides, resolvedBy: { skillVersion, themeVersion: theme.themeVersion, generatedAt: new Date().toISOString() } };
   const { presentation, diagnostics } = await renderPresentation(resolved, theme);

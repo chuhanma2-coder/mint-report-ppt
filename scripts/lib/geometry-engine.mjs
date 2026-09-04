@@ -1,6 +1,36 @@
 import { fitText, moduleContentDemand } from "./text-layout.mjs";
 
 const allowed = new Set(["hero", "single-primary", "primary-secondary", "balanced-columns", "grid", "sequence", "matrix", "network"]);
+const compositeProfiles = new Set(["evidence-rich", "dashboard", "banded-story", "strategy-map"]);
+
+function inferredBand(module, profile) {
+  if (module.compositionBand) return module.compositionBand;
+  if (profile === "dashboard" && module.type === "metric") return "lead";
+  if (["context", "action"].includes(module.semanticRole)) return "lead";
+  if (["primaryEvidence", "supportingEvidence", "comparison"].includes(module.semanticRole) || ["chart", "table", "diagram", "image"].includes(module.expression?.type || module.type)) return "primary";
+  return "result";
+}
+
+function compositeFrames(modules, { left, top, width, height, gap, profile }) {
+  const order = ["lead", "primary", "result"];
+  const weights = { lead: 0.24, primary: 0.48, result: 0.28 };
+  const groups = new Map(order.map(band => [band, []]));
+  modules.forEach((module, index) => groups.get(inferredBand(module, profile)).push(index));
+  const present = order.filter(band => groups.get(band).length);
+  const usableHeight = height - gap * Math.max(0, present.length - 1);
+  const totalWeight = present.reduce((sum, band) => sum + weights[band], 0);
+  const frames = Array(modules.length);
+  let y = top;
+  for (const band of present) {
+    const indexes = groups.get(band), bandHeight = usableHeight * weights[band] / totalWeight;
+    const cellWidth = (width - gap * (indexes.length - 1)) / indexes.length;
+    indexes.forEach((moduleIndex, position) => {
+      frames[moduleIndex] = { left: left + position * (cellWidth + gap), top: y, width: cellWidth, height: bandHeight, compositionBand: band };
+    });
+    y += bandHeight + gap;
+  }
+  return frames;
+}
 
 export function chooseGeometry(slide) {
   const modules = slide.modules || [], types = modules.map(item => item.expression?.type || item.type);
@@ -24,7 +54,8 @@ export function layoutSlide(slide, theme) {
   const top = titleTop + titleHeight + claimHeight + 18, bottom = H - s.pageBottom, left = s.pageX, width = W - 2 * s.pageX, height = bottom - top;
   const n = Math.max(1, modules.length), gap = slide.density === "dense" ? s.compactGap : s.gap;
   let frames = [];
-  if (geometry === "hero" || geometry === "single-primary") frames = [{ left, top, width, height }];
+  if (compositeProfiles.has(slide.pageComposition) && n >= 3) frames = compositeFrames(modules, { left, top, width, height, gap, profile: slide.pageComposition });
+  else if (geometry === "hero" || geometry === "single-primary") frames = [{ left, top, width, height }];
   else if (geometry === "primary-secondary") frames = [
     { left, top, width: width * 0.66 - gap / 2, height },
     { left: left + width * 0.66 + gap / 2, top, width: width * 0.34 - gap / 2, height: height * 0.62 }
@@ -64,10 +95,16 @@ export function layoutSlide(slide, theme) {
   const titleFit = fitText(slide.claim, titleFrame, { fontFamily: theme.fonts.cjk, preferredPt: titleRange[1], minPt: titleRange[0], maxLines: 2, bold: true, lineHeight: 1.15 });
   const questionFit = claimHeight ? fitText(slide.managementQuestion || "", questionFrame, { fontFamily: theme.fonts.cjk, preferredPt: 16, minPt: 14, maxLines: 2, lineHeight: 1.25 }) : null;
   const demands = frames.map((frame, index) => moduleContentDemand(slide.modules[index] || {}, frame.width, theme));
-  const usedFrames = frames.map((frame, index) => ({ ...frame, usedHeight: Math.min(frame.height, demands[index].desiredHeight), minimumHeight: demands[index].minHeight }));
+  const usedFrames = frames.map((frame, index) => ({ ...frame, usedHeight: demands[index].visual ? frame.height : Math.min(frame.height, demands[index].desiredHeight), minimumHeight: demands[index].minHeight }));
   const errors = [];
   if (titleFit.overflow) errors.push(`Slide ${slide.id} title does not fit at the minimum readable size`);
   if (questionFit?.overflow) errors.push(`Slide ${slide.id} management question does not fit at 14pt`);
+  if (compositeProfiles.has(slide.pageComposition)) {
+    for (const band of ["lead", "primary", "result"]) {
+      const count = modules.filter(module => inferredBand(module, slide.pageComposition) === band).length;
+      if (count > theme.constraints.maxBandModules) errors.push(`Slide ${slide.id} has ${count} modules in the ${band} band; regroup the evidence instead of creating tiny cards`);
+    }
+  }
   usedFrames.forEach((frame, index) => {
     if (frame.height + 0.5 < frame.minimumHeight) errors.push(`Slide ${slide.id} module ${slide.modules[index]?.id || index + 1} exceeds its frame at the minimum readable size`);
   });
@@ -90,7 +127,8 @@ export function layoutSlide(slide, theme) {
 
 export function layoutIssues(slide, theme) {
   const issues = [...(slide.layout?.errors || [])], occupancy = slide.layout?.occupancy ?? 0;
-  if (!["cover", "section", "closing"].includes(slide.role) && !slide.allowIntentionalWhitespace && occupancy < theme.constraints.minimumContentOccupancy) issues.push(`Slide ${slide.id} has only ${Math.round(occupancy * 100)}% real content occupancy; consolidate related evidence instead of stretching empty modules`);
+  const minimum = slide.pageComposition === "evidence-rich" ? theme.constraints.evidenceRichMinimumOccupancy : slide.density === "dense" ? theme.constraints.denseMinimumOccupancy : theme.constraints.minimumContentOccupancy;
+  if (!["cover", "section", "closing"].includes(slide.role) && !slide.allowIntentionalWhitespace && occupancy < minimum) issues.push(`Slide ${slide.id} has only ${Math.round(occupancy * 100)}% real content occupancy (minimum ${Math.round(minimum * 100)}%); consolidate related evidence instead of stretching empty modules`);
   if (occupancy > theme.constraints.crowdedOccupancy) issues.push(`Slide ${slide.id} may be crowded (${Math.round(occupancy * 100)}% module area)`);
   return issues;
 }

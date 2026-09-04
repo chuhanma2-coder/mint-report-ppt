@@ -36,6 +36,15 @@ Render every delivered slide. Check readability, hierarchy, sparse/crowded compo
 
 Before rendering, require 100% source-unit disposition and real-font text fit at the minimum readable size. Automatic shrink is forbidden. Ordinary pages with low real-content occupancy fail unless the IR explicitly identifies intentional whitespace for a hero/section purpose.
 
+Source coverage has two distinct gates:
+
+- disposition completeness: every unit has a deterministic destination or approved omission;
+- visible decision completeness: every `required-visible` unit is visible in the body, and every `supporting-visible` unit is visible in the body or appendix. Notes-only placement passes only for `traceability` units.
+
+Every content slide must provide a Page Evidence Bundle, and every bundle item must appear in a visible module. Primary bundle evidence must be rendered through a `primaryEvidence` module. A slide cannot pass merely because its evidence IDs exist in notes.
+
+The consolidation gate fails evidence-rich pages with fewer than five visible modules or ten effective information units. It also fails adjacent low-density pages in the same story cluster/outline item when they can fit together and neither supports an independent management decision. Fix by regrouping the full evidence system, not by enlarging empty cards, padding tables, or deleting source content.
+
 For ordinary position/style edits, recheck affected slides. For split, merge, add, delete, reorder, title, or conclusion changes, recheck previous/current/next slides and the full title chain. Finish with one chapter thumbnail scan.
 
 Passing geometry checks does not prove factual completeness or good expression. Passing source coverage does not prove a readable page.

@@ -4,11 +4,25 @@ Use eight geometry skeletons only: `hero`, `single-primary`, `primary-secondary`
 
 ## Capacity and consolidation
 
-Before adding a slide, ask whether the candidate content answers the same management question, continues the same business chain, explains the previous evidence, or would naturally become one module if its title disappeared. If yes, consolidate it first. A slide may hold one conclusion, three to five primary modules, and several lightweight facts when hierarchy remains readable.
+Before adding a slide, ask whether the candidate content contributes to the same complete management conclusion, continues the same business chain, explains the previous evidence, or would naturally become one module if its title disappeared. If yes, consolidate it first. “One management issue = one page” is forbidden. A page may hold one conclusion, three to five primary modules, and several lightweight facts when hierarchy remains readable.
+
+Aggregation is not summarization. Consolidation changes hierarchy and placement; it does not delete facts. First assemble a Page Evidence Bundle containing context, primary proof, supporting proof, cases, risks, actions, and boundaries. Then map every item to a visible module before choosing geometry.
+
+Use `pageComposition` to choose composition density without inventing new geometry families:
+
+- `standard`: one primary expression plus limited support;
+- `evidence-rich`: a lead band, primary-evidence band, and result/action band; at least five visible modules and ten effective information units;
+- `dashboard`: metrics lead, aligned comparisons in the middle, decision/action at the bottom;
+- `banded-story`: context → proof → implication in three bands;
+- `strategy-map`: resources/capabilities → operating paths → results/actions.
+
+Each band may contain at most four modules. Modules in a band share horizontal space, while the three bands receive different vertical weight. Do not create a uniform card grid for unequal evidence.
 
 Capacity order: change geometry; rebalance module shares; use the compact variant; move secondary evidence to a support area or appendix; split only on an independent management conclusion. Never delete evidence or shrink without limit.
 
-Occupancy is diagnostic, not a fill target. Below 55% on ordinary content slides, inspect one-point pagination, undersized visuals, and short tables without interpretation. Above 92%, inspect crowding and auto-shrink. Do not stretch empty cards/tables or add decoration to improve the ratio. Hero, cover, section, and closing slides may intentionally use more whitespace.
+Occupancy is diagnostic, not a fill target. Standard pages below 55%, dense pages below 65%, and evidence-rich pages below 68% fail for consolidation review. Inspect one-point pagination, undersized visuals, and short tables without interpretation. Above 92%, inspect crowding and auto-shrink. Do not stretch empty cards/tables or add decoration to improve the ratio. Hero, cover, section, and closing slides may intentionally use more whitespace.
+
+Adjacent low-density pages in the same `storyCluster` or outline item must merge unless either page carries a genuinely independent management decision. `independentDecision` is not a manual escape hatch: the title and evidence must support a different decision.
 
 The engine measures real text with the configured CJK font before rendering and calculates real-content occupancy from measured text/table/visual demand, not allocated rectangles. Equal-area cards are allowed only for genuinely equal semantic weight. A headline number, primary chart, or relationship diagram receives the dominant area; boundaries and caveats receive a smaller support area. The renderer uses `autoFit=none`; unresolved overflow blocks delivery.
 

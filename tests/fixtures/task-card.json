@@ -2,7 +2,7 @@
   "schemaVersion": "2.0",
   "kind": "mint-ppt-task-card",
   "requiredSkill": "mint-report-ppt",
-  "skillVersion": "0.3.0-rc.3",
+  "skillVersion": "0.3.0-rc.4",
   "themeVersion": "mint-fresh-2/1",
   "pptMasterVersion": "mint-fresh-2/1",
   "reportId": "router-demo",
@@ -122,5 +122,5 @@
     "final": "read-only-html",
     "pdf": "native-powerpoint-export"
   },
-  "taskCardHash": "8ccb36ff404d93027197176c5d9585cc3d0ef725f132db68dd94bb5a454fa2df"
+  "taskCardHash": "795f27d352b8fa96473ec59aeee1fbad2249d3dbdb081164f9189a58de32d855"
 }

@@ -5,6 +5,8 @@ const relationCards = { slides: [{ id: "P1", role: "content", semanticIntent: "r
 assert.match(presentationIntentIssues(relationCards).join(" "), /no relationship diagram/);
 const tableOnly = { slides: [{ id: "P1", role: "content", semanticIntent: "comparison", managementQuestion: "谁最高？", claim: "A最高", modules: [{ type: "table", dataShape: { rowCount: 12 }, expression: { type: "table" } }] }] };
 assert.match(presentationIntentIssues(tableOnly).join(" "), /only text\/table|large table/);
-const valid = { slides: [{ id: "P1", role: "content", semanticIntent: "comparison", managementQuestion: "谁最高？", claim: "A最高", modules: [{ type: "chart", expression: { type: "chart" } }] }, { id: "P2", role: "content", semanticIntent: "process", managementQuestion: "如何推进？", claim: "分两步推进", narrative: { transition: "从结果转向执行" }, modules: [{ type: "diagram", expression: { type: "diagram" } }] }] };
+const valid = { slides: [{ id: "P1", role: "content", semanticIntent: "comparison", managementQuestion: "谁最高？", claim: "A最高", evidenceBundle: { primaryEvidenceRefs: ["E1"] }, modules: [{ type: "chart", semanticRole: "primaryEvidence", evidenceRefs: ["E1"], expression: { type: "chart" } }] }, { id: "P2", role: "content", semanticIntent: "process", managementQuestion: "如何推进？", claim: "分两步推进", narrative: { transition: "从结果转向执行" }, evidenceBundle: { primaryEvidenceRefs: ["E2"] }, modules: [{ type: "diagram", semanticRole: "primaryEvidence", evidenceRefs: ["E2"], expression: { type: "diagram" } }] }] };
 assert.deepEqual(presentationIntentIssues(valid), []);
-console.log(JSON.stringify({ passed: true, tests: 3 }));
+const hiddenBundle = { slides: [{ id: "P3", role: "content", semanticIntent: "comparison", managementQuestion: "谁最高？", claim: "A最高", evidenceBundle: { primaryEvidenceRefs: ["E3"] }, modules: [{ type: "chart", semanticRole: "primaryEvidence", evidenceRefs: ["E4"], expression: { type: "chart" } }] }] };
+assert.match(presentationIntentIssues(hiddenBundle).join(" "), /E3.*not mapped|E3.*not rendered/);
+console.log(JSON.stringify({ passed: true, tests: 4 }));

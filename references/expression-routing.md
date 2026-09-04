@@ -2,6 +2,8 @@
 
 Expression answers “what medium best carries this meaning?” Geometry answers “where does it go?” Never combine them into names such as `chart-story` or `problem-action`.
 
+Route the complete Page Evidence Bundle, not isolated source atoms. First identify the page's primary proof and supporting roles; then route each module. A dense page may legitimately combine chart, image evidence, metrics, and callouts when they jointly prove one conclusion. Do not force all information into one carrier and do not split solely because different carriers are required.
+
 ## Router inputs and output
 
 Use `managementQuestion`, `claim`, `semanticIntent`, computed `dataShape`, exact-lookup need, decision intent, units, targets, time, signs, whole/part status, ordering, process/hierarchy/direction, label length, and data volume. Output `{type, variant, reason, alternatives}`. `reason` and `alternatives` remain internal.

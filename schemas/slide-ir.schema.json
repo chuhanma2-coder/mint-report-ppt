@@ -20,11 +20,28 @@
       "required": ["id", "role", "managementQuestion", "claim", "semanticIntent", "density", "evidenceRefs", "modules"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "role": { "enum": ["cover", "section", "content", "closing"] },
+        "role": { "enum": ["cover", "section", "content", "appendix", "closing"] },
         "managementQuestion": { "type": "string" },
         "showManagementQuestion": { "type": "boolean", "default": false },
         "claim": { "type": "string", "minLength": 1 },
         "semanticIntent": { "type": "string", "minLength": 1 },
+        "outlineItem": { "type": "string" },
+        "storyCluster": { "type": "string" },
+        "independentDecision": { "type": "boolean", "default": false },
+        "pageComposition": { "enum": ["standard", "evidence-rich", "dashboard", "banded-story", "strategy-map"] },
+        "evidenceBundle": {
+          "type": "object",
+          "properties": {
+            "contextRefs": { "$ref": "#/$defs/refList" },
+            "primaryEvidenceRefs": { "$ref": "#/$defs/refList" },
+            "supportingEvidenceRefs": { "$ref": "#/$defs/refList" },
+            "caseRefs": { "$ref": "#/$defs/refList" },
+            "riskRefs": { "$ref": "#/$defs/refList" },
+            "actionRefs": { "$ref": "#/$defs/refList" },
+            "boundaryRefs": { "$ref": "#/$defs/refList" }
+          },
+          "additionalProperties": false
+        },
         "narrative": {
           "type": "object",
           "properties": { "previous": { "type": "string" }, "transition": { "type": "string" }, "next": { "type": "string" } },
@@ -47,10 +64,12 @@
         "semanticRole": { "enum": ["context", "primaryEvidence", "supportingEvidence", "managementConclusion", "comparison", "progress", "risk", "action", "decision", "boundary"] },
         "title": { "type": "string" }, "text": { "type": "string" }, "value": {}, "unit": { "type": "string" },
         "dataRef": { "type": "string" }, "data": {}, "imagePath": { "type": "string" }, "alt": { "type": "string" },
+        "compositionBand": { "enum": ["lead", "primary", "result"] },
         "evidenceRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "dataShape": { "type": "object" }, "expression": { "type": ["object", "null"] }
       },
       "additionalProperties": true
-    }
+    },
+    "refList": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
   }
 }
