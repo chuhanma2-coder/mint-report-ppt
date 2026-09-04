@@ -12,6 +12,8 @@ import { auditPpt } from "./lib/audit.mjs";
 import { auditSourceCoverage, evidenceForSlide } from "./lib/source-coverage.mjs";
 import { presentationIntentIssues } from "./lib/presentation-gates.mjs";
 import { consolidationIssues, evidenceBundleRefs } from "./lib/page-consolidation.mjs";
+import { chapterCompositionIssues, classifyChapterCompositions, materializeCompositeEvidence } from "./lib/composition-classifier.mjs";
+import { CURRENT_PLANNING_SCHEMA_VERSION, CURRENT_SLIDE_IR_VERSION, upgradeSlideIr } from "./lib/ir-version.mjs";
 
 const [sourceArg, irArg, taskArg, sectionId, outputArg] = process.argv.slice(2);
 const sourceFile = path.resolve(sourceArg || ""), irFile = path.resolve(irArg || ""), taskFile = path.resolve(taskArg || ""), output = path.resolve(outputArg || "");
@@ -27,23 +29,27 @@ function evidenceIds(source) {
 
 function validateIr(ir, task, section, source) {
   const issues = [];
-  if (ir.schemaVersion !== "1.0" || ir.reportId !== task.reportId || ir.sectionId !== section.sectionId || !Array.isArray(ir.slides) || !ir.slides.length) issues.push("Slide IR identity or schema is invalid");
+  if (ir.schemaVersion !== CURRENT_SLIDE_IR_VERSION || ir.slideIrVersion !== CURRENT_SLIDE_IR_VERSION || ir.planningSchemaVersion !== CURRENT_PLANNING_SCHEMA_VERSION || ir.reportId !== task.reportId || ir.sectionId !== section.sectionId || !Array.isArray(ir.slides) || !ir.slides.length) issues.push("Slide IR identity or schema is invalid");
   const slideIds = new Set(), knownEvidence = evidenceIds(source), requireEvidence = knownEvidence.size > 0;
   for (const slide of ir.slides || []) {
     if (!slide.id || slideIds.has(slide.id)) issues.push(`Slide ID is missing or duplicated: ${slide.id || "(missing)"}`); slideIds.add(slide.id);
     if (!slide.claim || !slide.semanticIntent || !Array.isArray(slide.modules) || !slide.modules.length) issues.push(`Slide ${slide.id} lacks claim, semanticIntent, or modules`);
-    if (slide.role === "content" && (!slide.outlineItem || !slide.storyCluster || !slide.pageComposition || !slide.evidenceBundle)) issues.push(`Slide ${slide.id} lacks outlineItem, storyCluster, pageComposition, or evidenceBundle`);
+    if (slide.role === "content" && (!slide.outlineItem || !slide.storyCluster || !slide.evidenceBundle)) issues.push(`Slide ${slide.id} lacks outlineItem, storyCluster, or evidenceBundle`);
+    if (slide.role === "content" && !slide.decisionUnit && !ir.upgradedFrom) issues.push(`Slide ${slide.id} lacks a decisionUnit required by the current planning schema`);
     const bundleRefs = evidenceBundleRefs(slide);
     for (const ref of [...(slide.evidenceRefs || []), ...bundleRefs, ...slide.modules.flatMap(module => module.evidenceRefs || [])]) if (requireEvidence && !knownEvidence.has(String(ref))) issues.push(`Slide ${slide.id} references unknown evidence ${ref}`);
     if (slide.role === "content") for (const ref of slide.modules.flatMap(module => module.evidenceRefs || []).map(String)) if (!bundleRefs.includes(ref)) issues.push(`Slide ${slide.id} visible module evidence ${ref} is missing from its Page Evidence Bundle`);
-    for (const module of slide.modules || []) if (!["text", "metric", "chart", "table", "diagram", "image", "callout"].includes(module.type)) issues.push(`Slide ${slide.id} has unsupported module type ${module.type}`);
+    for (const module of slide.modules || []) {
+      if (!["text", "metric", "chart", "table", "diagram", "image", "callout"].includes(module.type)) issues.push(`Slide ${slide.id} has unsupported module type ${module.type}`);
+      if (module.tableRole && !["primary", "supporting", "reference", "detail"].includes(module.tableRole)) issues.push(`Slide ${slide.id} has invalid tableRole ${module.tableRole}`);
+    }
   }
   return issues;
 }
 
 try {
   if (!process.env.RUNTIME_NODE_MODULES) throw new Error("RUNTIME_NODE_MODULES is required; load workspace dependencies first");
-  const sourceText = fs.readFileSync(sourceFile, "utf8"), irText = fs.readFileSync(irFile, "utf8"), task = readTaskCard(taskFile), source = JSON.parse(sourceText), authored = JSON.parse(irText), section = task.sections.find(item => item.sectionId === sectionId);
+  const sourceText = fs.readFileSync(sourceFile, "utf8"), irText = fs.readFileSync(irFile, "utf8"), task = readTaskCard(taskFile), source = JSON.parse(sourceText), authored = upgradeSlideIr(JSON.parse(irText)), section = task.sections.find(item => item.sectionId === sectionId);
   if (!section) throw new Error(`Section ${sectionId} is not assigned by the task card`);
   const structuralIssues = validateIr(authored, task, section, source); if (structuralIssues.length) throw new Error(structuralIssues.join("; "));
   const coverage = auditSourceCoverage(source, authored);
@@ -52,14 +58,17 @@ try {
   fs.writeFileSync(coverageFile, `${JSON.stringify(coverage, null, 2)}\n`);
   if (!coverage.passed) throw new Error(`Source coverage gate failed: ${coverage.issues.join("; ")}`);
   const datasets = source.datasets || {};
-  const slides = authored.slides.map(slide => layoutSlide({ ...resolveSlideExpressions(slide, datasets), sourceEvidence: evidenceForSlide(source, slide) }, theme));
+  const groundedSlides = authored.slides.map(slide => ({ ...slide, sourceEvidence: evidenceForSlide(source, slide) }));
+  const classified = classifyChapterCompositions(groundedSlides);
+  const slides = classified.slides.map(slide => layoutSlide(resolveSlideExpressions(materializeCompositeEvidence(slide), datasets), theme));
   const expressionIssues = slides.flatMap(expressionSuitability);
   const presentationIssues = presentationIntentIssues({ ...authored, slides });
   const layoutWarnings = slides.flatMap(slide => layoutIssues(slide, theme));
   const consolidationWarnings = consolidationIssues(slides, theme);
-  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...layoutWarnings.map(issue => `Layout: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`)];
+  const chapterIssues = chapterCompositionIssues(slides);
+  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...layoutWarnings.map(issue => `Layout: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`), ...chapterIssues.map(issue => `Chapter: ${issue}`)];
   if (generationIssues.length) throw new Error(`Generation gates failed: ${generationIssues.join("; ")}`);
-  const resolved = { ...authored, slides, resolvedBy: { skillVersion, themeVersion: theme.themeVersion, generatedAt: new Date().toISOString() } };
+  const resolved = { ...authored, slides, compositionDiagnostics: classified.diagnostics, resolvedBy: { skillVersion, themeVersion: theme.themeVersion, slideIrVersion: CURRENT_SLIDE_IR_VERSION, planningSchemaVersion: CURRENT_PLANNING_SCHEMA_VERSION, generatedAt: new Date().toISOString() } };
   const { presentation, diagnostics } = await renderPresentation(resolved, theme);
   await exportPresentation(presentation, output);
   await writePptxMetadata(output, {

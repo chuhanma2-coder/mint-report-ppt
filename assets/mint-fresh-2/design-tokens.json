@@ -17,6 +17,7 @@
     "coverTitle": [32, 46], "sectionTitle": [30, 40], "contentTitle": [26, 34], "denseTitle": [22, 30],
     "heroMetric": [28, 44], "body": [14, 18], "denseBody": [13, 16], "label": [11, 14], "caption": [10, 12]
   },
+  "chartTypographyPx": { "axis": 20, "denseAxis": 18, "legend": 19, "dataLabel": 20, "denseDataLabel": 18 },
   "spacing": { "pageX": 88, "pageTop": 58, "pageBottom": 58, "gap": 28, "compactGap": 18 },
   "constraints": { "minimumContentOccupancy": 0.55, "denseMinimumOccupancy": 0.65, "evidenceRichMinimumOccupancy": 0.68, "sparseOccupancy": 0.55, "crowdedOccupancy": 0.92, "maxBandModules": 4, "normalTextContrast": 4.5, "largeTextContrast": 3, "maxNetworkNodes": 10 }
 }

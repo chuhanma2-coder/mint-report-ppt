@@ -61,7 +61,8 @@ export function moduleContentDemand(module, width, theme) {
   if (type === "table") {
     const rows = module.data?.values || module.data?.rows || [];
     const rowCount = Math.max(1, rows.length), rowHeight = 44;
-    return { minHeight: Math.min(680, Math.max(180, rowCount * rowHeight)), desiredHeight: Math.min(760, Math.max(220, rowCount * 52)), visual: true };
+    if (["supporting", "reference"].includes(module.tableRole)) return { minHeight: Math.min(360, Math.max(160, rowCount * 36)), desiredHeight: Math.min(420, Math.max(200, rowCount * 42)), visual: false };
+    return { minHeight: Math.min(680, Math.max(180, rowCount * rowHeight)), desiredHeight: Math.min(760, Math.max(220, rowCount * 52)), visual: module.tableRole === "primary" || module.tableRole === "detail" };
   }
   if (type === "metric") return { minHeight: 190, desiredHeight: 300, visual: false };
   const title = String(module.title || ""), body = String(module.text || ""), bodyRange = module.semanticRole === "managementConclusion" ? [18, 15] : module.density === "dense" ? [16, 13] : [18, 14];

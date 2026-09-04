@@ -1,4 +1,4 @@
-const bundleFields = ["contextRefs", "primaryEvidenceRefs", "supportingEvidenceRefs", "caseRefs", "riskRefs", "actionRefs", "boundaryRefs"];
+const bundleFields = ["contextRefs", "kpiRefs", "primaryEvidenceRefs", "supportingEvidenceRefs", "caseRefs", "comparisonRefs", "chartRefs", "tableRefs", "imageRefs", "riskRefs", "actionRefs", "decisionRefs", "boundaryRefs", "explanationRefs"];
 
 export function evidenceBundleRefs(slide) {
   return [...new Set(bundleFields.flatMap(field => slide.evidenceBundle?.[field] || []).map(String))];
@@ -17,9 +17,12 @@ export function consolidationIssues(slides = [], theme) {
   const issues = [];
   for (const slide of slides) {
     if (slide.role !== "content") continue;
-    const units = informationUnitCount(slide), profile = slide.pageComposition || "standard";
-    if (profile === "evidence-rich" && (slide.modules || []).length < 5) issues.push(`Slide ${slide.id} declares evidence-rich composition but has fewer than five visible modules`);
-    if (profile === "evidence-rich" && units < 10) issues.push(`Slide ${slide.id} declares evidence-rich composition but has only ${units} effective information units`);
+    const units = informationUnitCount(slide), profile = slide.pageComposition || "standard", modules = slide.modules || [];
+    if (profile === "evidence-rich" && units < 8) issues.push(`Slide ${slide.id} declares evidence-rich composition but has only ${units} effective information units`);
+    const artifactModules = modules.filter(module => ["chart", "table", "diagram", "image"].includes(module.expression?.type || module.type));
+    const supportingModules = modules.filter(module => !artifactModules.includes(module) || module.semanticRole !== "primaryEvidence");
+    const dominantArea = artifactModules.length === 1 ? (slide.layout?.modules?.[modules.indexOf(artifactModules[0])]?.width || 0) * (slide.layout?.modules?.[modules.indexOf(artifactModules[0])]?.height || 0) / ((theme?.slide?.width || 1920) * (theme?.slide?.height || 1080)) : 0;
+    if (units >= 6 && artifactModules.length === 1 && dominantArea > 0.42 && supportingModules.length < 2 && (slide.layout?.storyCompleteness || 0) < 0.85) issues.push(`SINGLE_DOMINANT_ARTIFACT: Slide ${slide.id} relies on one large ${artifactModules[0].expression?.type || artifactModules[0].type} without enough visible meaning or supporting evidence`);
   }
   const content = slides.filter(slide => slide.role === "content");
   for (let index = 0; index < content.length - 1; index++) {
@@ -27,10 +30,10 @@ export function consolidationIssues(slides = [], theme) {
     const sameCluster = a.storyCluster && a.storyCluster === b.storyCluster;
     const sameOutline = a.outlineItem && a.outlineItem === b.outlineItem;
     if (!(sameCluster || sameOutline) || a.independentDecision || b.independentDecision) continue;
-    const aOccupancy = a.layout?.occupancy || 0, bOccupancy = b.layout?.occupancy || 0;
-    const mergeCeiling = theme?.constraints?.crowdedOccupancy || 0.92;
-    const estimatedMerged = Math.max(0, aOccupancy + bOccupancy - 0.08);
-    if (aOccupancy < 0.65 && bOccupancy < 0.65 && estimatedMerged <= mergeCeiling) issues.push(`Slides ${a.id} and ${b.id} are adjacent low-density pages in the same story cluster; merge their evidence bundles or mark a genuinely independent decision`);
+    const aDecision = String(a.decisionUnit || a.evidenceBundle?.decisionUnit || a.evidenceBundle?.decisionRefs?.[0] || ""), bDecision = String(b.decisionUnit || b.evidenceBundle?.decisionUnit || b.evidenceBundle?.decisionRefs?.[0] || "");
+    const sameDecision = aDecision && aDecision === bDecision, missingDecision = !aDecision || !bDecision;
+    const combinedUnits = informationUnitCount(a) + informationUnitCount(b), incompleteStory = (a.layout?.storyCompleteness || 0) < 0.85 || (b.layout?.storyCompleteness || 0) < 0.85;
+    if (combinedUnits <= 28 && (sameDecision || (sameCluster && missingDecision && incompleteStory))) issues.push(`Slides ${a.id} and ${b.id} support the same story/decision without a complete independent meaning chain; merge their evidence bundles or define distinct decision units`);
   }
   return issues;
 }

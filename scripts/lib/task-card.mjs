@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { skillVersion, theme } from "./config.mjs";
+import { CURRENT_PLANNING_SCHEMA_VERSION, CURRENT_SLIDE_IR_VERSION } from "./ir-version.mjs";
 
 const safe = value => String(value || "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
 const digest = value => crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -20,6 +21,8 @@ export function createTaskCard(input) {
     kind: "mint-ppt-task-card",
     requiredSkill: "mint-report-ppt",
     skillVersion,
+    planningSchemaVersion: CURRENT_PLANNING_SCHEMA_VERSION,
+    slideIrVersion: CURRENT_SLIDE_IR_VERSION,
     themeVersion: theme.themeVersion,
     pptMasterVersion: "mint-fresh-2/1",
     reportId: safe(input.reportId),
@@ -40,6 +43,7 @@ export function readTaskCard(file) {
   if (card.kind !== "mint-ppt-task-card" || card.requiredSkill !== "mint-report-ppt") throw new Error("Not a mint-report-ppt task card");
   if (card.schemaVersion !== "2.0") throw new Error(`Task card schema ${card.schemaVersion || "unknown"} is not supported by v0.3`);
   if (card.skillVersion !== skillVersion || card.themeVersion !== theme.themeVersion) throw new Error(`Task card requires mint-report-ppt ${card.skillVersion} and theme ${card.themeVersion}; installed versions differ`);
+  if (card.planningSchemaVersion !== CURRENT_PLANNING_SCHEMA_VERSION || card.slideIrVersion !== CURRENT_SLIDE_IR_VERSION) throw new Error("Task card planning versions are stale; regenerate the task card with the installed skill");
   const original = { ...card }; delete original.taskCardHash;
   if (digest(original) !== card.taskCardHash) throw new Error("Task card hash does not match its content");
   return card;

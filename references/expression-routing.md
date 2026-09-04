@@ -10,6 +10,8 @@ Use `managementQuestion`, `claim`, `semanticIntent`, computed `dataShape`, exact
 
 `exactLookup=true` preserves detail but does not automatically force the primary expression to be a table. When the management question asks for change, rank, contribution, target attainment, or comparison, route the primary proof visually and preserve the full table in an appendix or notes. Use a table as the primary expression only when lookup/reconciliation is itself the management purpose.
 
+Every table declares `tableRole`: `primary`, `supporting`, `reference`, or `detail`. Table is a content carrier, never a geometry. Only a primary table may dominate a page; supporting/reference/detail tables obey the page's main expression and cannot force matrix geometry.
+
 The module types are `text`, `metric`, `chart`, `table`, `diagram`, `image`, and `callout`. Semantic roles are `context`, `primaryEvidence`, `supportingEvidence`, `managementConclusion`, `comparison`, `progress`, `risk`, `action`, `decision`, and `boundary`.
 
 ## Candidate routes

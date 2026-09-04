@@ -20,9 +20,9 @@ Produce a strong first-draft PPTX that leaders can edit directly. After the firs
 
 1. Read all supplied material once. Build a source/evidence model without adding facts.
 2. Classify every source unit as `required-visible`, `supporting-visible`, or `traceability`. Plan story clusters around complete management conclusions and their evidence systems—not one source topic or one question per page. Consolidate adjacent candidates before adding slides. Write an explicit transition for every content slide after the first; the title chain alone must read as one management story.
-3. Build a Page Evidence Bundle for every content slide, then write light Slide IR conforming to `schemas/slide-ir.schema.json`. AI writes semantic intent and evidence hierarchy, not coordinates, fonts, colors, or PowerPoint code.
-4. Run the deterministic Expression Router. `dataShape` is computed from data. Expression and geometry are separate.
-5. Run the Geometry Engine, native PPT Renderer, content/expression/layout/artifact QA, then deliver one current section PPTX.
+3. Build a Page Evidence Bundle for every content slide, then write light Slide IR conforming to `schemas/slide-ir.schema.json`. AI writes facts, semantic intent, evidence hierarchy, story cluster, and decision unit—not `pageComposition`, coordinates, fonts, colors, or PowerPoint code.
+4. Run the deterministic Composition Classifier, Expression Router, and Geometry Engine in that order. `pageComposition` and `dataShape` are recomputed by code; expression and geometry are separate.
+5. Run the native PPT Renderer and content/expression/layout/artifact QA, then deliver one current section PPTX.
 6. People edit that PPTX directly, including slide insertion, deletion, reordering, splitting, merging, and object changes.
 7. Merge current PPTX files in task-card section order without model calls, source rereading, or slide reconstruction.
 8. Publish the actual final PPT slides and order through `scripts/publish-report-html.mjs`. The HTML is a read-only publication artifact.
@@ -38,13 +38,15 @@ Read these only when needed:
 
 - Visible source completeness: every decision-critical unit is `required-visible` and must appear in a visible body module. Supporting detail is `supporting-visible` and must appear in the body or visible appendix. Only `traceability` material may live solely in notes. Any omission requires explicit user approval and a reason. `build-section-ppt` writes a source-coverage ledger and blocks missing or hidden evidence. Never delete evidence to fit a slide.
 - Aggregation is not summarization: page consolidation may reorganize and visually downgrade information, but it may not compress away facts, caveats, risks, actions, cases, or boundaries. A page is one complete management conclusion plus its evidence system—not one management issue plus one layout.
-- Page evidence: every content slide declares `outlineItem`, `storyCluster`, `pageComposition`, and a Page Evidence Bundle. Every bundled fact maps to a visible module; primary evidence maps to `primaryEvidence` modules.
+- Page evidence: every content slide declares `outlineItem`, `storyCluster`, `decisionUnit`, and a Page Evidence Bundle. Every bundled fact maps to a visible module; primary evidence maps to `primaryEvidence` modules. The deterministic classifier—not the Agent—derives `pageComposition` from information units, evidence groups, evidence diversity, and the decision unit.
+- Version isolation: source facts, data, and media may survive an upgrade. Historical `pageComposition`, geometry, layout, split/merge decisions, data shape, expressions, and component routing may not. Recompute them with the installed planning and IR versions; stale task cards must be regenerated.
 - No invention: do not browse for business facts unless asked; label missing or conflicting information.
 - Expression: choose by management question, semantic intent, and computed data shape. Router choices are candidates, not mechanical one-to-one mappings.
 - Layout: the Layout Engine cannot silently change the selected expression. Renderer cannot change content or semantics.
 - Evidence hierarchy: every content-slide claim must have a visible primary proof. Relationship intent requires a real diagram/image; comparison, trend, variance, contribution, ranking, composition, or matrix intent cannot be delivered as text/cards or an undifferentiated table alone.
 - Management questions are internal planning fields and hidden by default. Show one only when it materially helps the audience.
 - Text fit is measured with the actual CJK font before rendering. The renderer uses the selected readable font size with no automatic shrink. If title, body, label, or table cannot fit above its role-specific minimum, change geometry, consolidate/split by management conclusion, or block delivery.
+- Chart legibility: chart axes, legends, category labels, and data labels use the chart typography tokens. They must remain readable at normal presentation distance; a dense chart must be regrouped or split instead of reducing labels below the configured minimum.
 - Native editability: formal text, tables, charts, images, and required diagrams are native PowerPoint objects. Full-slide screenshots are forbidden in working PPTX files.
 - Clean pages: 16:9, no visible task IDs, hashes, outline numbers, source-unit IDs, headers, footers, or page numbers.
 - Images must be embedded. Charts preserve categories, series, units, signs, targets, and axis meaning.

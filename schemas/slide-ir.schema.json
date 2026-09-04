@@ -3,9 +3,11 @@
   "$id": "https://mint.local/schemas/slide-ir.schema.json",
   "title": "Mint Report Slide IR",
   "type": "object",
-  "required": ["schemaVersion", "reportId", "sectionId", "slides"],
+  "required": ["schemaVersion", "slideIrVersion", "planningSchemaVersion", "reportId", "sectionId", "slides"],
   "properties": {
-    "schemaVersion": { "const": "1.0" },
+    "schemaVersion": { "const": "1.1" },
+    "slideIrVersion": { "const": "1.1" },
+    "planningSchemaVersion": { "const": "2.1" },
     "reportId": { "type": "string", "minLength": 1 },
     "sectionId": { "type": "string", "minLength": 1 },
     "slides": {
@@ -27,18 +29,27 @@
         "semanticIntent": { "type": "string", "minLength": 1 },
         "outlineItem": { "type": "string" },
         "storyCluster": { "type": "string" },
+        "decisionUnit": { "type": "string" },
         "independentDecision": { "type": "boolean", "default": false },
         "pageComposition": { "enum": ["standard", "evidence-rich", "dashboard", "banded-story", "strategy-map"] },
         "evidenceBundle": {
           "type": "object",
           "properties": {
             "contextRefs": { "$ref": "#/$defs/refList" },
+            "kpiRefs": { "$ref": "#/$defs/refList" },
             "primaryEvidenceRefs": { "$ref": "#/$defs/refList" },
             "supportingEvidenceRefs": { "$ref": "#/$defs/refList" },
             "caseRefs": { "$ref": "#/$defs/refList" },
+            "comparisonRefs": { "$ref": "#/$defs/refList" },
+            "chartRefs": { "$ref": "#/$defs/refList" },
+            "tableRefs": { "$ref": "#/$defs/refList" },
+            "imageRefs": { "$ref": "#/$defs/refList" },
             "riskRefs": { "$ref": "#/$defs/refList" },
             "actionRefs": { "$ref": "#/$defs/refList" },
-            "boundaryRefs": { "$ref": "#/$defs/refList" }
+            "decisionRefs": { "$ref": "#/$defs/refList" },
+            "boundaryRefs": { "$ref": "#/$defs/refList" },
+            "explanationRefs": { "$ref": "#/$defs/refList" },
+            "decisionUnit": { "type": "string" }
           },
           "additionalProperties": false
         },
@@ -53,6 +64,12 @@
         "evidenceRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "modules": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/module" } }
       },
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "const": "content" } } },
+          "then": { "required": ["outlineItem", "storyCluster", "decisionUnit", "evidenceBundle"] }
+        }
+      ],
       "additionalProperties": false
     },
     "module": {
@@ -65,6 +82,7 @@
         "title": { "type": "string" }, "text": { "type": "string" }, "value": {}, "unit": { "type": "string" },
         "dataRef": { "type": "string" }, "data": {}, "imagePath": { "type": "string" }, "alt": { "type": "string" },
         "compositionBand": { "enum": ["lead", "primary", "result"] },
+        "tableRole": { "enum": ["primary", "supporting", "reference", "detail"] },
         "evidenceRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "dataShape": { "type": "object" }, "expression": { "type": ["object", "null"] }
       },

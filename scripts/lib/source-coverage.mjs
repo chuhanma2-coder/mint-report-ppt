@@ -89,7 +89,8 @@ export function auditSourceCoverage(source, ir) {
 
 export function evidenceForSlide(source, slide) {
   const byId = new Map(sourceUnits(source).map(unit => [unitId(unit), unit]));
-  const refs = new Set([...(slide.evidenceRefs || []), ...(slide.modules || []).flatMap(module => module.evidenceRefs || [])].map(String));
+  const bundleRefs = Object.values(slide.evidenceBundle || {}).flatMap(value => Array.isArray(value) ? value : []);
+  const refs = new Set([...(slide.evidenceRefs || []), ...bundleRefs, ...(slide.modules || []).flatMap(module => module.evidenceRefs || [])].map(String));
   return [...refs].map(id => {
     const unit = byId.get(id);
     return unit ? { id, text: String(unit.text ?? unit.content ?? unit.value ?? "") } : null;

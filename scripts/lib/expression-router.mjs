@@ -99,7 +99,8 @@ export function resolveSlideExpressions(slide, datasets = {}) {
     const dataShape = inferDataShape(data);
     const expression = routeExpression({ ...slide, ...module, data, dataShape });
     const resolvedData = expression.type === "chart" && (Array.isArray(data.values) || Array.isArray(data.rows)) ? tableToChartData(data, `${slide.managementQuestion} ${slide.claim}`) : data;
-    return { ...module, data: resolvedData, sourceTable: resolvedData === data ? undefined : data, dataShape: inferDataShape(resolvedData), expression };
+    const tableRole = expression.type === "table" ? module.tableRole || (module.semanticRole === "primaryEvidence" ? "primary" : "supporting") : module.tableRole;
+    return { ...module, tableRole, data: resolvedData, sourceTable: resolvedData === data ? undefined : data, dataShape: inferDataShape(resolvedData), expression };
   });
   return { ...slide, modules };
 }

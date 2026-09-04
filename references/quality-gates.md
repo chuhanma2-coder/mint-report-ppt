@@ -43,7 +43,11 @@ Source coverage has two distinct gates:
 
 Every content slide must provide a Page Evidence Bundle, and every bundle item must appear in a visible module. Primary bundle evidence must be rendered through a `primaryEvidence` module. A slide cannot pass merely because its evidence IDs exist in notes.
 
-The consolidation gate fails evidence-rich pages with fewer than five visible modules or ten effective information units. It also fails adjacent low-density pages in the same story cluster/outline item when they can fit together and neither supports an independent management decision. Fix by regrouping the full evidence system, not by enlarging empty cards, padding tables, or deleting source content.
+The consolidation gate evaluates Visual Occupancy, Information Density, and Story Completeness separately. It fails a single dominant chart/table/image when the supporting evidence and meaning chain are insufficient. Adjacent pages in the same story chain or decision unit may be merged even when their allocated artifact rectangles are large; area alone cannot block consolidation. Fix by regrouping the full evidence system, not by enlarging empty cards, padding tables, or deleting source content.
+
+For complex chapters with at least six content pages, run `STANDARD_OVERUSE` and `COMPOSITE_COVERAGE`. If standard pages exceed the threshold or no composite grammar was actually applied, rerun the deterministic classifier in strict mode without a new model call. Remaining failures block publication.
+
+Version gates reject stale task cards. IR upgrades preserve source facts/data/media but clear historical composition, geometry, layout, split decisions, data shape, expression, and component routing before current classifiers run.
 
 For ordinary position/style edits, recheck affected slides. For split, merge, add, delete, reorder, title, or conclusion changes, recheck previous/current/next slides and the full title chain. Finish with one chapter thumbnail scan.
 

@@ -63,7 +63,7 @@ function seriesColors(module, theme) {
   return series.length === 2 ? theme.semanticColors.peerSeries : theme.semanticColors.multiSeries;
 }
 
-function addNativeChart(slide, module, frame, theme, _font, index) {
+function addNativeChart(slide, module, frame, theme, font, index) {
   const source = moduleData(module), variant = module.expression.variant, colors = seriesColors(module, theme);
   const order = variant === "sorted-bar" && source.series?.[0]?.values ? source.categories.map((_, i) => i).sort((a, b) => Number(source.series[0].values[b]) - Number(source.series[0].values[a])) : source.categories?.map((_, i) => i) || [];
   const data = order.length ? { ...source, categories: order.map(i => source.categories[i]), series: (source.series || []).map(item => ({ ...item, values: order.map(i => item.values[i]) })) } : source;
@@ -78,10 +78,10 @@ function addNativeChart(slide, module, frame, theme, _font, index) {
     ...(type === "bar" ? { barOptions: { direction: variant === "column" ? "column" : "bar", grouping: variant === "percent-stacked" ? "percentStacked" : "clustered", gapWidth: 48 } } : {}),
     ...(type === "scatter" ? { scatterOptions: { style: "marker", varyColors: false } } : {}),
     hasLegend: series.length > 1,
-    legend: { position: "bottom", overlay: false },
-    dataLabels: { showValue: true, position: type === "bar" ? "outEnd" : "right" },
-    xAxis: { majorGridlines: { style: "solid", fill: theme.palette.line, width: 1 } },
-    yAxis: { line: { style: "solid", fill: theme.palette.line, width: 1 } }
+    legend: { position: "bottom", overlay: false, textStyle: { typeface: font, fontSize: theme.chartTypographyPx?.legend || 19, fill: theme.palette.muted } },
+    dataLabels: { showValue: true, position: type === "bar" ? "outEnd" : "right", textStyle: { typeface: font, fontSize: (data.categories || []).length > 8 ? (theme.chartTypographyPx?.denseDataLabel || 18) : (theme.chartTypographyPx?.dataLabel || 20), fill: theme.palette.ink, bold: true } },
+    xAxis: { majorGridlines: { style: "solid", fill: theme.palette.line, width: 1 }, textStyle: { typeface: font, fontSize: (data.categories || []).length > 8 ? (theme.chartTypographyPx?.denseAxis || 18) : (theme.chartTypographyPx?.axis || 20), fill: theme.palette.muted } },
+    yAxis: { line: { style: "solid", fill: theme.palette.line, width: 1 }, textStyle: { typeface: font, fontSize: (data.categories || []).length > 8 ? (theme.chartTypographyPx?.denseAxis || 18) : (theme.chartTypographyPx?.axis || 20), fill: theme.palette.muted } }
   });
   return chart;
 }
@@ -95,8 +95,8 @@ function addWaterfall(slide, module, frame, theme, font, index) {
   columns.forEach((column, i) => {
     const topValue = Math.max(column.before, column.after), bottomValue = Math.min(column.before, column.after), x = plot.left + i * step + (step - barW) / 2, y = plot.top + (hi - topValue) * scale, h = Math.max(3, (topValue - bottomValue) * scale), color = column.total ? theme.palette.blue : column.value < 0 ? theme.palette.coral : theme.palette.mint;
     slide.shapes.add({ geometry: "rect", name: `mint|waterfall-bar|${index}-${i}`, position: { left: x, top: y, width: barW, height: h }, fill: solid(color), line: noLine });
-    addText(slide, `${!column.total && column.value > 0 ? "+" : ""}${column.value}`, { left: x - 15, top: Math.max(plot.top, y - 34), width: barW + 30, height: 30 }, { typeface: font, fontSize: 15, bold: true, color: theme.palette.ink }, `mint|waterfall-value|${index}-${i}`);
-    addText(slide, column.label, { left: plot.left + i * step, top: plot.top + plot.height + 8, width: step, height: 42 }, { typeface: font, fontSize: 14, color: theme.palette.muted }, `mint|waterfall-label|${index}-${i}`);
+    addText(slide, `${!column.total && column.value > 0 ? "+" : ""}${column.value}`, { left: x - 15, top: Math.max(plot.top, y - 38), width: barW + 30, height: 34 }, { typeface: font, fontSizePt: 15, bold: true, color: theme.palette.ink }, `mint|waterfall-value|${index}-${i}`);
+    addText(slide, column.label, { left: plot.left + i * step, top: plot.top + plot.height + 8, width: step, height: 48 }, { typeface: font, fontSizePt: 14, color: theme.palette.muted }, `mint|waterfall-label|${index}-${i}`);
   });
   slide.shapes.add({ geometry: "line", position: { left: plot.left, top: baseY, width: plot.width, height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 1 } });
 }
@@ -118,18 +118,18 @@ function addDumbbell(slide, module, frame, theme, font, index) {
   const all = rows.flatMap(row => row.values).map(Number).filter(Number.isFinite), rawLo = Math.min(...all), rawHi = Math.max(...all), margin = Math.max(1, (rawHi - rawLo) * 0.15), lo = rawLo - margin, hi = rawHi + margin, labelW = 170, plotLeft = frame.left + pad + labelW, plotW = frame.width - 2 * pad - labelW - 50, rowH = (frame.height - 2 * pad) / rows.length;
   rows.forEach((row, i) => {
     const y = frame.top + pad + rowH * (i + 0.5), a = Number(row.values[0] || 0), b = Number(row.values[1] || 0), x1 = plotLeft + (a - lo) / (hi - lo) * plotW, x2 = plotLeft + (b - lo) / (hi - lo) * plotW;
-    addText(slide, row.label || "", { left: frame.left + pad, top: y - 25, width: labelW - 12, height: 50 }, { typeface: font, fontSize: 16, color: theme.palette.ink }, `mint|dumbbell-label|${index}-${i}`);
+    addText(slide, row.label || "", { left: frame.left + pad, top: y - 25, width: labelW - 12, height: 50 }, { typeface: font, fontSizePt: 14, color: theme.palette.ink }, `mint|dumbbell-label|${index}-${i}`);
     slide.shapes.add({ geometry: "line", position: { left: Math.min(x1, x2), top: y, width: Math.abs(x2 - x1), height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 4 } });
     for (const [point, x, color] of [[a, x1, theme.palette.blue], [b, x2, theme.palette.orange]]) {
       slide.shapes.add({ geometry: "ellipse", position: { left: x - 10, top: y - 10, width: 20, height: 20 }, fill: solid(color), line: noLine });
-      addText(slide, point, { left: x - 40, top: y - 42, width: 80, height: 28 }, { typeface: font, fontSize: 14, bold: true, color: theme.palette.ink }, `mint|dumbbell-value|${index}-${i}-${color}`);
+      addText(slide, point, { left: x - 46, top: y - 45, width: 92, height: 32 }, { typeface: font, fontSizePt: 14, bold: true, color: theme.palette.ink }, `mint|dumbbell-value|${index}-${i}-${color}`);
     }
   });
   if (rows.length === 1 && rows[0].values.length >= 2) {
     const delta = Number(rows[0].values[1]) - Number(rows[0].values[0]);
     addText(slide, `${delta > 0 ? "+" : ""}${delta}`, { left: plotLeft + plotW * 0.34, top: frame.top + frame.height * 0.2, width: plotW * 0.32, height: 120 }, { typeface: font, fontSize: 54, bold: true, color: delta < 0 ? theme.palette.coral : theme.palette.mint }, `mint|dumbbell-delta|${index}`);
   }
-  if (categories.length >= 2) addText(slide, `${categories[0]}（蓝）    ${categories[1]}（橙）`, { left: plotLeft, top: frame.top + 26, width: plotW, height: 34 }, { typeface: font, fontSize: 14, color: theme.palette.muted }, `mint|dumbbell-periods|${index}`);
+  if (categories.length >= 2) addText(slide, `${categories[0]}（蓝）    ${categories[1]}（橙）`, { left: plotLeft, top: frame.top + 22, width: plotW, height: 40 }, { typeface: font, fontSizePt: 14, color: theme.palette.muted }, `mint|dumbbell-periods|${index}`);
 }
 
 function addBullet(slide, module, frame, theme, font, index) {
@@ -153,13 +153,13 @@ function addShapeChart(slide, module, frame, theme, font, index) {
     surface(slide, frame, theme, "supportingEvidence", `mint|small-multiples-bg|${index}`);
     series.forEach((item, seriesIndex) => {
       const panel = { left: frame.left + 18, top: frame.top + seriesIndex * (panelH + gap) + 12, width: frame.width - 36, height: panelH - 18 };
-      addText(slide, item.name || `指标${seriesIndex + 1}`, { left: panel.left + 12, top: panel.top, width: panel.width - 24, height: 34 }, { typeface: font, fontSizePt: 13, bold: true, color: seriesIndex === 0 ? theme.palette.mint : theme.palette.blue }, `mint|small-multiple-title|${index}-${seriesIndex}`);
+      addText(slide, item.name || `指标${seriesIndex + 1}`, { left: panel.left + 12, top: panel.top, width: panel.width - 24, height: 38 }, { typeface: font, fontSizePt: 15, bold: true, color: seriesIndex === 0 ? theme.palette.mint : theme.palette.blue }, `mint|small-multiple-title|${index}-${seriesIndex}`);
       const max = Math.max(1, ...item.values.map(value => Math.abs(Number(value) || 0))), labelW = Math.min(190, panel.width * 0.25), rowH = Math.max(34, (panel.height - 42) / Math.max(1, data.categories.length));
       data.categories.forEach((label, i) => {
         const value = Number(item.values[i]) || 0, y = panel.top + 38 + i * rowH, barW = (panel.width - labelW - 120) * Math.abs(value) / max;
-        addText(slide, label, { left: panel.left + 12, top: y, width: labelW - 16, height: rowH - 4 }, { typeface: font, fontSizePt: 11, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-label|${index}-${seriesIndex}-${i}`);
+        addText(slide, label, { left: panel.left + 12, top: y, width: labelW - 16, height: rowH - 4 }, { typeface: font, fontSizePt: data.categories.length > 6 ? 13 : 14, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-label|${index}-${seriesIndex}-${i}`);
         slide.shapes.add({ geometry: "rect", position: { left: panel.left + labelW, top: y + 7, width: Math.max(2, barW), height: Math.max(10, rowH - 18) }, fill: solid(seriesIndex === 0 ? theme.palette.mint : theme.palette.blue), line: noLine, borderRadius: 5 });
-        addText(slide, `${value}${item.displayUnit || (item.unitKind === "percent" ? "%" : "")}`, { left: panel.left + labelW + barW + 8, top: y, width: 100, height: rowH - 4 }, { typeface: font, fontSizePt: 11, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-value|${index}-${seriesIndex}-${i}`);
+        addText(slide, `${value}${item.displayUnit || (item.unitKind === "percent" ? "%" : "")}`, { left: panel.left + labelW + barW + 8, top: y, width: 110, height: rowH - 4 }, { typeface: font, fontSizePt: data.categories.length > 6 ? 13 : 14, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-value|${index}-${seriesIndex}-${i}`);
       });
     });
     return;
@@ -169,12 +169,12 @@ function addShapeChart(slide, module, frame, theme, font, index) {
   const rowH = Math.min(70, (frame.height - 2 * pad) / Math.max(1, categories.length)), labelW = Math.min(230, frame.width * 0.3);
   categories.forEach((label, i) => {
     const y = frame.top + pad + i * rowH, value = Number(values[i]) || 0, barW = (frame.width - labelW - 3 * pad) * Math.abs(value) / max;
-    addText(slide, label, { left: frame.left + pad, top: y, width: labelW - 10, height: rowH - 6 }, { typeface: font, fontSize: 17, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-label|${index}-${i}`);
+    addText(slide, label, { left: frame.left + pad, top: y, width: labelW - 10, height: rowH - 6 }, { typeface: font, fontSizePt: categories.length > 8 ? 13 : 15, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-label|${index}-${i}`);
     if (["dot-plot", "dot-distribution"].includes(variant)) {
       slide.shapes.add({ geometry: "line", position: { left: frame.left + pad + labelW, top: y + rowH / 2, width: frame.width - labelW - 3 * pad, height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 1 } });
       slide.shapes.add({ geometry: "ellipse", name: `mint|shape-chart-dot|${index}-${i}`, position: { left: frame.left + pad + labelW + barW - 9, top: y + rowH / 2 - 9, width: 18, height: 18 }, fill: solid(value < 0 ? theme.palette.coral : theme.palette.mint), line: noLine });
     } else slide.shapes.add({ geometry: "rect", name: `mint|shape-chart-bar|${index}-${i}`, position: { left: frame.left + pad + labelW, top: y + 10, width: Math.max(2, barW), height: rowH - 26 }, fill: solid(value < 0 ? theme.palette.coral : theme.palette.mint), line: noLine, borderRadius: 6 });
-    addText(slide, value, { left: frame.left + pad + labelW + barW + 8, top: y, width: 110, height: rowH - 6 }, { typeface: font, fontSize: 17, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-value|${index}-${i}`);
+    addText(slide, value, { left: frame.left + pad + labelW + barW + 8, top: y, width: 110, height: rowH - 6 }, { typeface: font, fontSizePt: categories.length > 8 ? 13 : 15, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-value|${index}-${i}`);
   });
 }
 

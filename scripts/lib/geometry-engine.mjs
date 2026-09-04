@@ -1,4 +1,5 @@
 import { fitText, moduleContentDemand } from "./text-layout.mjs";
+import { informationUnitCount } from "./page-consolidation.mjs";
 
 const allowed = new Set(["hero", "single-primary", "primary-secondary", "balanced-columns", "grid", "sequence", "matrix", "network"]);
 const compositeProfiles = new Set(["evidence-rich", "dashboard", "banded-story", "strategy-map"]);
@@ -6,7 +7,9 @@ const compositeProfiles = new Set(["evidence-rich", "dashboard", "banded-story",
 function inferredBand(module, profile) {
   if (module.compositionBand) return module.compositionBand;
   if (profile === "dashboard" && module.type === "metric") return "lead";
-  if (["context", "action"].includes(module.semanticRole)) return "lead";
+  if (module.semanticRole === "context") return "lead";
+  if ((module.expression?.type || module.type) === "table" && ["supporting", "reference", "detail"].includes(module.tableRole)) return "result";
+  if (["action", "decision", "risk", "boundary", "managementConclusion"].includes(module.semanticRole)) return "result";
   if (["primaryEvidence", "supportingEvidence", "comparison"].includes(module.semanticRole) || ["chart", "table", "diagram", "image"].includes(module.expression?.type || module.type)) return "primary";
   return "result";
 }
@@ -34,7 +37,8 @@ function compositeFrames(modules, { left, top, width, height, gap, profile }) {
 
 export function chooseGeometry(slide) {
   const modules = slide.modules || [], types = modules.map(item => item.expression?.type || item.type);
-  if (slide.semanticIntent === "matrix" || (types.includes("table") && modules.length > 1)) return "matrix";
+  if (compositeProfiles.has(slide.pageComposition)) return slide.pageComposition;
+  if (slide.semanticIntent === "matrix" || modules.some(item => (item.expression?.type || item.type) === "table" && item.tableRole === "primary")) return "matrix";
   if (types.includes("diagram") && types.includes("metric")) return "primary-secondary";
   if (allowed.has(slide.geometry)) return slide.geometry;
   if (slide.role === "cover" || (modules.length === 1 && types[0] === "metric")) return "hero";
@@ -54,7 +58,7 @@ export function layoutSlide(slide, theme) {
   const top = titleTop + titleHeight + claimHeight + 18, bottom = H - s.pageBottom, left = s.pageX, width = W - 2 * s.pageX, height = bottom - top;
   const n = Math.max(1, modules.length), gap = slide.density === "dense" ? s.compactGap : s.gap;
   let frames = [];
-  if (compositeProfiles.has(slide.pageComposition) && n >= 3) frames = compositeFrames(modules, { left, top, width, height, gap, profile: slide.pageComposition });
+  if (compositeProfiles.has(slide.pageComposition)) frames = compositeFrames(modules, { left, top, width, height, gap, profile: slide.pageComposition });
   else if (geometry === "hero" || geometry === "single-primary") frames = [{ left, top, width, height }];
   else if (geometry === "primary-secondary") frames = [
     { left, top, width: width * 0.66 - gap / 2, height },
@@ -121,14 +125,19 @@ export function layoutSlide(slide, theme) {
   });
   const fixedArea = titleFrame.width * titleFrame.height + (claimHeight ? questionFrame.width * questionFrame.height : 0);
   const contentArea = usedFrames.reduce((sum, frame) => sum + frame.width * frame.usedHeight, 0);
-  const occupancy = (fixedArea + contentArea) / (W * H);
-  return { ...slide, geometry, typography: { title: titleFit, question: questionFit, modules: moduleTypography }, layout: { title: titleFrame, claim: questionFrame, modules: usedFrames, occupancy, errors } };
+  const visualOccupancy = (fixedArea + contentArea) / (W * H), informationDensity = Math.min(1, informationUnitCount(slide) / 16);
+  const hasPrimary = modules.some(module => module.semanticRole === "primaryEvidence"), hasMeaning = modules.some(module => ["managementConclusion", "decision", "risk", "action", "boundary"].includes(module.semanticRole)), hasContext = modules.some(module => module.semanticRole === "context") || (slide.evidenceBundle?.contextRefs || []).length > 0;
+  const storyCompleteness = (slide.claim ? 0.25 : 0) + (hasPrimary ? 0.35 : 0) + (hasMeaning ? 0.25 : 0) + (hasContext || slide.role !== "content" ? 0.15 : 0);
+  const compositeApplied = compositeProfiles.has(slide.pageComposition) && new Set(usedFrames.map(frame => frame.compositionBand).filter(Boolean)).size >= 2;
+  return { ...slide, geometry, typography: { title: titleFit, question: questionFit, modules: moduleTypography }, layout: { title: titleFrame, claim: questionFrame, modules: usedFrames, occupancy: visualOccupancy, visualOccupancy, informationDensity, storyCompleteness, compositeApplied, errors } };
 }
 
 export function layoutIssues(slide, theme) {
-  const issues = [...(slide.layout?.errors || [])], occupancy = slide.layout?.occupancy ?? 0;
-  const minimum = slide.pageComposition === "evidence-rich" ? theme.constraints.evidenceRichMinimumOccupancy : slide.density === "dense" ? theme.constraints.denseMinimumOccupancy : theme.constraints.minimumContentOccupancy;
-  if (!["cover", "section", "closing"].includes(slide.role) && !slide.allowIntentionalWhitespace && occupancy < minimum) issues.push(`Slide ${slide.id} has only ${Math.round(occupancy * 100)}% real content occupancy (minimum ${Math.round(minimum * 100)}%); consolidate related evidence instead of stretching empty modules`);
+  const issues = [...(slide.layout?.errors || [])], occupancy = slide.layout?.visualOccupancy ?? slide.layout?.occupancy ?? 0, informationDensity = slide.layout?.informationDensity ?? 0, storyCompleteness = slide.layout?.storyCompleteness ?? 0;
+  const minimum = slide.density === "dense" ? theme.constraints.denseMinimumOccupancy : theme.constraints.minimumContentOccupancy;
+  if (!["cover", "section", "closing"].includes(slide.role) && !slide.allowIntentionalWhitespace && occupancy + 0.015 < minimum) issues.push(`Slide ${slide.id} has only ${Math.round(occupancy * 100)}% real content occupancy (minimum ${Math.round(minimum * 100)}%); consolidate related evidence instead of stretching empty modules`);
+  if (compositeProfiles.has(slide.pageComposition) && informationDensity < 0.5) issues.push(`Slide ${slide.id} is classified as ${slide.pageComposition} but information density is only ${Math.round(informationDensity * 100)}%`);
+  if (slide.role === "content" && storyCompleteness < 0.6) issues.push(`Slide ${slide.id} lacks a complete Claim/Evidence/Meaning chain`);
   if (occupancy > theme.constraints.crowdedOccupancy) issues.push(`Slide ${slide.id} may be crowded (${Math.round(occupancy * 100)}% module area)`);
   return issues;
 }

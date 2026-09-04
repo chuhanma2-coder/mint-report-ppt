@@ -8,7 +8,9 @@ Before adding a slide, ask whether the candidate content contributes to the same
 
 Aggregation is not summarization. Consolidation changes hierarchy and placement; it does not delete facts. First assemble a Page Evidence Bundle containing context, primary proof, supporting proof, cases, risks, actions, and boundaries. Then map every item to a visible module before choosing geometry.
 
-Use `pageComposition` to choose composition density without inventing new geometry families:
+The Agent does not select `pageComposition`. The deterministic Composition Classifier derives it from information-unit count, evidence-group count, evidence diversity, and the page decision unit. A complex evidence system must be upgraded from `standard` even when only two top-level modules were authored.
+
+Use the derived `pageComposition` to choose composition density without inventing new geometry families:
 
 - `standard`: one primary expression plus limited support;
 - `evidence-rich`: a lead band, primary-evidence band, and result/action band; at least five visible modules and ten effective information units;
@@ -20,7 +22,7 @@ Each band may contain at most four modules. Modules in a band share horizontal s
 
 Capacity order: change geometry; rebalance module shares; use the compact variant; move secondary evidence to a support area or appendix; split only on an independent management conclusion. Never delete evidence or shrink without limit.
 
-Occupancy is diagnostic, not a fill target. Standard pages below 55%, dense pages below 65%, and evidence-rich pages below 68% fail for consolidation review. Inspect one-point pagination, undersized visuals, and short tables without interpretation. Above 92%, inspect crowding and auto-shrink. Do not stretch empty cards/tables or add decoration to improve the ratio. Hero, cover, section, and closing slides may intentionally use more whitespace.
+Track three independent diagnostics: Visual Occupancy, Information Density, and Story Completeness. Occupancy is diagnostic, not a fill target. Standard pages below 55% and explicitly dense pages below 65% fail for consolidation review; composite classification does not raise the visual-area target by itself because its information-density and story-completeness gates are checked separately. A single large image, chart, or table is not high-density merely because it occupies most of the canvas; it must also provide enough supporting evidence and a complete Claim/Evidence/Meaning chain. Inspect one-point pagination, undersized visuals, and short tables without interpretation. Above 92%, inspect crowding and auto-shrink. Do not stretch empty cards/tables or add decoration to improve the ratio. Hero, cover, section, and closing slides may intentionally use more whitespace.
 
 Adjacent low-density pages in the same `storyCluster` or outline item must merge unless either page carries a genuinely independent management decision. `independentDecision` is not a manual escape hatch: the title and evidence must support a different decision.
 
@@ -37,7 +39,8 @@ The engine measures real text with the configured CJK font before rendering and 
 | Core metric | 28–44pt |
 | Body | 14–18pt |
 | Dense supporting body | 13–16pt |
-| Table/chart label | 11–14pt |
+| Table label | 11–14pt |
+| Chart axis/category/value label | 13.5–15pt (18–20px in native chart API) |
 | Caption | 10–12pt |
 
 Choose within the range using role, text length, language, available width, and reading distance. Reserve 13pt for supporting information. Keep titles to one or two lines. If the lower bound still fails, rewrite without changing meaning or change the page structure. Default to no more than four primary size levels; captions, labels, and necessary table sizes are excluded.
