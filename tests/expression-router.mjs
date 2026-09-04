@@ -11,6 +11,10 @@ assert.equal(routeExpression({ semanticIntent: "contribution", data: { categorie
 assert.equal(routeExpression({ semanticIntent: "correlation", data: { categories: ["1", "2", "3"], series: [{ values: [1,2,3] }, { values: [4,5,6] }] } }).type, "table");
 assert.equal(routeExpression({ semanticIntent: "process", type: "diagram", data: { nodes: [{id:1},{id:2}], edges: [{from:1,to:2}] } }).variant, "flow");
 assert.equal(routeExpression({ semanticIntent: "trend", type: "callout", semanticRole: "managementConclusion", data: {} }).type, "callout");
+const sameValues = { categories: ["A", "B", "C"], series: [{ name: "实际", values: [80, 72, 55] }] };
+assert.equal(routeExpression({ managementQuestion: "谁最高？", semanticIntent: "ranking", type: "chart", data: sameValues }).variant, "sorted-bar");
+assert.equal(routeExpression({ managementQuestion: "谁完成目标？", semanticIntent: "variance", type: "chart", data: { ...sameValues, hasTarget: true } }).variant, "variance-bar");
+assert.equal(routeExpression({ managementQuestion: "逐项核对数字", semanticIntent: "comparison", type: "chart", data: sameValues }).type, "table");
 const invalid = { id: "S1", modules: [{ id: "m1", type: "chart", dataShape: inferDataShape(twoPeriods), expression: { type: "chart", variant: "line" } }] };
 assert.equal(expressionSuitability(invalid).length, 1);
-console.log(JSON.stringify({ passed: true, tests: 10 }));
+console.log(JSON.stringify({ passed: true, tests: 13 }));

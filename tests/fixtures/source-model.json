@@ -2,13 +2,26 @@
   "schemaVersion": "1.0",
   "sourceUnits": [
     { "id": "SU-01", "text": "Y1至Y8收入分别为10、13、16、21、25、31、38、46。" },
-    { "id": "SU-02", "text": "收入保持增长。" }
+    { "id": "SU-02", "text": "收入保持增长。" },
+    { "id": "SU-03", "text": "Y1为80，Y2为92。" },
+    { "id": "SU-04", "text": "人力减少10，IT减少5，运营增加3。" }
   ],
   "datasets": {
     "revenue-trend": {
       "categories": ["Y1", "Y2", "Y3", "Y4", "Y5", "Y6", "Y7", "Y8"],
       "series": [{ "name": "收入", "values": [10, 13, 16, 21, 25, 31, 38, 46] }],
       "hasTime": true
+    },
+    "two-period-change": {
+      "categories": ["Y1", "Y2"],
+      "series": [{ "name": "收入", "values": [80, 92] }],
+      "hasTime": true
+    },
+    "budget-bridge": {
+      "categories": ["人力", "IT", "运营"],
+      "series": [{ "name": "变动", "values": [-10, -5, 3] }],
+      "additiveBridge": true,
+      "start": 100
     }
   }
 }

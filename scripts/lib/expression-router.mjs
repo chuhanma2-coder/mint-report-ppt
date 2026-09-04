@@ -67,6 +67,7 @@ export function routeExpression({ managementQuestion = "", claim = "", semanticI
     return result("table", "highlighted", "Too few observations exist for a reliable scatter view", ["dot-plot"]);
   }
   if (intent === "distribution") return result("chart", shape.observationCount >= 8 ? "dot-distribution" : "dot-plot", "The question concerns spread rather than rank", ["box", "table"]);
+  if (intent === "ranking") return result("chart", "sorted-bar", "The management question asks for an ordered category comparison", ["dot-plot", "table"]);
   if (chartIntents.has(intent) || type === "chart") {
     if (shape.categoryCount <= 4 && /数值|多少|重点|关注/i.test(question)) return result("metric", "status-cards", "Few values and their status matter more than a scale", ["dot-plot", "sorted-bar"]);
     return result("chart", shape.labelMaxLength > 12 || shape.categoryCount >= 4 ? "sorted-bar" : "dot-plot", "The question compares or ranks categories", ["metric-cards", "table"]);

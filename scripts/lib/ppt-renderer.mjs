@@ -28,6 +28,17 @@ function surface(slide, frame, theme, role, name) {
 function moduleData(module) { return module.data && typeof module.data === "object" ? module.data : {}; }
 
 function addMetric(slide, module, frame, theme, font, index) {
+  const data = moduleData(module), categories = data.categories || [], values = data.series?.[0]?.values || [];
+  if (categories.length >= 2 && values.length >= categories.length) {
+    const gap = 18, count = Math.min(4, categories.length), cellW = (frame.width - gap * (count - 1)) / count;
+    for (let i = 0; i < count; i++) {
+      const cell = { left: frame.left + i * (cellW + gap), top: frame.top, width: cellW, height: frame.height };
+      surface(slide, cell, theme, module.semanticRole, `mint|metric-card|${index}-${i}`);
+      addText(slide, categories[i], { left: cell.left + 20, top: cell.top + 24, width: cell.width - 40, height: 54 }, { typeface: font, fontSize: 20, bold: true, color: theme.palette.ink }, `mint|metric-card-label|${index}-${i}`);
+      addText(slide, values[i], { left: cell.left + 20, top: cell.top + 94, width: cell.width - 40, height: 110 }, { typeface: font, fontSize: 38, bold: true, color: i === 0 ? theme.palette.mint : theme.palette.blue }, `mint|metric-card-value|${index}-${i}`);
+    }
+    return;
+  }
   surface(slide, frame, theme, module.semanticRole, `mint|metric|${index}`);
   const labelH = Math.min(66, frame.height * 0.24), valueH = Math.min(180, frame.height * 0.48);
   addText(slide, module.title || "", { left: frame.left + pad, top: frame.top + pad, width: frame.width - 2 * pad, height: labelH }, { typeface: font, fontSize: 26, bold: true, color: theme.palette.ink }, `mint|metric-label|${index}`);
@@ -51,15 +62,20 @@ function seriesColors(module, theme) {
   return series.length === 2 ? theme.semanticColors.peerSeries : theme.semanticColors.multiSeries;
 }
 
-function addNativeChart(slide, module, frame, theme, index) {
-  const data = moduleData(module), variant = module.expression.variant, colors = seriesColors(module, theme);
-  const type = variant === "line" ? "line" : variant === "doughnut" ? "doughnut" : "bar";
-  const series = (data.series || []).map((item, i) => ({ ...item, fill: colors[i % colors.length], ...(type === "line" ? { line: { style: "solid", fill: colors[i % colors.length], width: 3 } } : {}) }));
+function addNativeChart(slide, module, frame, theme, _font, index) {
+  const source = moduleData(module), variant = module.expression.variant, colors = seriesColors(module, theme);
+  const order = variant === "sorted-bar" && source.series?.[0]?.values ? source.categories.map((_, i) => i).sort((a, b) => Number(source.series[0].values[b]) - Number(source.series[0].values[a])) : source.categories?.map((_, i) => i) || [];
+  const data = order.length ? { ...source, categories: order.map(i => source.categories[i]), series: (source.series || []).map(item => ({ ...item, values: order.map(i => item.values[i]) })) } : source;
+  const type = variant === "line" ? "line" : variant === "doughnut" ? "doughnut" : variant === "scatter" ? "scatter" : "bar";
+  const series = type === "scatter" && data.series?.length >= 2
+    ? [{ name: `${data.series[0].name || "X"} / ${data.series[1].name || "Y"}`, xValues: data.series[0].values, values: data.series[1].values, fill: colors[0], marker: { style: "circle", size: 8, fill: colors[0] } }]
+    : (data.series || []).map((item, i) => ({ ...item, fill: colors[i % colors.length], ...(type === "line" ? { line: { style: "solid", fill: colors[i % colors.length], width: 3 } } : {}) }));
   const chart = slide.charts.add(type, {
     name: `mint|chart|${index}`,
     position: { left: frame.left + 12, top: frame.top + 12, width: frame.width - 24, height: frame.height - 24 },
     categories: data.categories || [], series,
-    ...(type === "bar" ? { barOptions: { direction: variant === "column" ? "column" : "bar", grouping: "clustered", gapWidth: 48 } } : {}),
+    ...(type === "bar" ? { barOptions: { direction: variant === "column" ? "column" : "bar", grouping: variant === "percent-stacked" ? "percentStacked" : "clustered", gapWidth: 48 } } : {}),
+    ...(type === "scatter" ? { scatterOptions: { style: "marker", varyColors: false } } : {}),
     hasLegend: series.length > 1,
     legend: { position: "bottom", overlay: false },
     dataLabels: { showValue: true, position: type === "bar" ? "outEnd" : "right" },
@@ -69,14 +85,67 @@ function addNativeChart(slide, module, frame, theme, index) {
   return chart;
 }
 
+function addWaterfall(slide, module, frame, theme, font, index) {
+  const data = moduleData(module), labels = data.categories || [], values = data.series?.[0]?.values || [], plot = { left: frame.left + 50, top: frame.top + 45, width: frame.width - 100, height: frame.height - 100 };
+  surface(slide, frame, theme, "supportingEvidence", `mint|waterfall-bg|${index}`);
+  const start = Number(data.start || 0), cumulative = [start]; values.forEach(value => cumulative.push(cumulative.at(-1) + Number(value || 0)));
+  const columns = [{ label: data.startLabel || "起点", value: start, before: 0, after: start, total: true }, ...values.map((raw, i) => ({ label: labels[i] || "", value: Number(raw || 0), before: cumulative[i], after: cumulative[i + 1], total: false })), { label: data.endLabel || "终点", value: cumulative.at(-1), before: 0, after: cumulative.at(-1), total: true }];
+  const lo = Math.min(0, ...cumulative), hi = Math.max(1, ...cumulative), scale = plot.height / (hi - lo), baseY = plot.top + hi * scale, barW = Math.min(110, plot.width / columns.length * 0.58), step = plot.width / columns.length;
+  columns.forEach((column, i) => {
+    const topValue = Math.max(column.before, column.after), bottomValue = Math.min(column.before, column.after), x = plot.left + i * step + (step - barW) / 2, y = plot.top + (hi - topValue) * scale, h = Math.max(3, (topValue - bottomValue) * scale), color = column.total ? theme.palette.blue : column.value < 0 ? theme.palette.coral : theme.palette.mint;
+    slide.shapes.add({ geometry: "rect", name: `mint|waterfall-bar|${index}-${i}`, position: { left: x, top: y, width: barW, height: h }, fill: solid(color), line: noLine });
+    addText(slide, `${!column.total && column.value > 0 ? "+" : ""}${column.value}`, { left: x - 15, top: Math.max(plot.top, y - 34), width: barW + 30, height: 30 }, { typeface: font, fontSize: 15, bold: true, color: theme.palette.ink }, `mint|waterfall-value|${index}-${i}`);
+    addText(slide, column.label, { left: plot.left + i * step, top: plot.top + plot.height + 8, width: step, height: 42 }, { typeface: font, fontSize: 14, color: theme.palette.muted }, `mint|waterfall-label|${index}-${i}`);
+  });
+  slide.shapes.add({ geometry: "line", position: { left: plot.left, top: baseY, width: plot.width, height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 1 } });
+}
+
+function addDumbbell(slide, module, frame, theme, font, index) {
+  const data = moduleData(module), categories = data.categories || [], series = data.series || [], rows = series.length > 1 ? series.map(item => ({ label: item.name, values: item.values })) : [{ label: module.title || "变化", values: series[0]?.values || [] }];
+  surface(slide, frame, theme, "supportingEvidence", `mint|dumbbell-bg|${index}`);
+  const all = rows.flatMap(row => row.values).map(Number).filter(Number.isFinite), rawLo = Math.min(...all), rawHi = Math.max(...all), margin = Math.max(1, (rawHi - rawLo) * 0.15), lo = rawLo - margin, hi = rawHi + margin, labelW = 170, plotLeft = frame.left + pad + labelW, plotW = frame.width - 2 * pad - labelW - 50, rowH = (frame.height - 2 * pad) / rows.length;
+  rows.forEach((row, i) => {
+    const y = frame.top + pad + rowH * (i + 0.5), a = Number(row.values[0] || 0), b = Number(row.values[1] || 0), x1 = plotLeft + (a - lo) / (hi - lo) * plotW, x2 = plotLeft + (b - lo) / (hi - lo) * plotW;
+    addText(slide, row.label || "", { left: frame.left + pad, top: y - 25, width: labelW - 12, height: 50 }, { typeface: font, fontSize: 16, color: theme.palette.ink }, `mint|dumbbell-label|${index}-${i}`);
+    slide.shapes.add({ geometry: "line", position: { left: Math.min(x1, x2), top: y, width: Math.abs(x2 - x1), height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 4 } });
+    for (const [point, x, color] of [[a, x1, theme.palette.blue], [b, x2, theme.palette.orange]]) {
+      slide.shapes.add({ geometry: "ellipse", position: { left: x - 10, top: y - 10, width: 20, height: 20 }, fill: solid(color), line: noLine });
+      addText(slide, point, { left: x - 40, top: y - 42, width: 80, height: 28 }, { typeface: font, fontSize: 14, bold: true, color: theme.palette.ink }, `mint|dumbbell-value|${index}-${i}-${color}`);
+    }
+  });
+  if (rows.length === 1 && rows[0].values.length >= 2) {
+    const delta = Number(rows[0].values[1]) - Number(rows[0].values[0]);
+    addText(slide, `${delta > 0 ? "+" : ""}${delta}`, { left: plotLeft + plotW * 0.34, top: frame.top + frame.height * 0.2, width: plotW * 0.32, height: 120 }, { typeface: font, fontSize: 54, bold: true, color: delta < 0 ? theme.palette.coral : theme.palette.mint }, `mint|dumbbell-delta|${index}`);
+  }
+  if (categories.length >= 2) addText(slide, `${categories[0]}（蓝）    ${categories[1]}（橙）`, { left: plotLeft, top: frame.top + 26, width: plotW, height: 34 }, { typeface: font, fontSize: 14, color: theme.palette.muted }, `mint|dumbbell-periods|${index}`);
+}
+
+function addBullet(slide, module, frame, theme, font, index) {
+  const data = moduleData(module), actualSeries = (data.series || []).find(item => /实际|当前|actual/i.test(String(item.name || ""))) || data.series?.[0], targetSeries = (data.series || []).find(item => /目标|预算|target|budget/i.test(String(item.name || ""))) || data.series?.[1], actual = Number(data.actual ?? actualSeries?.values?.[0] ?? 0), target = Number(data.target ?? targetSeries?.values?.[0] ?? 0), max = Math.max(1, actual, target) * 1.15;
+  surface(slide, frame, theme, "supportingEvidence", `mint|bullet-bg|${index}`);
+  const x = frame.left + 70, y = frame.top + frame.height * 0.46, w = frame.width - 140;
+  slide.shapes.add({ geometry: "rect", position: { left: x, top: y, width: w, height: 36 }, fill: solid(theme.palette.neutralLight), line: noLine, borderRadius: 8 });
+  slide.shapes.add({ geometry: "rect", position: { left: x, top: y, width: w * actual / max, height: 36 }, fill: solid(theme.palette.mint), line: noLine, borderRadius: 8 });
+  const tx = x + w * target / max; slide.shapes.add({ geometry: "line", position: { left: tx, top: y - 14, width: 0, height: 64 }, fill: "none", line: { fill: theme.palette.muted, width: 3, style: "dashed" } });
+  addText(slide, `实际 ${actual}`, { left: x, top: y - 60, width: 220, height: 42 }, { typeface: font, fontSize: 20, bold: true, color: theme.palette.mint }, `mint|bullet-actual|${index}`);
+  addText(slide, `目标 ${target}`, { left: Math.max(x, tx - 70), top: y + 48, width: 180, height: 38 }, { typeface: font, fontSize: 16, color: theme.palette.muted }, `mint|bullet-target|${index}`);
+}
+
 function addShapeChart(slide, module, frame, theme, font, index) {
+  const variant = module.expression.variant;
+  if (variant === "waterfall") return addWaterfall(slide, module, frame, theme, font, index);
+  if (["dumbbell", "slope"].includes(variant)) return addDumbbell(slide, module, frame, theme, font, index);
+  if (["bullet", "target-metric"].includes(variant)) return addBullet(slide, module, frame, theme, font, index);
   const data = moduleData(module), categories = data.categories || [], values = data.series?.[0]?.values || [], max = Math.max(1, ...values.map(value => Math.abs(Number(value) || 0)));
   surface(slide, frame, theme, "supportingEvidence", `mint|shape-chart-bg|${index}`);
   const rowH = Math.min(70, (frame.height - 2 * pad) / Math.max(1, categories.length)), labelW = Math.min(230, frame.width * 0.3);
   categories.forEach((label, i) => {
     const y = frame.top + pad + i * rowH, value = Number(values[i]) || 0, barW = (frame.width - labelW - 3 * pad) * Math.abs(value) / max;
     addText(slide, label, { left: frame.left + pad, top: y, width: labelW - 10, height: rowH - 6 }, { typeface: font, fontSize: 17, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-label|${index}-${i}`);
-    slide.shapes.add({ geometry: "rect", name: `mint|shape-chart-bar|${index}-${i}`, position: { left: frame.left + pad + labelW, top: y + 10, width: Math.max(2, barW), height: rowH - 26 }, fill: solid(value < 0 ? theme.palette.coral : theme.palette.mint), line: noLine, borderRadius: 6 });
+    if (["dot-plot", "dot-distribution"].includes(variant)) {
+      slide.shapes.add({ geometry: "line", position: { left: frame.left + pad + labelW, top: y + rowH / 2, width: frame.width - labelW - 3 * pad, height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 1 } });
+      slide.shapes.add({ geometry: "ellipse", name: `mint|shape-chart-dot|${index}-${i}`, position: { left: frame.left + pad + labelW + barW - 9, top: y + rowH / 2 - 9, width: 18, height: 18 }, fill: solid(value < 0 ? theme.palette.coral : theme.palette.mint), line: noLine });
+    } else slide.shapes.add({ geometry: "rect", name: `mint|shape-chart-bar|${index}-${i}`, position: { left: frame.left + pad + labelW, top: y + 10, width: Math.max(2, barW), height: rowH - 26 }, fill: solid(value < 0 ? theme.palette.coral : theme.palette.mint), line: noLine, borderRadius: 6 });
     addText(slide, value, { left: frame.left + pad + labelW + barW + 8, top: y, width: 110, height: rowH - 6 }, { typeface: font, fontSize: 17, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|shape-chart-value|${index}-${i}`);
   });
 }
@@ -127,7 +196,7 @@ export async function renderPresentation(ir, theme) {
     for (const [index, module] of spec.modules.entries()) {
       const frame = spec.layout.modules[index] || spec.layout.modules.at(-1), type = module.expression?.type || module.type, variant = module.expression?.variant;
       if (type === "metric") addMetric(slide, module, frame, theme, font, index);
-      else if (type === "chart") (["line", "column", "sorted-bar", "variance-bar", "doughnut", "percent-stacked"].includes(variant) ? addNativeChart : addShapeChart)(slide, module, frame, theme, font, index);
+      else if (type === "chart") (["line", "column", "sorted-bar", "variance-bar", "doughnut", "percent-stacked", "scatter"].includes(variant) ? addNativeChart : addShapeChart)(slide, module, frame, theme, font, index);
       else if (type === "table") addTable(slide, module, frame, theme, font, index);
       else if (type === "diagram") addDiagram(slide, module, frame, theme, font, index);
       else if (type === "image") addImage(slide, module, frame, index);

@@ -16,5 +16,27 @@
       { "id": "M01", "type": "chart", "semanticRole": "primaryEvidence", "dataRef": "revenue-trend", "evidenceRefs": ["SU-01"], "expression": null },
       { "id": "M02", "type": "callout", "semanticRole": "managementConclusion", "title": "结论", "text": "八个时期均保持正向增长。", "evidenceRefs": ["SU-02"], "expression": null }
     ]
+  }, {
+    "id": "S02",
+    "role": "content",
+    "managementQuestion": "两个时期变化多少？",
+    "claim": "Y2较Y1增加12",
+    "semanticIntent": "trend",
+    "narrative": { "previous": "趋势", "transition": "聚焦两期变化", "next": "解释贡献" },
+    "density": "standard",
+    "geometry": null,
+    "evidenceRefs": ["SU-03"],
+    "modules": [{ "id": "M03", "type": "chart", "semanticRole": "primaryEvidence", "dataRef": "two-period-change", "evidenceRefs": ["SU-03"], "expression": null }]
+  }, {
+    "id": "S03",
+    "role": "content",
+    "managementQuestion": "预算变动来自哪里？",
+    "claim": "压降主要来自人力和IT",
+    "semanticIntent": "contribution",
+    "narrative": { "previous": "变化结果", "transition": "解释贡献", "next": "" },
+    "density": "standard",
+    "geometry": null,
+    "evidenceRefs": ["SU-04"],
+    "modules": [{ "id": "M04", "type": "chart", "semanticRole": "primaryEvidence", "dataRef": "budget-bridge", "evidenceRefs": ["SU-04"], "expression": null }]
   }]
 }
