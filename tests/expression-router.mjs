@@ -15,6 +15,10 @@ const sameValues = { categories: ["A", "B", "C"], series: [{ name: "实际", val
 assert.equal(routeExpression({ managementQuestion: "谁最高？", semanticIntent: "ranking", type: "chart", data: sameValues }).variant, "sorted-bar");
 assert.equal(routeExpression({ managementQuestion: "谁完成目标？", semanticIntent: "variance", type: "chart", data: { ...sameValues, hasTarget: true } }).variant, "variance-bar");
 assert.equal(routeExpression({ managementQuestion: "逐项核对数字", semanticIntent: "comparison", type: "chart", data: sameValues }).type, "table");
+const costTable = { exactLookup: true, values: [["科目", "压降后", "压降额"], ["人力", "308.6", "203.3"], ["IT", "21.7", "89.6"]] };
+assert.equal(routeExpression({ managementQuestion: "主要压降项是什么？", claim: "人力与IT是主要压降项", semanticIntent: "comparison", type: "table", data: costTable }).type, "chart");
+assert.equal(routeExpression({ managementQuestion: "逐项核对成本明细", semanticIntent: "comparison", type: "table", data: costTable }).type, "table");
+assert.equal(routeExpression({ semanticIntent: "process", type: "text", data: {} }).type, "text");
 const invalid = { id: "S1", modules: [{ id: "m1", type: "chart", dataShape: inferDataShape(twoPeriods), expression: { type: "chart", variant: "line" } }] };
 assert.equal(expressionSuitability(invalid).length, 1);
-console.log(JSON.stringify({ passed: true, tests: 13 }));
+console.log(JSON.stringify({ passed: true, tests: 16 }));

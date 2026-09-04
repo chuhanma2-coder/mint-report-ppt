@@ -25,10 +25,16 @@ Block or return for review when:
 - process, hierarchy, role, or architecture data is routed as a chart;
 - a lookup table is mechanically charted and loses exact values;
 - categories, series, units, signs, zero, targets, or key values disappear.
+- relationship intent has no explicit diagram/image structure;
+- an evidence-based conclusion is supported only by text/cards or an undifferentiated table;
+- a long detail table states key drivers in the title but provides no visual summary;
+- a content slide after the first lacks a narrative transition.
 
 ## Visual and artifact gate
 
 Render every delivered slide. Check readability, hierarchy, sparse/crowded composition, labels, tables, diagrams, image crop, semantic colors, and overall rhythm. Also check 16:9 size, native editable tables/charts/diagrams, embedded media, no external relationships, no visible audit metadata, no headers/footers/page numbers, no severe auto-shrink, no unintended overlap, and no out-of-bounds objects.
+
+Before rendering, require 100% source-unit disposition and real-font text fit at the minimum readable size. Automatic shrink is forbidden. Ordinary pages with low real-content occupancy fail unless the IR explicitly identifies intentional whitespace for a hero/section purpose.
 
 For ordinary position/style edits, recheck affected slides. For split, merge, add, delete, reorder, title, or conclusion changes, recheck previous/current/next slides and the full title chain. Finish with one chapter thumbnail scan.
 

@@ -38,5 +38,26 @@
     "geometry": null,
     "evidenceRefs": ["SU-04"],
     "modules": [{ "id": "M04", "type": "chart", "semanticRole": "primaryEvidence", "dataRef": "budget-bridge", "evidenceRefs": ["SU-04"], "expression": null }]
+  }, {
+    "id": "S04",
+    "role": "content",
+    "managementQuestion": "三方如何分工和计价？",
+    "claim": "MintFin承接业务，WeFi提供系统并按投入计价",
+    "semanticIntent": "role-relationship",
+    "narrative": { "previous": "预算贡献", "transition": "从预算转向能力承接", "next": "" },
+    "density": "standard",
+    "geometry": null,
+    "evidenceRefs": ["SU-05"],
+    "modules": [{
+      "id": "M05",
+      "type": "diagram",
+      "semanticRole": "primaryEvidence",
+      "evidenceRefs": ["SU-05"],
+      "data": {
+        "nodes": [{ "id": "bank", "label": "传音银行" }, { "id": "mint", "label": "MintFin" }, { "id": "wefi", "label": "WeFi" }],
+        "edges": [{ "from": "bank", "to": "mint", "label": "业务需求" }, { "from": "mint", "to": "wefi", "label": "系统服务委托" }, { "from": "wefi", "to": "mint", "label": "按投入计价" }]
+      },
+      "expression": null
+    }]
   }]
 }

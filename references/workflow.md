@@ -12,7 +12,7 @@ Generate from a small JSON config with `scripts/create-task-card.mjs config.json
 
 Prompt:
 
-> Use $mint-report-ppt and the attached shared task card. I own `<section-id>`. Read all my source files before planning. Do not browse or add facts. Build a source/evidence model, consolidate content by management question, create valid Slide IR, route each module by management question + semantic intent + computed data shape, and generate one native editable 16:9 PPTX. Do not generate draft HTML or ZIP. Keep audit IDs out of visible slides. Render and review all slides once, batch-fix issues, then give me `<owner>-<section>-current.pptx`.
+> Use $mint-report-ppt and the attached shared task card. I own `<section-id>`. Read all my source files before planning. Do not browse, add facts, or drop any source unit. Build a source/evidence model and map every unit to a visible module, full-text notes/appendix, or an explicit approved omission. Consolidate by management question, then write a title chain and transitions that form one management story. Keep `managementQuestion` internal unless displaying it helps the audience. Create valid Slide IR and route each module by management question + semantic intent + computed data shape. Every conclusion page needs visible primary proof; relationship content must use nodes/edges, and comparison/contribution/ranking content cannot rely on a plain table alone. Large detail tables go to appendix or accompany a visual summary. Generate one native editable 16:9 PPTX. Do not generate draft HTML or ZIP. Keep audit IDs out of visible slides. Render and review all slides once, batch-fix issues, then give me `<owner>-<section>-current.pptx` plus its source-coverage audit.
 
 Build command:
 

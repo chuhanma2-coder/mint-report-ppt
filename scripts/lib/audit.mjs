@@ -19,6 +19,11 @@ function packageChecks(pkg, metadata, task, expectedSection, mode) {
   if (metadata.MintThemeVersion !== task.themeVersion) issues.push("MintThemeVersion does not match task card");
   if (metadata.MintSkillVersion !== task.skillVersion) issues.push("MintSkillVersion does not match task card");
   if (mode === "section" && metadata.MintSectionId !== expectedSection) issues.push("MintSectionId does not match requested section");
+  for (const item of pkg.mintTextObjects || []) {
+    if (!item.noAutoFit) issues.push(`Slide ${item.slide} ${item.name} must use noAutoFit; shrinkText is forbidden`);
+    const floor = item.name.includes("|title|") ? 22 : item.name.includes("|module-body|") ? 13 : item.name.includes("|diagram-node|") ? 12 : 10;
+    if (item.minimumFontPt != null && item.minimumFontPt < floor) issues.push(`Slide ${item.slide} ${item.name} is ${item.minimumFontPt}pt, below the ${floor}pt role floor`);
+  }
   return issues;
 }
 
@@ -51,7 +56,7 @@ export async function auditPpt({ file, taskFile, sectionId = null, mode = "secti
     if ((ir.slides || []).length !== pkg.slides.length) issues.push("Resolved IR slide count differs from PPTX");
   }
   const visual = await visualChecks(file, renderDir); issues.push(...visual.issues);
-  const report = { schemaVersion: "2.0", passed: issues.length === 0, mode, file, taskCard: taskFile, reportId: task.reportId, sectionId, metadata, semantic, package: { slides: pkg.slides.length, charts: pkg.charts.length, media: pkg.media.length, nativeTables: pkg.nativeTables, nativeShapes: pkg.nativeShapes, slideSize: pkg.slideSize, externalMedia: pkg.hasExternalMedia, pageChrome: pkg.hasPageChrome }, visual, issues, generatedAt: new Date().toISOString() };
+  const report = { schemaVersion: "2.0", passed: issues.length === 0, mode, file, taskCard: taskFile, reportId: task.reportId, sectionId, metadata, semantic, package: { slides: pkg.slides.length, charts: pkg.charts.length, media: pkg.media.length, nativeTables: pkg.nativeTables, nativeShapes: pkg.nativeShapes, mintTextObjects: pkg.mintTextObjects?.length || 0, slideSize: pkg.slideSize, externalMedia: pkg.hasExternalMedia, pageChrome: pkg.hasPageChrome }, visual, issues, generatedAt: new Date().toISOString() };
   if (output) fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
   return report;
 }

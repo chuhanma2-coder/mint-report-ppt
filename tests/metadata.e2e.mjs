@@ -11,10 +11,10 @@ const require = createRequire(path.join(process.env.RUNTIME_NODE_MODULES, "packa
 const { Presentation, PresentationFile } = await import(pathToFileURL(require.resolve("@oai/artifact-tool")).href);
 const folder = fs.mkdtempSync(path.join(os.tmpdir(), "mint-ppt-meta-")), file = path.join(folder, "section.pptx");
 const deck = Presentation.create({ slideSize: { width: 1920, height: 1080 } }), slide = deck.slides.add(); slide.background.fill = "#F6F8F7";
-const shape = slide.shapes.add({ geometry: "textbox", name: "title", position: { left: 100, top: 100, width: 1000, height: 120 }, fill: "none", line: { fill: "none", width: 0 } }); shape.text = "测试章节"; shape.text.style = { fontSize: 40, color: "#24312E", typeface: "Microsoft YaHei" };
+const shape = slide.shapes.add({ geometry: "textbox", name: "mint|title|0", position: { left: 100, top: 100, width: 1000, height: 120 }, fill: "none", line: { fill: "none", width: 0 } }); shape.text = "测试章节"; shape.text.style = { fontSize: 40, color: "#24312E", typeface: "Microsoft YaHei", autoFit: "none" };
 await (await PresentationFile.exportPptx(deck)).save(file);
 await writePptxMetadata(file, { MintReportId: "r1", MintSectionId: "s1", MintThemeVersion: "mint-fresh-2/1", MintAuthority: "section-pptx" });
 const metadata = await readPptxMetadata(file), pkg = await inspectPptxPackage(file);
-assert.equal(metadata.MintReportId, "r1"); assert.equal(metadata.MintSectionId, "s1"); assert.equal(pkg.slides.length, 1); assert.ok(pkg.nativeShapes >= 1); assert.ok(Math.abs(pkg.slideSize.ratio - 16 / 9) < 0.002);
+assert.equal(metadata.MintReportId, "r1"); assert.equal(metadata.MintSectionId, "s1"); assert.equal(pkg.slides.length, 1); assert.ok(pkg.nativeShapes >= 1); assert.ok(Math.abs(pkg.slideSize.ratio - 16 / 9) < 0.002); assert.equal(pkg.mintTextObjects[0].minimumFontPt, 30); assert.equal(pkg.mintTextObjects[0].noAutoFit, true);
 assert.equal(metadata.MintAuthority, "section-pptx");
 fs.rmSync(folder, { recursive: true, force: true }); console.log(JSON.stringify({ passed: true, tests: 6 }));

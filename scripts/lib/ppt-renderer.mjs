@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fitText } from "./text-layout.mjs";
 
 function artifactTool() {
   if (!process.env.RUNTIME_NODE_MODULES) throw new Error("RUNTIME_NODE_MODULES is required; load workspace dependencies first");
@@ -15,7 +16,8 @@ const solid = color => ({ type: "solid", color });
 function addText(slide, text, frame, style, name) {
   const box = slide.shapes.add({ geometry: "textbox", name, position: frame, fill: "none", line: noLine });
   box.text = String(text ?? "");
-  box.text.style = { typeface: style.typeface, fontSize: style.fontSize, bold: !!style.bold, color: style.color, autoFit: "shrinkText", verticalAlignment: style.verticalAlignment || "top" };
+  const fontSizePx = style.fontSizePt != null ? style.fontSizePt * 96 / 72 : style.fontSize ?? 18;
+  box.text.style = { typeface: style.typeface, fontSize: fontSizePx, bold: !!style.bold, color: style.color, autoFit: "none", verticalAlignment: style.verticalAlignment || "top" };
   box.text.verticalAlignment = style.verticalAlignment || "top";
   return box;
 }
@@ -46,13 +48,12 @@ function addMetric(slide, module, frame, theme, font, index) {
   if (module.text) addText(slide, module.text, { left: frame.left + pad, top: frame.top + frame.height - 100, width: frame.width - 2 * pad, height: 72 }, { typeface: font, fontSize: 19, color: theme.palette.muted }, `mint|metric-note|${index}`);
 }
 
-function addNarrative(slide, module, frame, theme, font, index) {
+function addNarrative(slide, module, frame, theme, font, index, typography = null) {
   surface(slide, frame, theme, module.semanticRole, `mint|${module.type}|${index}`);
   const title = module.title || (module.semanticRole === "managementConclusion" ? "管理结论" : "");
-  if (title) addText(slide, title, { left: frame.left + pad, top: frame.top + pad, width: frame.width - 2 * pad, height: 52 }, { typeface: font, fontSize: 24, bold: true, color: theme.palette.ink }, `mint|module-title|${index}`);
-  const bodyTop = frame.top + pad + (title ? 62 : 0), bodyWidth = frame.width - 2 * pad, fontSize = module.semanticRole === "managementConclusion" ? 25 : 20;
-  const estimatedLines = Math.max(1, Math.ceil(String(module.text || "").length / Math.max(8, Math.floor(bodyWidth / (fontSize * 1.05))))), bodyHeight = Math.min(frame.height - (bodyTop - frame.top) - pad, Math.max(72, estimatedLines * fontSize * 1.65));
-  addText(slide, module.text || "", { left: frame.left + pad, top: bodyTop, width: bodyWidth, height: bodyHeight }, { typeface: font, fontSize, bold: module.semanticRole === "managementConclusion", color: theme.palette.ink }, `mint|module-body|${index}`);
+  if (title) addText(slide, title, { left: frame.left + pad, top: frame.top + pad, width: frame.width - 2 * pad, height: 52 }, { typeface: font, fontSizePt: typography?.title?.fontSizePt || 18, bold: true, color: theme.palette.ink }, `mint|module-title|${index}`);
+  const bodyTop = frame.top + pad + (title ? 62 : 0), bodyWidth = frame.width - 2 * pad, bodyHeight = Math.max(40, frame.height - (bodyTop - frame.top) - pad);
+  addText(slide, module.text || "", { left: frame.left + pad, top: bodyTop, width: bodyWidth, height: bodyHeight }, { typeface: font, fontSizePt: typography?.body?.fontSizePt || (module.semanticRole === "managementConclusion" ? 18 : 16), bold: module.semanticRole === "managementConclusion", color: theme.palette.ink }, `mint|module-body|${index}`);
 }
 
 function seriesColors(module, theme) {
@@ -103,6 +104,17 @@ function addWaterfall(slide, module, frame, theme, font, index) {
 function addDumbbell(slide, module, frame, theme, font, index) {
   const data = moduleData(module), categories = data.categories || [], series = data.series || [], rows = series.length > 1 ? series.map(item => ({ label: item.name, values: item.values })) : [{ label: module.title || "变化", values: series[0]?.values || [] }];
   surface(slide, frame, theme, "supportingEvidence", `mint|dumbbell-bg|${index}`);
+  if (rows.length === 1 && rows[0].values.length >= 2) {
+    const a = Number(rows[0].values[0]) || 0, b = Number(rows[0].values[1]) || 0, delta = b - a, centerY = frame.top + frame.height * 0.54, leftX = frame.left + frame.width * 0.22, rightX = frame.left + frame.width * 0.78;
+    addText(slide, categories[0] || "前期", { left: leftX - 150, top: frame.top + frame.height * 0.18, width: 300, height: 44 }, { typeface: font, fontSizePt: 16, color: theme.palette.muted }, `mint|dumbbell-period-a|${index}`);
+    addText(slide, a, { left: leftX - 170, top: frame.top + frame.height * 0.27, width: 340, height: 120 }, { typeface: font, fontSizePt: 44, bold: true, color: theme.palette.blue, verticalAlignment: "center" }, `mint|dumbbell-hero-a|${index}`);
+    addText(slide, categories[1] || "本期", { left: rightX - 150, top: frame.top + frame.height * 0.18, width: 300, height: 44 }, { typeface: font, fontSizePt: 16, color: theme.palette.muted }, `mint|dumbbell-period-b|${index}`);
+    addText(slide, b, { left: rightX - 170, top: frame.top + frame.height * 0.27, width: 340, height: 120 }, { typeface: font, fontSizePt: 44, bold: true, color: theme.palette.orange, verticalAlignment: "center" }, `mint|dumbbell-hero-b|${index}`);
+    slide.shapes.add({ geometry: "line", position: { left: leftX, top: centerY, width: rightX - leftX, height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 5 }, tail: { type: "arrow", width: "med", length: "med" } });
+    addText(slide, `${delta > 0 ? "+" : ""}${delta}`, { left: frame.left + frame.width * 0.39, top: centerY - 90, width: frame.width * 0.22, height: 80 }, { typeface: font, fontSizePt: 34, bold: true, color: delta < 0 ? theme.palette.coral : theme.palette.mint }, `mint|dumbbell-hero-delta|${index}`);
+    addText(slide, rows[0].label || "变化", { left: frame.left + frame.width * 0.39, top: centerY + 30, width: frame.width * 0.22, height: 42 }, { typeface: font, fontSizePt: 14, color: theme.palette.muted }, `mint|dumbbell-hero-label|${index}`);
+    return;
+  }
   const all = rows.flatMap(row => row.values).map(Number).filter(Number.isFinite), rawLo = Math.min(...all), rawHi = Math.max(...all), margin = Math.max(1, (rawHi - rawLo) * 0.15), lo = rawLo - margin, hi = rawHi + margin, labelW = 170, plotLeft = frame.left + pad + labelW, plotW = frame.width - 2 * pad - labelW - 50, rowH = (frame.height - 2 * pad) / rows.length;
   rows.forEach((row, i) => {
     const y = frame.top + pad + rowH * (i + 0.5), a = Number(row.values[0] || 0), b = Number(row.values[1] || 0), x1 = plotLeft + (a - lo) / (hi - lo) * plotW, x2 = plotLeft + (b - lo) / (hi - lo) * plotW;
@@ -136,6 +148,22 @@ function addShapeChart(slide, module, frame, theme, font, index) {
   if (variant === "waterfall") return addWaterfall(slide, module, frame, theme, font, index);
   if (["dumbbell", "slope"].includes(variant)) return addDumbbell(slide, module, frame, theme, font, index);
   if (["bullet", "target-metric"].includes(variant)) return addBullet(slide, module, frame, theme, font, index);
+  if (variant === "comparison-small-multiples") {
+    const data = moduleData(module), series = (data.series || []).slice(0, 3), gap = 22, panelH = (frame.height - gap * Math.max(0, series.length - 1)) / Math.max(1, series.length);
+    surface(slide, frame, theme, "supportingEvidence", `mint|small-multiples-bg|${index}`);
+    series.forEach((item, seriesIndex) => {
+      const panel = { left: frame.left + 18, top: frame.top + seriesIndex * (panelH + gap) + 12, width: frame.width - 36, height: panelH - 18 };
+      addText(slide, item.name || `指标${seriesIndex + 1}`, { left: panel.left + 12, top: panel.top, width: panel.width - 24, height: 34 }, { typeface: font, fontSizePt: 13, bold: true, color: seriesIndex === 0 ? theme.palette.mint : theme.palette.blue }, `mint|small-multiple-title|${index}-${seriesIndex}`);
+      const max = Math.max(1, ...item.values.map(value => Math.abs(Number(value) || 0))), labelW = Math.min(190, panel.width * 0.25), rowH = Math.max(34, (panel.height - 42) / Math.max(1, data.categories.length));
+      data.categories.forEach((label, i) => {
+        const value = Number(item.values[i]) || 0, y = panel.top + 38 + i * rowH, barW = (panel.width - labelW - 120) * Math.abs(value) / max;
+        addText(slide, label, { left: panel.left + 12, top: y, width: labelW - 16, height: rowH - 4 }, { typeface: font, fontSizePt: 11, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-label|${index}-${seriesIndex}-${i}`);
+        slide.shapes.add({ geometry: "rect", position: { left: panel.left + labelW, top: y + 7, width: Math.max(2, barW), height: Math.max(10, rowH - 18) }, fill: solid(seriesIndex === 0 ? theme.palette.mint : theme.palette.blue), line: noLine, borderRadius: 5 });
+        addText(slide, `${value}${item.displayUnit || (item.unitKind === "percent" ? "%" : "")}`, { left: panel.left + labelW + barW + 8, top: y, width: 100, height: rowH - 4 }, { typeface: font, fontSizePt: 11, bold: true, color: theme.palette.ink, verticalAlignment: "center" }, `mint|small-multiple-value|${index}-${seriesIndex}-${i}`);
+      });
+    });
+    return;
+  }
   const data = moduleData(module), categories = data.categories || [], values = data.series?.[0]?.values || [], max = Math.max(1, ...values.map(value => Math.abs(Number(value) || 0)));
   surface(slide, frame, theme, "supportingEvidence", `mint|shape-chart-bg|${index}`);
   const rowH = Math.min(70, (frame.height - 2 * pad) / Math.max(1, categories.length)), labelW = Math.min(230, frame.width * 0.3);
@@ -161,6 +189,20 @@ function addTable(slide, module, frame, theme, font, index) {
   all.textStyle.fontSize = 16; all.textStyle.typeface = font; all.textStyle.color = theme.palette.ink;
   const header = table.cells.block({ row: 0, column: 0, rowCount: 1, columnCount: columns });
   header.fill = theme.palette.mintLight; header.textStyle.bold = true;
+  if (module.expression?.variant === "decision-matrix") {
+    table.styleOptions = { headerRow: true, firstColumn: true, bandedRows: false };
+    for (let row = 1; row < values.length; row++) {
+      table.getCell(row, 0).fill = theme.palette.blueLight;
+      table.getCell(row, 0).text.style = { typeface: font, fontSize: 17.3, bold: true, color: theme.palette.ink };
+      for (let column = 1; column < columns; column++) {
+        const headerText = String(values[0]?.[column] ?? ""), value = String(values[row]?.[column] ?? "");
+        let fill = row % 2 ? theme.palette.paper : theme.palette.neutralLight;
+        if (/损失|风险/.test(headerText)) fill = /高/.test(value) ? theme.palette.coralLight : /低/.test(value) ? theme.palette.mintLight : theme.palette.orangeLight;
+        else if (/进入|策略|方式|动作/.test(headerText)) fill = theme.palette.blueLight;
+        table.getCell(row, column).fill = fill;
+      }
+    }
+  }
   return table;
 }
 
@@ -168,14 +210,31 @@ function addDiagram(slide, module, frame, theme, font, index) {
   const data = moduleData(module), nodes = data.nodes || [], edges = data.edges || [];
   if (nodes.length > theme.constraints.maxNetworkNodes && !["grouped-network", "layered-network", "split-diagram"].includes(module.expression.variant)) throw new Error(`Diagram ${module.id || index} has more than ten nodes without grouping`);
   if (!nodes.length) return addNarrative(slide, { ...module, text: module.text || "关系节点缺失" }, frame, theme, font, index);
-  const gap = 20, nodeW = Math.min(270, (frame.width - gap * (nodes.length - 1)) / nodes.length), nodeH = Math.min(150, frame.height * 0.42), top = frame.top + (frame.height - nodeH) / 2;
+  const gap = 40, nodeW = Math.min(360, (frame.width - gap * (nodes.length - 1)) / nodes.length), nodeH = Math.min(180, frame.height * 0.42), totalW = nodeW * nodes.length + gap * (nodes.length - 1), startX = frame.left + (frame.width - totalW) / 2, top = frame.top + (frame.height - nodeH) / 2;
   const shapes = new Map();
+  const nodeIndexes = new Map();
   nodes.forEach((node, i) => {
-    const shape = slide.shapes.add({ geometry: "rect", name: `mint|diagram-node|${index}-${i}`, position: { left: frame.left + i * (nodeW + gap), top, width: nodeW, height: nodeH }, fill: solid(i === 0 ? theme.palette.mintLight : theme.palette.blueLight), line: { fill: i === 0 ? theme.palette.mint : theme.palette.blue, width: 2 }, borderRadius: 16 });
-    shape.text = String(node.label || node.name || node.id || ""); shape.text.style = { typeface: font, fontSize: 18, bold: true, color: theme.palette.ink, autoFit: "shrinkText", verticalAlignment: "center" };
+    const nodeFrame = { left: startX + i * (nodeW + gap), top, width: nodeW, height: nodeH };
+    const label = String(node.label || node.name || node.id || "");
+    const fitted = fitText(label, { width: nodeW - 36, height: nodeH - 28 }, { fontFamily: font, preferredPt: 16, minPt: 12, bold: true, lineHeight: 1.25, maxLines: 4 });
+    if (fitted.overflow) throw new Error(`Diagram node ${node.id || i} cannot fit at the 12pt readability floor`);
+    const shape = slide.shapes.add({ geometry: "rect", name: `mint|diagram-node|${index}-${i}`, position: nodeFrame, fill: solid(i === 0 ? theme.palette.mintLight : theme.palette.blueLight), line: { fill: i === 0 ? theme.palette.mint : theme.palette.blue, width: 2 }, borderRadius: 16 });
+    shape.text = label; shape.text.style = { typeface: font, fontSize: fitted.fontSizePt * 96 / 72, bold: true, color: theme.palette.ink, autoFit: "none", verticalAlignment: "center" };
     shapes.set(String(node.id ?? i), shape);
+    nodeIndexes.set(String(node.id ?? i), i);
   });
-  edges.forEach(edge => { const from = shapes.get(String(edge.from)), to = shapes.get(String(edge.to)); if (from && to) slide.shapes.connect(from, to, { kind: "straight", fromSide: "right", toSide: "left", line: { style: "solid", fill: theme.palette.muted, width: 2 }, head: { type: "arrow", width: "med", length: "med" } }); });
+  edges.forEach((edge, edgeIndex) => {
+    const from = shapes.get(String(edge.from)), to = shapes.get(String(edge.to));
+    if (!from || !to) return;
+    const fromIndex = nodeIndexes.get(String(edge.from)), toIndex = nodeIndexes.get(String(edge.to)), forward = fromIndex < toIndex;
+    slide.shapes.connect(from, to, forward
+      ? { kind: "straight", fromSide: "right", toSide: "left", line: { style: "solid", fill: theme.palette.muted, width: 2 }, tail: { type: "arrow", width: "med", length: "med" } }
+      : { kind: "elbow3", fromSide: "bottom", toSide: "bottom", line: { style: "solid", fill: theme.palette.muted, width: 2 }, tail: { type: "arrow", width: "med", length: "med" } });
+    if (edge.label) {
+      const a = from.position, b = to.position, centerX = (a.left + a.width / 2 + b.left + b.width / 2) / 2, centerY = forward ? top + nodeH / 2 - 48 : top + nodeH + 30;
+      addText(slide, edge.label, { left: centerX - 95, top: centerY, width: 190, height: 34 }, { typeface: font, fontSizePt: 11, bold: true, color: theme.palette.muted }, `mint|diagram-edge-label|${index}-${edgeIndex}`);
+    }
+  });
 }
 
 function addImage(slide, module, frame, index) {
@@ -190,19 +249,19 @@ export async function renderPresentation(ir, theme) {
   const font = theme.fonts.cjk, diagnostics = [];
   for (const [slideIndex, spec] of ir.slides.entries()) {
     const slide = presentation.slides.add(); slide.background.fill = theme.palette.page;
-    const titleSize = spec.role === "cover" ? 52 : spec.density === "dense" ? 36 : 42;
-    addText(slide, spec.claim, spec.layout.title, { typeface: font, fontSize: titleSize, bold: true, color: theme.palette.ink }, `mint|title|${slideIndex}`);
-    if (spec.managementQuestion && spec.role === "content") addText(slide, spec.managementQuestion, spec.layout.claim, { typeface: font, fontSize: 20, color: theme.palette.muted }, `mint|question|${slideIndex}`);
+    addText(slide, spec.claim, spec.layout.title, { typeface: font, fontSizePt: spec.typography?.title?.fontSizePt || (spec.role === "cover" ? 40 : 30), bold: true, color: theme.palette.ink }, `mint|title|${slideIndex}`);
+    if (spec.showManagementQuestion && spec.managementQuestion && spec.role === "content") addText(slide, spec.managementQuestion, spec.layout.claim, { typeface: font, fontSizePt: spec.typography?.question?.fontSizePt || 15, color: theme.palette.muted }, `mint|question|${slideIndex}`);
     for (const [index, module] of spec.modules.entries()) {
-      const frame = spec.layout.modules[index] || spec.layout.modules.at(-1), type = module.expression?.type || module.type, variant = module.expression?.variant;
+      const rawFrame = spec.layout.modules[index] || spec.layout.modules.at(-1), type = module.expression?.type || module.type, variant = module.expression?.variant;
+      const frame = { ...rawFrame, height: ["text", "callout", "metric", "table"].includes(type) ? Math.min(rawFrame.height, rawFrame.usedHeight || rawFrame.height) : rawFrame.height };
       if (type === "metric") addMetric(slide, module, frame, theme, font, index);
       else if (type === "chart") (["line", "column", "sorted-bar", "variance-bar", "doughnut", "percent-stacked", "scatter"].includes(variant) ? addNativeChart : addShapeChart)(slide, module, frame, theme, font, index);
       else if (type === "table") addTable(slide, module, frame, theme, font, index);
       else if (type === "diagram") addDiagram(slide, module, frame, theme, font, index);
       else if (type === "image") addImage(slide, module, frame, index);
-      else addNarrative(slide, module, frame, theme, font, index);
+      else addNarrative(slide, module, frame, theme, font, index, spec.typography?.modules?.[index]);
     }
-    slide.speakerNotes.textFrame.setText(JSON.stringify({ slideId: spec.id, evidenceRefs: spec.evidenceRefs, moduleEvidence: spec.modules.map(module => module.evidenceRefs || []) }));
+    slide.speakerNotes.textFrame.setText(JSON.stringify({ slideId: spec.id, evidenceRefs: spec.evidenceRefs, sourceEvidence: spec.sourceEvidence || [], moduleEvidence: spec.modules.map(module => module.evidenceRefs || []) }));
     diagnostics.push({ slideId: spec.id, geometry: spec.geometry, occupancy: spec.layout.occupancy, expressions: spec.modules.map(module => module.expression) });
   }
   return { presentation, diagnostics };

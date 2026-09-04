@@ -10,6 +10,8 @@ Capacity order: change geometry; rebalance module shares; use the compact varian
 
 Occupancy is diagnostic, not a fill target. Below 55% on ordinary content slides, inspect one-point pagination, undersized visuals, and short tables without interpretation. Above 92%, inspect crowding and auto-shrink. Do not stretch empty cards/tables or add decoration to improve the ratio. Hero, cover, section, and closing slides may intentionally use more whitespace.
 
+The engine measures real text with the configured CJK font before rendering and calculates real-content occupancy from measured text/table/visual demand, not allocated rectangles. Equal-area cards are allowed only for genuinely equal semantic weight. A headline number, primary chart, or relationship diagram receives the dominant area; boundaries and caveats receive a smaller support area. The renderer uses `autoFit=none`; unresolved overflow blocks delivery.
+
 ## Typography
 
 | Role | Candidate range |
@@ -25,6 +27,8 @@ Occupancy is diagnostic, not a fill target. Below 55% on ordinary content slides
 | Caption | 10–12pt |
 
 Choose within the range using role, text length, language, available width, and reading distance. Reserve 13pt for supporting information. Keep titles to one or two lines. If the lower bound still fails, rewrite without changing meaning or change the page structure. Default to no more than four primary size levels; captions, labels, and necessary table sizes are excluded.
+
+`managementQuestion` is hidden by default. It may be shown only when the question itself improves the audience's understanding; never repeat a gray question line mechanically on every slide.
 
 ## Writing
 

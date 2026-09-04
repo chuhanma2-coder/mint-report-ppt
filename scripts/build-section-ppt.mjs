@@ -9,6 +9,8 @@ import { layoutIssues, layoutSlide } from "./lib/geometry-engine.mjs";
 import { exportPresentation, renderPresentation } from "./lib/ppt-renderer.mjs";
 import { writePptxMetadata } from "./lib/pptx-metadata.mjs";
 import { auditPpt } from "./lib/audit.mjs";
+import { auditSourceCoverage, evidenceForSlide } from "./lib/source-coverage.mjs";
+import { presentationIntentIssues } from "./lib/presentation-gates.mjs";
 
 const [sourceArg, irArg, taskArg, sectionId, outputArg] = process.argv.slice(2);
 const sourceFile = path.resolve(sourceArg || ""), irFile = path.resolve(irArg || ""), taskFile = path.resolve(taskArg || ""), output = path.resolve(outputArg || "");
@@ -40,12 +42,19 @@ try {
   const sourceText = fs.readFileSync(sourceFile, "utf8"), irText = fs.readFileSync(irFile, "utf8"), task = readTaskCard(taskFile), source = JSON.parse(sourceText), authored = JSON.parse(irText), section = task.sections.find(item => item.sectionId === sectionId);
   if (!section) throw new Error(`Section ${sectionId} is not assigned by the task card`);
   const structuralIssues = validateIr(authored, task, section, source); if (structuralIssues.length) throw new Error(structuralIssues.join("; "));
-  const datasets = source.datasets || {};
-  const slides = authored.slides.map(slide => layoutSlide(resolveSlideExpressions(slide, datasets), theme));
-  const expressionIssues = slides.flatMap(expressionSuitability); if (expressionIssues.length) throw new Error(`Expression gate failed: ${expressionIssues.join("; ")}`);
-  const layoutWarnings = slides.flatMap(slide => layoutIssues(slide, theme));
-  const resolved = { ...authored, slides, resolvedBy: { skillVersion, themeVersion: theme.themeVersion, generatedAt: new Date().toISOString() } };
+  const coverage = auditSourceCoverage(source, authored);
+  const coverageFile = `${output}.source-coverage.json`;
   fs.mkdirSync(path.dirname(output), { recursive: true });
+  fs.writeFileSync(coverageFile, `${JSON.stringify(coverage, null, 2)}\n`);
+  if (!coverage.passed) throw new Error(`Source coverage gate failed: ${coverage.issues.join("; ")}`);
+  const datasets = source.datasets || {};
+  const slides = authored.slides.map(slide => layoutSlide({ ...resolveSlideExpressions(slide, datasets), sourceEvidence: evidenceForSlide(source, slide) }, theme));
+  const expressionIssues = slides.flatMap(expressionSuitability);
+  const presentationIssues = presentationIntentIssues({ ...authored, slides });
+  const layoutWarnings = slides.flatMap(slide => layoutIssues(slide, theme));
+  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...layoutWarnings.map(issue => `Layout: ${issue}`)];
+  if (generationIssues.length) throw new Error(`Generation gates failed: ${generationIssues.join("; ")}`);
+  const resolved = { ...authored, slides, resolvedBy: { skillVersion, themeVersion: theme.themeVersion, generatedAt: new Date().toISOString() } };
   const { presentation, diagnostics } = await renderPresentation(resolved, theme);
   await exportPresentation(presentation, output);
   await writePptxMetadata(output, {
@@ -58,6 +67,6 @@ try {
   fs.writeFileSync(resolvedFile, `${JSON.stringify(resolved, null, 2)}\n`);
   const auditFile = `${output}.audit.json`, audit = await auditPpt({ file: output, taskFile, sectionId, mode: "section", output: auditFile, resolvedIrFile: resolvedFile });
   if (!audit.passed) throw new Error(`PPT audit failed: ${audit.issues.join("; ")}`);
-  fs.writeFileSync(`${output}.build.json`, `${JSON.stringify({ passed: true, output, resolvedFile, auditFile, slides: slides.length, diagnostics, warnings: layoutWarnings, skillVersion, themeVersion: theme.themeVersion }, null, 2)}\n`);
-  console.log(JSON.stringify({ passed: true, output, resolvedFile, auditFile, slides: slides.length, warnings: layoutWarnings, authority: "pptx", skillVersion, themeVersion: theme.themeVersion }, null, 2));
+  fs.writeFileSync(`${output}.build.json`, `${JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, slides: slides.length, diagnostics, warnings: [], skillVersion, themeVersion: theme.themeVersion }, null, 2)}\n`);
+  console.log(JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, slides: slides.length, warnings: [], authority: "pptx", skillVersion, themeVersion: theme.themeVersion }, null, 2));
 } catch (error) { console.error(JSON.stringify({ passed: false, error: error.message }, null, 2)); process.exit(1); }

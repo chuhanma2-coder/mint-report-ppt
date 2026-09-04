@@ -1,9 +1,9 @@
 {
   "name": "mint-report-ppt",
-  "version": "0.3.0-rc.2",
+  "version": "0.3.0-rc.3",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/contracts.mjs && node tests/expression-router.mjs && node tests/geometry-engine.mjs && node tests/metadata.e2e.mjs"
+    "test": "node tests/contracts.mjs && node tests/source-coverage.mjs && node tests/expression-router.mjs && node tests/presentation-gates.mjs && node tests/geometry-engine.mjs && node tests/text-layout.mjs && node tests/a-regression.mjs && node tests/metadata.e2e.mjs"
   }
 }

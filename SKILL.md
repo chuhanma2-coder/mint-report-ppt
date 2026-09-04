@@ -19,7 +19,7 @@ Produce a strong first-draft PPTX that leaders can edit directly. After the firs
 ## Required pipeline
 
 1. Read all supplied material once. Build a source/evidence model without adding facts.
-2. Plan the chapter around management questions and supported conclusions. Consolidate content that answers one question before adding a slide.
+2. Plan the chapter around management questions and supported conclusions. Consolidate content that answers one question before adding a slide. Write an explicit transition for every content slide after the first; the title chain alone must read as one management story.
 3. Write light Slide IR conforming to `schemas/slide-ir.schema.json`. AI writes semantic intent, not coordinates, fonts, colors, or PowerPoint code.
 4. Run the deterministic Expression Router. `dataShape` is computed from data. Expression and geometry are separate.
 5. Run the Geometry Engine, native PPT Renderer, content/expression/layout/artifact QA, then deliver one current section PPTX.
@@ -36,10 +36,13 @@ Read these only when needed:
 
 ## Non-negotiable contracts
 
-- Source completeness: every source unit is visible, retained in notes/appendix, or recorded as an approved omission. Never delete evidence to fit a slide.
+- Source completeness: every source unit must have a deterministic destination in a visible module, full-text speaker notes/appendix, or an explicit user-approved omission with a reason. `build-section-ppt` writes a source-coverage ledger and blocks any unmapped unit. Never delete evidence to fit a slide.
 - No invention: do not browse for business facts unless asked; label missing or conflicting information.
 - Expression: choose by management question, semantic intent, and computed data shape. Router choices are candidates, not mechanical one-to-one mappings.
 - Layout: the Layout Engine cannot silently change the selected expression. Renderer cannot change content or semantics.
+- Evidence hierarchy: every content-slide claim must have a visible primary proof. Relationship intent requires a real diagram/image; comparison, trend, variance, contribution, ranking, composition, or matrix intent cannot be delivered as text/cards or an undifferentiated table alone.
+- Management questions are internal planning fields and hidden by default. Show one only when it materially helps the audience.
+- Text fit is measured with the actual CJK font before rendering. The renderer uses the selected readable font size with no automatic shrink. If title, body, label, or table cannot fit above its role-specific minimum, change geometry, consolidate/split by management conclusion, or block delivery.
 - Native editability: formal text, tables, charts, images, and required diagrams are native PowerPoint objects. Full-slide screenshots are forbidden in working PPTX files.
 - Clean pages: 16:9, no visible task IDs, hashes, outline numbers, source-unit IDs, headers, footers, or page numbers.
 - Images must be embedded. Charts preserve categories, series, units, signs, targets, and axis meaning.
@@ -54,4 +57,4 @@ Read these only when needed:
 
 ## Speed contract
 
-Use one source pass, one planning pass, one deterministic routing/layout/render pass, one visual review, and one batch repair. Check only affected slides for ordinary edits. Recheck neighboring slides and the title chain after split, merge, add, delete, reorder, title, or conclusion changes. Merge uses zero model calls and does not re-layout.
+Use one source pass, one planning pass, one deterministic routing/layout/render pass, one visual review, and one batch repair. Large detail tables belong in appendix or must be paired with a visual summary that proves the title. Do not use equal cards when module information weight differs. Check only affected slides for ordinary edits. Recheck neighboring slides and the title chain after split, merge, add, delete, reorder, title, or conclusion changes. Merge uses zero model calls and does not re-layout.

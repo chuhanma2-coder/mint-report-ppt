@@ -22,6 +22,7 @@
         "id": { "type": "string", "minLength": 1 },
         "role": { "enum": ["cover", "section", "content", "closing"] },
         "managementQuestion": { "type": "string" },
+        "showManagementQuestion": { "type": "boolean", "default": false },
         "claim": { "type": "string", "minLength": 1 },
         "semanticIntent": { "type": "string", "minLength": 1 },
         "narrative": {
@@ -30,6 +31,7 @@
           "additionalProperties": false
         },
         "density": { "enum": ["focused", "standard", "dense"] },
+        "allowIntentionalWhitespace": { "type": "boolean", "default": false },
         "geometry": { "type": ["string", "null"], "enum": [null, "hero", "single-primary", "primary-secondary", "balanced-columns", "grid", "sequence", "matrix", "network"] },
         "evidenceRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "modules": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/module" } }

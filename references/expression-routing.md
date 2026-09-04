@@ -6,6 +6,8 @@ Expression answers “what medium best carries this meaning?” Geometry answers
 
 Use `managementQuestion`, `claim`, `semanticIntent`, computed `dataShape`, exact-lookup need, decision intent, units, targets, time, signs, whole/part status, ordering, process/hierarchy/direction, label length, and data volume. Output `{type, variant, reason, alternatives}`. `reason` and `alternatives` remain internal.
 
+`exactLookup=true` preserves detail but does not automatically force the primary expression to be a table. When the management question asks for change, rank, contribution, target attainment, or comparison, route the primary proof visually and preserve the full table in an appendix or notes. Use a table as the primary expression only when lookup/reconciliation is itself the management purpose.
+
 The module types are `text`, `metric`, `chart`, `table`, `diagram`, `image`, and `callout`. Semantic roles are `context`, `primaryEvidence`, `supportingEvidence`, `managementConclusion`, `comparison`, `progress`, `risk`, `action`, `decision`, and `boundary`.
 
 ## Candidate routes
@@ -44,6 +46,8 @@ The same data may route differently. `A=80, B=72, C=55` becomes a sorted bar for
 ## Implementation fallback
 
 Use native PowerPoint chart first, editable-shape chart second, and table only when precise lookup is genuinely the intended expression. If a selected expression does not fit, try another geometry and compact variant, then split by an independent conclusion. Return to the router only when the expression itself is unreadable; never let the renderer silently replace it.
+
+For multi-dimensional country/product comparisons, use a decision matrix when dimensions are ordinal or qualitative. For scale plus quality measures with incompatible units, use aligned small multiples rather than one axis or a plain table. For a long cost table whose title names key drivers, show the driver ranking/variance first and preserve all rows in an appendix table.
 
 ## Semantic color
 

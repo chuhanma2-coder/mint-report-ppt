@@ -44,6 +44,13 @@ export async function inspectPptxPackage(file) {
   const presentation = await zip.file("ppt/presentation.xml")?.async("string");
   const size = presentation?.match(/<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/);
   const slideXml = await Promise.all(slides.map(name => zip.file(name).async("string")));
+  const mintTextObjects = slideXml.flatMap((xml, slideIndex) => [...xml.matchAll(/<p:sp>([\s\S]*?)<\/p:sp>/g)].map(match => {
+    const shape = match[1], name = shape.match(/<p:cNvPr\b[^>]*\bname="([^"]*)"/)?.[1] || "";
+    if (!name.startsWith("mint|") || !/<a:t>/.test(shape)) return null;
+    const sizes = [...shape.matchAll(/<(?:a:defRPr|a:rPr)\b[^>]*\bsz="(\d+)"/g)].map(item => Number(item[1]));
+    const typefaces = [...shape.matchAll(/<a:(?:latin|ea|cs)\b[^>]*\btypeface="([^"]+)"/g)].map(item => item[1]);
+    return { slide: slideIndex + 1, name, minimumFontPt: sizes.length ? Math.min(...sizes) / 100 : null, typefaces: [...new Set(typefaces)], noAutoFit: /<a:noAutofit\s*\/>/.test(shape) };
+  }).filter(Boolean));
   const relNames = names.filter(name => /^ppt\/(slides|charts|drawings)\/_rels\/.*\.rels$/.test(name));
   const relXml = await Promise.all(relNames.map(name => zip.file(name).async("string")));
   return {
@@ -53,6 +60,7 @@ export async function inspectPptxPackage(file) {
     visibleText: slideXml.flatMap(xml => [...xml.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].map(match => xmlUnescape(match[1]))).join("\n"),
     hasPageChrome: slideXml.some(xml => /<p:ph\b[^>]*\btype="(?:dt|ftr|sldNum)"/i.test(xml)),
     nativeTables: slideXml.reduce((sum, xml) => sum + (xml.match(/<a:tbl\b/g) || []).length, 0),
-    nativeShapes: slideXml.reduce((sum, xml) => sum + (xml.match(/<p:sp\b/g) || []).length, 0)
+    nativeShapes: slideXml.reduce((sum, xml) => sum + (xml.match(/<p:sp\b/g) || []).length, 0),
+    mintTextObjects
   };
 }
