@@ -1,62 +1,57 @@
 ---
 name: mint-report-ppt
-description: Create source-grounded Mint management reports that use native editable PPTX for parallel review and publish one final interactive HTML. Use when contributors or leaders need to edit Mint sections in PowerPoint before a final HTML merge. Do not use for HTML-only authoring or a final-PPT-only deliverable.
+description: Create source-grounded Mint management reports as native editable PowerPoint sections for parallel review, merge the final PPT without re-layout, and publish the actual final PPT pages as one offline read-only HTML. Use for Mint PPT authoring, collaborative PowerPoint review, or PPT-to-HTML publication. Do not use for HTML-first editing or final-PPT-only generic presentation work.
 ---
 
 # Mint Report PPT
 
-Create native editable Mint PowerPoint sections, synchronize supported human edits back to the shared content model, and publish one final interactive HTML. PPTX is the review carrier; the synchronized model is the internal authority and the final HTML is the publication artifact.
+Produce a strong first-draft PPTX that leaders can edit directly. After the first PPTX exists, treat that PPTX—not HTML or old IR—as the only human-editable authority. Publish the actual final PPT pages and order as a read-only offline HTML.
 
-## Route correctly
+## Route and boundaries
 
-- Use this Skill for parallel editable Mint PPT sections followed by a final HTML report.
-- Use `mint-report-html` when HTML interaction, E editing, scrolling, or an HTML workfile is the only goal.
-- Use the Presentations Skill directly when the required final deliverable is only PPTX and no Mint HTML publication is needed.
-- Do not use or modify `mint-report-deck`. Do not invoke a generic template picker: this Skill supplies `mint-fresh/1`.
-- For PPTX creation or editing, load the workspace presentation runtime and follow the installed Presentations Skill. Use `@oai/artifact-tool`; never use `python-pptx`.
+- Use this Skill for Mint PPT collaboration followed by final HTML publication.
+- Use `mint-report-html` for HTML-first authoring, E editing, or dynamic web interaction. This Skill does not require that Skill.
+- Use the Presentations Skill directly for a generic final-PPT-only deliverable.
+- Never invoke or modify `mint-report-deck` as a fallback.
+- Use the bundled presentation runtime and `@oai/artifact-tool`; never use `python-pptx`.
+- Do not generate draft HTML, extract HTML coordinates, embed ZIPs, sync PPT edits back to IR, or implement PDF export.
 
-## Required dependency
+## Required pipeline
 
-This Skill requires the compatible `mint-report-html` core API declared in `core-api.json`. Run `scripts/check-dependencies.mjs` before work. A dependency failure blocks generation; never silently switch to another deck Skill.
+1. Read all supplied material once. Build a source/evidence model without adding facts.
+2. Plan the chapter around management questions and supported conclusions. Consolidate content that answers one question before adding a slide.
+3. Write light Slide IR conforming to `schemas/slide-ir.schema.json`. AI writes semantic intent, not coordinates, fonts, colors, or PowerPoint code.
+4. Run the deterministic Expression Router. `dataShape` is computed from data. Expression and geometry are separate.
+5. Run the Geometry Engine, native PPT Renderer, content/expression/layout/artifact QA, then deliver one current section PPTX.
+6. People edit that PPTX directly, including slide insertion, deletion, reordering, splitting, merging, and object changes.
+7. Merge current PPTX files in task-card section order without model calls, source rereading, or slide reconstruction.
+8. Publish the actual final PPT slides and order through `scripts/publish-report-html.mjs`. The HTML is a read-only publication artifact.
 
-## Four-stage workflow
+Read these only when needed:
 
-1. **Parallel authoring.** One coordinator creates one task card. Each owner uses the shared source lock, management clustering, page consolidation, data routing, and title contracts from `mint-report-html`, then runs `scripts/build-section-ppt.mjs`. The first user-facing file is `<owner>-<section>-current.pptx`; its internal sync payload is not a second user file.
-2. **Direct PPT revision.** The owner or leader edits the current PPTX in PowerPoint. Supported round-trip edits are text, table cells, chart title/categories/series/values, embedded image replacement/crop, and object position/size. Do not rename generated objects. New freeform shapes, slide insertion/deletion, SmartArt, animation, theme changes, or diagram restructuring are not automatically translatable and must block synchronization for confirmation.
-3. **Synchronization and merge.** Accept exactly one current PPTX per section. `scripts/finalize-report-html.mjs` validates identity, synchronizes supported edits, rejects unbound changes, merges section models in task-card order, and launches no section-level browser QA.
-4. **HTML publication.** After merge, run one complete desktop HTML review and package one offline `.mint-report.html`. That HTML is the final publication file and retains `mint-report-html` interaction and editing. A complete PPTX or PDF is optional and outside the default chain.
+- `references/workflow.md` for prompts, commands, authority, and merge/publication.
+- `references/expression-routing.md` before authoring IR or changing an expression.
+- `references/design-layout.md` before rendering or repairing layout/design.
+- `references/quality-gates.md` before review, diagnosis, or delivery.
 
-Read `references/ppt-workflow.md` for exact prompts and commands. Read `references/ppt-failure-prevention.md` before implementing or diagnosing output.
+## Non-negotiable contracts
 
-## Shared content contracts
+- Source completeness: every source unit is visible, retained in notes/appendix, or recorded as an approved omission. Never delete evidence to fit a slide.
+- No invention: do not browse for business facts unless asked; label missing or conflicting information.
+- Expression: choose by management question, semantic intent, and computed data shape. Router choices are candidates, not mechanical one-to-one mappings.
+- Layout: the Layout Engine cannot silently change the selected expression. Renderer cannot change content or semantics.
+- Native editability: formal text, tables, charts, images, and required diagrams are native PowerPoint objects. Full-slide screenshots are forbidden in working PPTX files.
+- Clean pages: 16:9, no visible task IDs, hashes, outline numbers, source-unit IDs, headers, footers, or page numbers.
+- Images must be embedded. Charts preserve categories, series, units, signs, targets, and axis meaning.
+- QA issues return only to their owner layer: content → source/planner; expression → router; layout → geometry; artifact → renderer/publisher.
+- Visual QA may request `expression-review-required`; it may not directly replace one chart type with another.
 
-- Every source unit is visible, retained in details, or explicitly approved for omission. Page count and visual compression never authorize silent deletion.
-- Do not browse for business facts unless requested. Do not invent missing numbers, entities, conclusions, causal links, or comparison labels.
-- Plan pages by independent management conclusions, not atom count. Consolidate evidence, mechanism, risk, action, and data when they answer the same question; do not create sparse one-point slides.
-- Route data by relationship, unit, period, sign, category, denominator, and decision intent. A time series remains a time series; horizontal bars remain bars; absolute-value series share an axis; negative values and zero lines remain visible.
-- Audience-facing output never exposes task-card paths, owner IDs, outline indices, source-unit IDs, hashes, raw filenames, merge lineage, `任务边界`, or `大纲 2` labels.
+## Authority lifecycle
 
-## Native PPT review contract
+- Before first PPTX: source model and Slide IR are generation authority.
+- After first PPTX: the PPTX is the sole human work authority. Do not regenerate it from stale IR.
+- Final publication: HTML is a read-only artifact generated from the actual final PPTX; it does not become an editing source.
 
-- Review slides are 16:9 and use `mint-fresh/1`. They contain no headers, footers, page numbers, navigation dots, HTML controls, hover states, or HTML animation.
-- Text, tables, charts, media, shapes, and simple diagrams are native editable PowerPoint objects. A full-slide screenshot is forbidden.
-- Theme, fonts, title hierarchy, margins, chart palette, and background rules come from the task card and theme tokens, not Office defaults.
-- Media is embedded. Missing, corrupt, external, or unsupported media blocks delivery.
-- Preserve chart type, categories, series order, units, signs, axis policy, and key values. Never silently replace an unsupported chart with a table or decorative shape.
-- Formal text contrast is at least 4.5:1; large titles are at least 3:1. Ordinary slides do not use large dark-green fills.
-- Render every delivered slide. Out-of-bounds objects, severe auto-shrink, unintended overlap, missing media, broken labels, visible audit metadata, or inconsistent theme identity block delivery.
+## Speed contract
 
-## Authority and synchronization
-
-- Before first PPTX delivery, the shared source/model contracts are authoritative. During review, the current PPTX is the only file a person edits. Synchronization updates its embedded section model; after finalization, the complete HTML is authoritative.
-- File names are not identities. Each PPTX embeds report, section, order, theme, Skill, task-card, source, binding, and baseline identity.
-- Submit exactly one current PPTX per section. Duplicate or missing sections, renamed/deleted bound objects, incompatible versions, missing sync payload, external media, or unsupported edits block finalization.
-- Agent-authored PPT revisions must run `scripts/preserve-sync-payload.mjs` after export. Human PowerPoint edits must preserve the embedded payload; the synchronizer verifies it before accepting changes.
-- Final merge reads embedded section packages and does not depend on PowerPoint COM. `merge-section-ppt.ps1` remains optional only when a complete PPT copy is explicitly requested.
-
-## Deliverables
-
-- Authoring: one native editable section PPTX per owner.
-- Merge/publication: one offline, interactive, editable complete HTML plus an internal finalization manifest.
-- Optional: complete PPTX or PowerPoint-exported PDF only when explicitly requested.
-- Embedded section packages, layout snapshots, and QA files remain technical artifacts and are not routine user deliverables.
+Use one source pass, one planning pass, one deterministic routing/layout/render pass, one visual review, and one batch repair. Check only affected slides for ordinary edits. Recheck neighboring slides and the title chain after split, merge, add, delete, reorder, title, or conclusion changes. Merge uses zero model calls and does not re-layout.

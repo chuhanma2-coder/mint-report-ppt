@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "sourceUnits": [
+    { "id": "SU-01", "text": "Y1至Y8收入分别为10、13、16、21、25、31、38、46。" },
+    { "id": "SU-02", "text": "收入保持增长。" }
+  ],
+  "datasets": {
+    "revenue-trend": {
+      "categories": ["Y1", "Y2", "Y3", "Y4", "Y5", "Y6", "Y7", "Y8"],
+      "series": [{ "name": "收入", "values": [10, 13, 16, 21, 25, 31, 38, 46] }],
+      "hasTime": true
+    }
+  }
+}

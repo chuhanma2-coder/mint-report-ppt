@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mint.local/schemas/slide-ir.schema.json",
+  "title": "Mint Report Slide IR",
+  "type": "object",
+  "required": ["schemaVersion", "reportId", "sectionId", "slides"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "reportId": { "type": "string", "minLength": 1 },
+    "sectionId": { "type": "string", "minLength": 1 },
+    "slides": {
+      "type": "array", "minItems": 1,
+      "items": { "$ref": "#/$defs/slide" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "slide": {
+      "type": "object",
+      "required": ["id", "role", "managementQuestion", "claim", "semanticIntent", "density", "evidenceRefs", "modules"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "role": { "enum": ["cover", "section", "content", "closing"] },
+        "managementQuestion": { "type": "string" },
+        "claim": { "type": "string", "minLength": 1 },
+        "semanticIntent": { "type": "string", "minLength": 1 },
+        "narrative": {
+          "type": "object",
+          "properties": { "previous": { "type": "string" }, "transition": { "type": "string" }, "next": { "type": "string" } },
+          "additionalProperties": false
+        },
+        "density": { "enum": ["focused", "standard", "dense"] },
+        "geometry": { "type": ["string", "null"], "enum": [null, "hero", "single-primary", "primary-secondary", "balanced-columns", "grid", "sequence", "matrix", "network"] },
+        "evidenceRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "modules": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/module" } }
+      },
+      "additionalProperties": false
+    },
+    "module": {
+      "type": "object",
+      "required": ["type", "semanticRole"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "enum": ["text", "metric", "chart", "table", "diagram", "image", "callout"] },
+        "semanticRole": { "enum": ["context", "primaryEvidence", "supportingEvidence", "managementConclusion", "comparison", "progress", "risk", "action", "decision", "boundary"] },
+        "title": { "type": "string" }, "text": { "type": "string" }, "value": {}, "unit": { "type": "string" },
+        "dataRef": { "type": "string" }, "data": {}, "imagePath": { "type": "string" }, "alt": { "type": "string" },
+        "evidenceRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "dataShape": { "type": "object" }, "expression": { "type": ["object", "null"] }
+      },
+      "additionalProperties": true
+    }
+  }
+}

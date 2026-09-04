@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "reportId": "router-demo",
+  "sectionId": "section-a",
+  "slides": [{
+    "id": "S01",
+    "role": "content",
+    "managementQuestion": "收入走势如何？",
+    "claim": "Y1至Y8收入保持增长",
+    "semanticIntent": "trend",
+    "narrative": { "previous": "", "transition": "", "next": "" },
+    "density": "standard",
+    "geometry": null,
+    "evidenceRefs": ["SU-01", "SU-02"],
+    "modules": [
+      { "id": "M01", "type": "chart", "semanticRole": "primaryEvidence", "dataRef": "revenue-trend", "evidenceRefs": ["SU-01"], "expression": null },
+      { "id": "M02", "type": "callout", "semanticRole": "managementConclusion", "title": "结论", "text": "八个时期均保持正向增长。", "evidenceRefs": ["SU-02"], "expression": null }
+    ]
+  }]
+}

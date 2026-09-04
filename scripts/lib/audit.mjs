@@ -2,8 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { inspectPptxPackage, readPptxMetadata, readPptxSyncPayload } from "./pptx-metadata.mjs";
+import { inspectPptxPackage, readPptxMetadata } from "./pptx-metadata.mjs";
 import { readTaskCard } from "./task-card.mjs";
+import { expressionSuitability } from "./expression-router.mjs";
 
 const forbidden = [/report\.mint-(?:task|ppt-task)\.json/i, /任务边界/, /\bsource[-_ ]unit\b/i, /\bcontentHash\b/i, /\b大纲\s*\d+/];
 
@@ -41,12 +42,16 @@ async function visualChecks(file, outputDir) {
   return { slides: slides.length, results, issues };
 }
 
-export async function auditPpt({ file, taskFile, sectionId = null, mode = "section", output = null }) {
+export async function auditPpt({ file, taskFile, sectionId = null, mode = "section", output = null, resolvedIrFile = null }) {
   const task = readTaskCard(taskFile), pkg = await inspectPptxPackage(file), metadata = await readPptxMetadata(file), renderDir = path.join(path.dirname(output || file), `${path.basename(file, path.extname(file))}-audit-render`);
-  const issues = packageChecks(pkg, metadata, task, sectionId, mode); let sync = null;
-  if (mode === "section") { try { sync = await readPptxSyncPayload(file); if (sync.hash !== metadata.MintSyncPayloadHash || sync.payload.sectionId !== sectionId || sync.payload.taskCardHash !== task.taskCardHash) issues.push("Embedded PPT-to-HTML sync payload identity mismatch"); } catch (error) { issues.push(error.message); } }
+  const issues = packageChecks(pkg, metadata, task, sectionId, mode), semantic = { checked: false, issues: [] };
+  if (resolvedIrFile && fs.existsSync(resolvedIrFile)) {
+    const ir = JSON.parse(fs.readFileSync(resolvedIrFile, "utf8")); semantic.checked = true;
+    semantic.issues = (ir.slides || []).flatMap(expressionSuitability); issues.push(...semantic.issues.map(issue => `Expression: ${issue}`));
+    if ((ir.slides || []).length !== pkg.slides.length) issues.push("Resolved IR slide count differs from PPTX");
+  }
   const visual = await visualChecks(file, renderDir); issues.push(...visual.issues);
-  const report = { schemaVersion: "1.0", passed: issues.length === 0, mode, file, taskCard: taskFile, reportId: task.reportId, sectionId, metadata, sync: sync ? { hash: sync.hash, bindings: sync.payload.bindings?.length || 0, baselineSlides: sync.payload.baseline?.slides || 0 } : null, package: { slides: pkg.slides.length, charts: pkg.charts.length, media: pkg.media.length, nativeTables: pkg.nativeTables, nativeShapes: pkg.nativeShapes, slideSize: pkg.slideSize, externalMedia: pkg.hasExternalMedia, pageChrome: pkg.hasPageChrome }, visual, issues, generatedAt: new Date().toISOString() };
+  const report = { schemaVersion: "2.0", passed: issues.length === 0, mode, file, taskCard: taskFile, reportId: task.reportId, sectionId, metadata, semantic, package: { slides: pkg.slides.length, charts: pkg.charts.length, media: pkg.media.length, nativeTables: pkg.nativeTables, nativeShapes: pkg.nativeShapes, slideSize: pkg.slideSize, externalMedia: pkg.hasExternalMedia, pageChrome: pkg.hasPageChrome }, visual, issues, generatedAt: new Date().toISOString() };
   if (output) fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
   return report;
 }

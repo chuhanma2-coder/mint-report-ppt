@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "2.0",
+  "themeVersion": "mint-fresh-2/1",
+  "slide": { "width": 1920, "height": 1080, "aspectRatio": "16:9", "headers": false, "footers": false, "pageNumbers": false },
+  "fonts": { "cjk": "Microsoft YaHei", "latin": "Aptos" },
+  "palette": {
+    "page": "#F5F8F6", "paper": "#FFFFFF", "ink": "#18312A", "muted": "#60706A", "line": "#D8E4DF",
+    "mint": "#00866A", "mintLight": "#E7F5F0", "blue": "#1686A6", "blueLight": "#E8F4F8",
+    "orange": "#E98245", "orangeLight": "#FFF0E7", "coral": "#D95D4F", "coralLight": "#FBEAE7",
+    "purple": "#7161A8", "gold": "#C79A32", "neutral": "#87938E", "neutralLight": "#EEF2F0", "onDark": "#FFFFFF"
+  },
+  "semanticColors": {
+    "actual": "#00866A", "target": "#7891A0", "positive": "#00866A", "risk": "#D95D4F", "history": "#87938E",
+    "peerSeries": ["#1686A6", "#E98245"], "multiSeries": ["#1686A6", "#E98245", "#00866A", "#7161A8", "#C79A32"]
+  },
+  "typographyPt": {
+    "coverTitle": [32, 46], "sectionTitle": [30, 40], "contentTitle": [26, 34], "denseTitle": [22, 30],
+    "heroMetric": [28, 44], "body": [14, 18], "denseBody": [13, 16], "label": [11, 14], "caption": [10, 12]
+  },
+  "spacing": { "pageX": 88, "pageTop": 58, "pageBottom": 58, "gap": 28, "compactGap": 18 },
+  "constraints": { "sparseOccupancy": 0.55, "crowdedOccupancy": 0.92, "normalTextContrast": 4.5, "largeTextContrast": 3, "maxNetworkNodes": 10 }
+}

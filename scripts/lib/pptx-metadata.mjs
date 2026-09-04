@@ -1,7 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
-import zlib from "node:zlib";
 import { createRequire } from "node:module";
 
 const xmlEscape = value => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
@@ -30,33 +28,6 @@ export async function writePptxMetadata(file, metadata) {
   fs.writeFileSync(file, await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } }));
 }
 
-const syncPart = "customXml/mint-report-ppt-sync.xml";
-
-export async function writePptxSyncPayload(file, payload) {
-  const JSZip = await jsZip(), zip = await JSZip.loadAsync(fs.readFileSync(file));
-  const contentTypes = await zip.file("[Content_Types].xml")?.async("string"), relationships = await zip.file("_rels/.rels")?.async("string");
-  if (!contentTypes || !relationships) throw new Error("PPTX lacks required package metadata");
-  const json = Buffer.from(JSON.stringify(payload)), packed = zlib.gzipSync(json, { level: 9 }), hash = crypto.createHash("sha256").update(json).digest("hex");
-  const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><mintPptSync xmlns="urn:mint-report:ppt-sync:v1" schemaVersion="1" sha256="${hash}" encoding="gzip-base64"><payload>${packed.toString("base64")}</payload></mintPptSync>`;
-  const override = '<Override PartName="/customXml/mint-report-ppt-sync.xml" ContentType="application/xml"/>';
-  const relation = '<Relationship Id="rIdMintPptSync" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/mint-report-ppt-sync.xml"/>';
-  zip.file("[Content_Types].xml", contentTypes.includes(`/${syncPart}`) ? contentTypes : contentTypes.replace("</Types>", `${override}</Types>`));
-  zip.file("_rels/.rels", relationships.includes("rIdMintPptSync") ? relationships : relationships.replace("</Relationships>", `${relation}</Relationships>`));
-  zip.file(syncPart, xml);
-  fs.writeFileSync(file, await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 } }));
-  return { hash, unpackedBytes: json.length, packedBytes: packed.length };
-}
-
-export async function readPptxSyncPayload(file) {
-  const JSZip = await jsZip(), zip = await JSZip.loadAsync(fs.readFileSync(file)), xml = await zip.file(syncPart)?.async("string");
-  if (!xml) throw new Error(`PPTX ${path.basename(file)} has no embedded Mint sync payload`);
-  const payload = xml.match(/<payload>([A-Za-z0-9+/=]+)<\/payload>/)?.[1], expected = xml.match(/\bsha256="([0-9a-f]{64})"/)?.[1];
-  if (!payload || !expected) throw new Error("Mint sync payload is malformed");
-  const json = zlib.gunzipSync(Buffer.from(payload, "base64")), actual = crypto.createHash("sha256").update(json).digest("hex");
-  if (actual !== expected) throw new Error("Mint sync payload hash mismatch");
-  return { payload: JSON.parse(json.toString("utf8")), hash: actual };
-}
-
 export async function readPptxMetadata(file) {
   const JSZip = await jsZip(), zip = await JSZip.loadAsync(fs.readFileSync(file)), xml = await zip.file("docProps/custom.xml")?.async("string");
   if (!xml) throw new Error(`PPTX ${path.basename(file)} has no Mint custom metadata`);
@@ -68,7 +39,7 @@ export async function readPptxMetadata(file) {
 export async function inspectPptxPackage(file) {
   const JSZip = await jsZip(), zip = await JSZip.loadAsync(fs.readFileSync(file)), names = Object.keys(zip.files);
   const slides = names.filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
-  const charts = names.filter(name => /^ppt\/charts\/chart\d+\.xml$/.test(name));
+  const charts = names.filter(name => /^ppt\/(?:slides\/)?charts\/chart\d+\.xml$/.test(name));
   const media = names.filter(name => /^ppt\/media\//.test(name) && !zip.files[name].dir);
   const presentation = await zip.file("ppt/presentation.xml")?.async("string");
   const size = presentation?.match(/<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/);

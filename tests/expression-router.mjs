@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import { inferDataShape, routeExpression, expressionSuitability } from "../scripts/lib/expression-router.mjs";
+
+const twoPeriods = { categories: ["Y1", "Y2"], series: [{ name: "收入", values: [80, 92] }] };
+assert.equal(inferDataShape(twoPeriods).hasTime, true);
+assert.equal(routeExpression({ semanticIntent: "trend", data: twoPeriods }).variant, "dumbbell");
+assert.equal(routeExpression({ semanticIntent: "trend", data: { categories: ["Y1", "Y2", "Y3", "Y4", "Y5", "Y6", "Y7", "Y8"], series: [{ values: [1,2,3,4,5,6,7,8] }] } }).variant, "line");
+assert.equal(routeExpression({ semanticIntent: "composition", data: { categories: ["A", "B"], series: [{ values: [30, 40] }] } }).variant, "sorted-bar");
+assert.equal(routeExpression({ semanticIntent: "composition", data: { categories: ["A", "B"], series: [{ values: [30, 70] }], partToWhole: true, whole: 100 } }).variant, "doughnut");
+assert.equal(routeExpression({ semanticIntent: "contribution", data: { categories: ["人力", "IT"], series: [{ values: [-10, -5] }], additiveBridge: true } }).variant, "waterfall");
+assert.equal(routeExpression({ semanticIntent: "correlation", data: { categories: ["1", "2", "3"], series: [{ values: [1,2,3] }, { values: [4,5,6] }] } }).type, "table");
+assert.equal(routeExpression({ semanticIntent: "process", type: "diagram", data: { nodes: [{id:1},{id:2}], edges: [{from:1,to:2}] } }).variant, "flow");
+assert.equal(routeExpression({ semanticIntent: "trend", type: "callout", semanticRole: "managementConclusion", data: {} }).type, "callout");
+const invalid = { id: "S1", modules: [{ id: "m1", type: "chart", dataShape: inferDataShape(twoPeriods), expression: { type: "chart", variant: "line" } }] };
+assert.equal(expressionSuitability(invalid).length, 1);
+console.log(JSON.stringify({ passed: true, tests: 10 }));
