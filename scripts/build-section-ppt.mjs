@@ -8,7 +8,7 @@ import { expressionSuitability, resolveSlideExpressions } from "./lib/expression
 import { exportPresentation, renderPresentation } from "./lib/ppt-renderer.mjs";
 import { writePptxMetadata } from "./lib/pptx-metadata.mjs";
 import { auditPpt } from "./lib/audit.mjs";
-import { auditSourceCoverage, evidenceForSlide } from "./lib/source-coverage.mjs";
+import { auditSourceCoverage, auditVisibleFactContent, evidenceForSlide } from "./lib/source-coverage.mjs";
 import { presentationIntentIssues } from "./lib/presentation-gates.mjs";
 import { consolidationIssues, evidenceBundleRefs } from "./lib/page-consolidation.mjs";
 import { chapterCompositionIssues, classifyChapterCompositions, materializeCompositeEvidence } from "./lib/composition-classifier.mjs";
@@ -18,6 +18,7 @@ import { writeDesignCanvas } from "./lib/design-canvas.mjs";
 import { applyDomLayout, extractDesignLayout } from "./lib/dom-layout-extractor.mjs";
 import { semanticDuplicationIssues } from "./lib/fact-fingerprint.mjs";
 import { compareRenderedSlides } from "./lib/visual-parity.mjs";
+import { outlineIntegrityIssues } from "./lib/outline-integrity.mjs";
 
 const [sourceArg, irArg, taskArg, sectionId, outputArg] = process.argv.slice(2);
 const sourceFile = path.resolve(sourceArg || ""), irFile = path.resolve(irArg || ""), taskFile = path.resolve(taskArg || ""), output = path.resolve(outputArg || "");
@@ -47,6 +48,7 @@ function validateIr(ir, task, section, source) {
     for (const module of slide.modules || []) {
       if (!["text", "metric", "chart", "table", "diagram", "image", "callout"].includes(module.type)) issues.push(`Slide ${slide.id} has unsupported module type ${module.type}`);
       if (module.tableRole && !["primary", "supporting", "reference", "detail"].includes(module.tableRole)) issues.push(`Slide ${slide.id} has invalid tableRole ${module.tableRole}`);
+      if (!Array.isArray(module.visibleFacts)) issues.push(`Slide ${slide.id} module ${module.id || "(unnamed)"} lacks visibleFacts required by the current content-completeness contract`);
     }
   }
   return issues;
@@ -69,12 +71,16 @@ try {
   const allocatedCoverageFile = `${output}.allocated-source-coverage.json`, allocatedCoverage = auditSourceCoverage(source, { ...authored, slides: plannedSlides }, { allowAppendix: task.allowAppendix === true });
   fs.writeFileSync(allocatedCoverageFile, `${JSON.stringify(allocatedCoverage, null, 2)}\n`);
   if (!allocatedCoverage.passed) throw new Error(`Post-allocation source coverage gate failed: ${allocatedCoverage.issues.join("; ")}`);
+  const visibleFactCoverage = auditVisibleFactContent(source, { ...authored, slides: plannedSlides }), visibleFactFile = `${output}.visible-fact-coverage.json`;
+  fs.writeFileSync(visibleFactFile, `${JSON.stringify(visibleFactCoverage, null, 2)}\n`);
+  if (!visibleFactCoverage.passed) throw new Error(`Visible fact gate failed: ${visibleFactCoverage.issues.join("; ")}`);
   const expressionIssues = plannedSlides.flatMap(expressionSuitability);
   const presentationIssues = presentationIntentIssues({ ...authored, slides: plannedSlides });
   const consolidationWarnings = consolidationIssues(plannedSlides, theme);
   const allocationIssues = evidenceAllocationIssues(plannedSlides, { allowAppendix: task.allowAppendix === true });
   const duplicationIssues = plannedSlides.flatMap(semanticDuplicationIssues);
-  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...allocationIssues.map(issue => `Allocation: ${issue}`), ...duplicationIssues.map(issue => `Content: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`)];
+  const outlineIssues = outlineIntegrityIssues(plannedSlides);
+  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...allocationIssues.map(issue => `Allocation: ${issue}`), ...duplicationIssues.map(issue => `Content: ${issue}`), ...outlineIssues.map(issue => `Outline: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`)];
   if (generationIssues.length) throw new Error(`Generation gates failed: ${generationIssues.join("; ")}`);
   const designInput = { ...authored, slides: plannedSlides, compositionDiagnostics: classified.diagnostics };
   const designFile = `${output}.design.html`, designDir = `${output}.design-render`;
@@ -99,6 +105,6 @@ try {
   const auditRenderDir = path.join(path.dirname(auditFile), `${path.basename(output, path.extname(output))}-audit-render`), parityFile = `${output}.visual-parity.json`;
   const parity = await compareRenderedSlides({ referenceDir: designDir, candidateDir: auditRenderDir, slideCount: resolved.slides.length, outputFile: parityFile });
   if (!parity.passed) throw new Error(`Visual parity gate failed: ${parity.issues.join("; ")}`);
-  fs.writeFileSync(`${output}.build.json`, `${JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, designFile, domManifest: path.join(designDir, "dom-layout.json"), parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, diagnostics, warnings: [], skillVersion, themeVersion: theme.themeVersion }, null, 2)}\n`);
-  console.log(JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, designFile, parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, warnings: [], authority: "pptx", skillVersion, themeVersion: theme.themeVersion }, null, 2));
+  fs.writeFileSync(`${output}.build.json`, `${JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, visibleFactFile, designFile, domManifest: path.join(designDir, "dom-layout.json"), parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, diagnostics, warnings: [], skillVersion, themeVersion: theme.themeVersion }, null, 2)}\n`);
+  console.log(JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, visibleFactFile, designFile, parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, warnings: [], authority: "pptx", skillVersion, themeVersion: theme.themeVersion }, null, 2));
 } catch (error) { console.error(JSON.stringify({ passed: false, error: error.message }, null, 2)); process.exit(1); }

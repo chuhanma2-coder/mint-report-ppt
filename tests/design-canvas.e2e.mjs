@@ -17,8 +17,10 @@ fs.writeFileSync(imageFile, `<svg xmlns="http://www.w3.org/2000/svg" width="1200
 
 const slides = [
   { id: "finance", role: "content", claim: "压降主要来自人力与IT咨询费", semanticIntent: "contribution", pageComposition: "standard", modules: [
-    { id: "f-chart", type: "chart", semanticRole: "primaryEvidence", visualPriority: "P0", expression: { type: "chart", variant: "waterfall", focusCategories: ["人力", "IT"] }, data: { categories: ["人力", "IT", "职场", "运营"], series: [{ name: "压降", values: [-203.3, -89.6, -42.8, 12] }], start: 857.6 } },
-    { id: "f-callout", type: "callout", semanticRole: "managementConclusion", visualPriority: "P1", title: "管理含义", text: "能力底座不减配，优先压缩弹性投入。", expression: { type: "callout", variant: "conclusion" } }
+    { id: "f-chart", type: "chart", semanticRole: "primaryEvidence", visualPriority: "P1", expression: { type: "chart", variant: "waterfall", focusCategories: ["人力", "IT"] }, data: { categories: ["人力", "IT", "职场", "运营"], series: [{ name: "压降", values: [-203.3, -89.6, -42.8, 12] }], start: 857.6 } },
+    { id: "f-callout", type: "callout", semanticRole: "managementConclusion", visualPriority: "P0", title: "管理含义", text: "能力底座不减配，优先压缩弹性投入。", expression: { type: "callout", variant: "conclusion" } },
+    { id: "f-detail", type: "callout", semanticRole: "supportingEvidence", visualPriority: "P1", title: "压降抓手", text: "人力压降203.3万美元，IT咨询费压降89.6万美元，职场压降42.8万美元。", expression: { type: "callout", variant: "evidence" } },
+    { id: "f-boundary", type: "callout", semanticRole: "boundary", visualPriority: "P1", title: "能力边界", text: "DEV与SIT环境保持不变，避免以削弱交付底座换取短期成本下降。", expression: { type: "callout", variant: "boundary" } }
   ] },
   { id: "image", role: "content", claim: "架构原图是主证据，三项说明在右侧形成阅读顺序", semanticIntent: "system-architecture", pageComposition: "evidence-rich", modules: [
     { id: "architecture", type: "image", semanticRole: "primaryEvidence", visualPriority: "P0", imagePath: imageFile, expression: { type: "image", variant: "evidence" } },
@@ -27,8 +29,10 @@ const slides = [
     { id: "i3", type: "callout", semanticRole: "action", visualPriority: "P1", title: "落地动作", text: "本地生态通过网关接入。", expression: { type: "callout", variant: "action" } }
   ] },
   { id: "matrix", role: "content", claim: "肯尼亚先验证闭环，其余三国按风险收益特征推进", semanticIntent: "matrix", pageComposition: "standard", modules: [
-    { id: "m-table", type: "table", tableRole: "primary", semanticRole: "primaryEvidence", visualPriority: "P0", expression: { type: "table", variant: "highlighted-table", focusRows: ["肯尼亚"] }, data: { headers: ["国家", "额度", "利率", "期限", "损失", "动作"], rows: [["肯尼亚", "中", "较高", "中", "中", "先验证"], ["坦桑尼亚", "低", "中", "中", "中", "边跑边校准"], ["科特迪瓦", "高", "低", "高", "低", "验证后承接"], ["尼日利亚", "低", "高", "低", "高", "设置门槛"]] } },
-    { id: "m-callout", type: "callout", semanticRole: "decision", visualPriority: "P1", title: "进入原则", text: "先用肯尼亚验证产品模式，再依据各国特征决定切入方式。", expression: { type: "callout", variant: "decision" } }
+    { id: "m-table", type: "table", tableRole: "supporting", semanticRole: "primaryEvidence", visualPriority: "P1", expression: { type: "table", variant: "highlighted-table", focusRows: ["肯尼亚"] }, data: { headers: ["国家", "额度", "利率", "期限", "损失", "动作"], rows: [["肯尼亚", "中", "较高", "中", "中", "先验证"], ["坦桑尼亚", "低", "中", "中", "中", "边跑边校准"], ["科特迪瓦", "高", "低", "高", "低", "验证后承接"], ["尼日利亚", "低", "高", "低", "高", "设置门槛"]] } },
+    { id: "m-callout", type: "callout", semanticRole: "decision", visualPriority: "P0", title: "进入原则", text: "先用肯尼亚验证产品模式，再依据各国特征决定切入方式。", expression: { type: "callout", variant: "decision" } },
+    { id: "m-risk", type: "callout", semanticRole: "risk", visualPriority: "P1", title: "风险门槛", text: "尼日利亚损失较高，进入前先设定可验证的损失门槛。", expression: { type: "callout", variant: "risk" } },
+    { id: "m-action", type: "callout", semanticRole: "action", visualPriority: "P1", title: "后续动作", text: "坦桑尼亚低额度切入；科特迪瓦在验证完成后再承接规模增长。", expression: { type: "callout", variant: "action" } }
   ] }
 ];
 const ir = { slides }, htmlFile = path.join(folder, "design.html"), designDir = path.join(folder, "design-render"), pptx = path.join(folder, "poc.pptx"), pptDir = path.join(folder, "ppt-render");

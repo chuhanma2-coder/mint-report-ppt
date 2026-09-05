@@ -5,9 +5,9 @@
   "type": "object",
   "required": ["schemaVersion", "slideIrVersion", "planningSchemaVersion", "reportId", "sectionId", "slides"],
   "properties": {
-    "schemaVersion": { "const": "1.3" },
-    "slideIrVersion": { "const": "1.3" },
-    "planningSchemaVersion": { "const": "2.3" },
+    "schemaVersion": { "const": "1.4" },
+    "slideIrVersion": { "const": "1.4" },
+    "planningSchemaVersion": { "const": "2.4" },
     "reportId": { "type": "string", "minLength": 1 },
     "sectionId": { "type": "string", "minLength": 1 },
     "slides": {
@@ -30,6 +30,17 @@
         "outlineItem": { "type": "string" },
         "storyCluster": { "type": "string" },
         "decisionUnit": { "type": "string" },
+        "outlinePart": { "type": "integer", "minimum": 1 },
+        "outlineSplit": {
+          "type": "object",
+          "properties": {
+            "reason": { "type": "string", "minLength": 1 },
+            "naturalBoundary": { "type": "string", "minLength": 1 },
+            "continuationOf": { "type": "string", "minLength": 1 }
+          },
+          "required": ["reason", "naturalBoundary", "continuationOf"],
+          "additionalProperties": false
+        },
         "independentDecision": { "type": "boolean", "default": false },
         "pageComposition": { "enum": ["standard", "evidence-rich", "dashboard", "banded-story", "strategy-map"] },
         "evidenceBundle": {
@@ -85,6 +96,15 @@
         "tableRole": { "enum": ["primary", "supporting", "reference", "detail"] },
         "carrierPurpose": { "enum": ["primaryProof", "exactLookup", "implication", "boundary", "action", "context"] },
         "reinforcementReason": { "type": "string" },
+        "visibleFacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["sourceUnitId", "text"],
+            "properties": { "sourceUnitId": { "type": "string", "minLength": 1 }, "text": { "type": "string", "minLength": 1 } },
+            "additionalProperties": false
+          }
+        },
         "evidenceRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "dataShape": { "type": "object" }, "expression": { "type": ["object", "null"] }
       },

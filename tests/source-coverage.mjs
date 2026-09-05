@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { auditSourceCoverage } from "../scripts/lib/source-coverage.mjs";
+import { auditSourceCoverage, auditVisibleFactContent } from "../scripts/lib/source-coverage.mjs";
 
 const source = { sourceUnits: [{ id: "S1", text: "一", visibility: "required-visible" }, { id: "S2", text: "二", visibility: "traceability" }, { id: "S3", text: "三", visibility: "supporting-visible" }] };
 const missing = auditSourceCoverage(source, { slides: [{ id: "P1", evidenceRefs: ["S1", "S2"], modules: [{ id: "M1", evidenceRefs: ["S3"] }] }] });
@@ -20,4 +20,12 @@ assert.equal(explicitlyAuthorizedAppendix.passed, true);
 const omitted = auditSourceCoverage({ ...source, approvedOmissions: [{ sourceUnitId: "S3", approved: true, reason: "用户明确删除" }] }, { slides: [{ id: "P1", role: "content", evidenceRefs: ["S2"], modules: [{ id: "M1", evidenceRefs: ["S1"] }] }] });
 assert.equal(omitted.passed, true);
 assert.equal(omitted.approvedOmissions, 1);
-console.log(JSON.stringify({ passed: true, tests: 12 }));
+const referenceOnly = auditVisibleFactContent(source, { slides: [{ id: "P1", role: "content", modules: [{ id: "M1", text: "一和三", evidenceRefs: ["S1", "S3"] }] }] });
+assert.equal(referenceOnly.passed, false);
+assert.match(referenceOnly.issues.join(" "), /evidenceRef alone is not visible content/);
+const trulyVisible = auditVisibleFactContent(source, { slides: [{ id: "P1", role: "content", modules: [{ id: "M1", text: "一和三", evidenceRefs: ["S1", "S3"], visibleFacts: [{ sourceUnitId: "S1", text: "一" }, { sourceUnitId: "S3", text: "三" }] }] }] });
+assert.equal(trulyVisible.passed, true);
+const fakeVisible = auditVisibleFactContent(source, { slides: [{ id: "P1", role: "content", modules: [{ id: "M1", text: "一", evidenceRefs: ["S1", "S3"], visibleFacts: [{ sourceUnitId: "S1", text: "一" }, { sourceUnitId: "S3", text: "三" }] }] }] });
+assert.equal(fakeVisible.passed, false);
+assert.match(fakeVisible.issues.join(" "), /VISIBLE_FACT_NOT_RENDERED/);
+console.log(JSON.stringify({ passed: true, tests: 17 }));

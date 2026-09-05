@@ -10,6 +10,43 @@ function visibilityClass(unit) {
   return String(unit.visibility || "required-visible");
 }
 
+function normalizedText(value) {
+  return String(value ?? "").normalize("NFKC").replace(/\s+/g, "").replace(/[，。；：、,.!?！？：;()（）\[\]【】]/g, "").toLowerCase();
+}
+
+function visibleModulePayload(module = {}) {
+  const parts = [module.title, module.text, module.value, module.unit];
+  const walk = value => {
+    if (Array.isArray(value)) value.forEach(walk);
+    else if (value && typeof value === "object") Object.values(value).forEach(walk);
+    else if (value !== undefined && value !== null) parts.push(value);
+  };
+  walk(module.data);
+  return normalizedText(parts.join(" "));
+}
+
+export function auditVisibleFactContent(source, ir) {
+  const units = new Map(sourceUnits(source).map(unit => [unitId(unit), unit]));
+  const omissions = new Set((source.approvedOmissions || []).filter(item => item.approved === true && String(item.reason || "").trim()).map(item => String(item.sourceUnitId || item.id || "")));
+  const required = new Set([...units].filter(([id, unit]) => !omissions.has(id) && ["required-visible", "supporting-visible"].includes(visibilityClass(unit))).map(([id]) => id));
+  const mapped = new Map(), issues = [];
+  for (const slide of ir.slides || []) for (const module of slide.modules || []) {
+    const payload = visibleModulePayload(module);
+    for (const fact of module.visibleFacts || []) {
+      const id = String(fact.sourceUnitId || ""), text = normalizedText(fact.text);
+      if (!units.has(id)) issues.push(`VISIBLE_FACT_UNKNOWN_SOURCE: slide ${slide.id} module ${module.id || "(unnamed)"} maps unknown source ${id || "(empty)"}`);
+      else if (!text) issues.push(`VISIBLE_FACT_EMPTY: slide ${slide.id} module ${module.id || "(unnamed)"} maps ${id} without visible text`);
+      else if (!payload.includes(text)) issues.push(`VISIBLE_FACT_NOT_RENDERED: slide ${slide.id} module ${module.id || "(unnamed)"} declares ${id} but its text is absent from the rendered module payload`);
+      else {
+        if (!mapped.has(id)) mapped.set(id, []);
+        mapped.get(id).push({ slideId: slide.id, moduleId: module.id || null, text: fact.text });
+      }
+    }
+  }
+  for (const id of required) if (!mapped.has(id)) issues.push(`VISIBLE_FACT_MISSING: source unit ${id} is required on a body page; an evidenceRef alone is not visible content`);
+  return { passed: issues.length === 0, requiredCount: required.size, visibleCount: [...required].filter(id => mapped.has(id)).length, mappings: Object.fromEntries(mapped), issues };
+}
+
 export function auditSourceCoverage(source, ir, { allowAppendix = false } = {}) {
   const units = sourceUnits(source), known = new Map(), issues = [], destinations = new Map();
   for (const unit of units) {

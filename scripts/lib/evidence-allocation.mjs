@@ -34,11 +34,21 @@ function sameDataset(a, b) {
     || (a.dataRef && b.dataRef && a.dataRef === b.dataRef);
 }
 
+function defaultVisualPriority(module) {
+  const type = typeOf(module), role = module.semanticRole;
+  if (["chart", "table", "diagram"].includes(type)) return "P1";
+  if (type === "image" && role === "primaryEvidence") return "P0";
+  if (type === "metric" && ["primaryEvidence", "progress"].includes(role)) return "P0";
+  if (["managementConclusion", "decision"].includes(role)) return "P0";
+  if (["risk", "action", "boundary", "primaryEvidence"].includes(role)) return "P1";
+  return "P2";
+}
+
 export function allocateSlideEvidence(slide) {
   const prepared = (slide.modules || []).map((module, index) => ({
     ...module,
     carrierPurpose: purposeFor(module),
-    visualPriority: module.visualPriority || (module.semanticRole === "primaryEvidence" ? "P0" : ["managementConclusion", "decision", "risk", "action", "boundary"].includes(module.semanticRole) ? "P1" : "P2"),
+    visualPriority: defaultVisualPriority(module),
     _sourceIndex: index
   }));
   const owners = new Map();
@@ -62,6 +72,10 @@ export function allocateSlideEvidence(slide) {
   }
   const p0 = modules.filter(module => module.visualPriority === "P0");
   if (p0.length > 1) p0.slice(1).forEach(module => { module.visualPriority = "P1"; });
+  if (!modules.some(module => module.visualPriority === "P0")) {
+    const lead = modules.find(module => !["chart", "table", "diagram"].includes(typeOf(module)) && ["managementConclusion", "decision", "primaryEvidence", "metric"].includes(module.semanticRole));
+    if (lead) lead.visualPriority = "P0";
+  }
   return { ...slide, modules, suppressedModules, evidenceAllocation: { owners: Object.fromEntries(owners), visibleModuleCount: modules.length, suppressedCount: suppressedModules.length } };
 }
 
@@ -93,6 +107,9 @@ export function evidenceAllocationIssues(slides, { allowAppendix = false } = {})
       const encoded = (expression.focusCategories || []).length || (expression.focusSeries || []).length || (expression.focusRows || []).length || expression.annotationIntent;
       if (!encoded) issues.push(`CONCLUSION_NOT_VISUALLY_ENCODED: slide ${slide.id} states a focus, rank, or difference but ${module.id || type} does not encode it`);
     }
+    const charts = modules.filter(module => typeOf(module) === "chart"), nonCharts = modules.filter(module => typeOf(module) !== "chart");
+    if (charts.some(module => module.visualPriority === "P0")) issues.push(`CHART_DOMINANCE_FORBIDDEN: slide ${slide.id} treats a chart as the page-dominant object; charts are supporting evidence`);
+    if (charts.length && nonCharts.filter(module => ["metric", "text", "callout"].includes(typeOf(module))).length < 2) issues.push(`CHART_WITHOUT_VISIBLE_ARGUMENT: slide ${slide.id} needs at least two substantive non-chart carriers so the chart supports, rather than replaces, the written management argument`);
   }
   if (genericContextPages > Math.max(1, Math.floor((slides || []).length * 0.2))) issues.push(`GENERIC_CONTEXT_OVERUSE: generic background/core-evidence blocks appear on ${genericContextPages} slides`);
   return issues;

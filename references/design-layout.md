@@ -4,7 +4,7 @@ The production layout authority is the internal 1920×1080 HTML Design Canvas. I
 
 ## Capacity and consolidation
 
-Before adding a slide, ask whether the candidate content contributes to the same complete management conclusion, continues the same business chain, explains the previous evidence, or would naturally become one module if its title disappeared. If yes, consolidate it first. “One management issue = one page” is forbidden. A page may hold one conclusion, three to five primary modules, and several lightweight facts when hierarchy remains readable.
+Group source evidence by task-card outline item before creating pages. One outline item first gets one complete readable page. If it cannot fit at the role-specific font floors, split only between coherent evidence groups, business stages, or decision steps. Every continuation declares its part number, reason, natural boundary, and previous part. Before adding a slide, ask whether it would naturally become one module of the preceding page; if yes, consolidate it. A page may hold one conclusion, three to five primary modules, and several lightweight facts when hierarchy remains readable.
 
 Aggregation is not summarization. Consolidation changes hierarchy and placement; it does not delete facts. First assemble a Page Evidence Bundle containing context, primary proof, supporting proof, cases, risks, actions, and boundaries. Then map every item to a visible module before choosing geometry.
 
@@ -26,7 +26,7 @@ Track three independent diagnostics: Visual Occupancy, Information Density, and 
 
 Adjacent low-density pages in the same `storyCluster` or outline item must merge unless either page carries a genuinely independent management decision. `independentDecision` is not a manual escape hatch: the title and evidence must support a different decision.
 
-The browser measures final wrapped text with the configured CJK font and calculates occupancy from the union of actually painted DOM bounds, not allocated rectangles. Equal-area cards are allowed only for genuinely equal semantic weight. A headline number, primary image, chart, relationship diagram, or primary table receives dominant area; boundaries and caveats receive a smaller support area. The compiler uses `autoFit=none`; unresolved DOM or PowerPoint overflow blocks delivery.
+The browser measures final wrapped text with the configured CJK font and calculates occupancy from the union of actually painted DOM bounds, not allocated rectangles. Equal-area cards are allowed only for genuinely equal semantic weight. A headline number, written management conclusion, or source image may dominate. Charts, tables, and diagrams default to supporting regions; they do not grow merely because a page has little text. The compiler uses `autoFit=none`; unresolved DOM or PowerPoint overflow blocks delivery.
 
 ## Design Canvas and native compilation
 
@@ -57,7 +57,7 @@ Choose within the range using role, text length, language, available width, and 
 
 ## Dominant artifact and support rail
 
-When one source image, chart, diagram, or primary table is the main proof and the remaining modules explain it, use an internal `primary-rail` variant: 55–65% for the dominant artifact on the left, 35–45% for smaller support modules stacked vertically on the right, and an optional 12–18% decision/action strip below. Do not divide width equally by module count.
+When one source image is the main proof and the remaining modules explain it, use an internal `primary-rail` variant: 55–65% for the image on the left and 35–45% for smaller support modules stacked vertically on the right. Charts instead use a sidecar region no wider than roughly 42% of the content area, while visible facts and management meaning use the larger region. Short tables use only the height required by their rows and never stretch to fill the canvas. Do not divide width equally by module count.
 
 Every page has one P0 object, one or two P1 objects, and subordinate P2 context. Occupancy is an anomaly signal, not a reason to inflate empty cards. Repeated geometry is acceptable only when it remains the best expression; four consecutive identical variants trigger review.
 

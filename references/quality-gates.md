@@ -42,6 +42,7 @@ Source coverage has two distinct gates:
 
 - disposition completeness: every unit has a deterministic destination or approved omission;
 - visible decision completeness: every `required-visible` and `supporting-visible` unit is visible in the body. Notes-only placement passes only for `traceability` units. Appendix placement passes only when the task card explicitly authorizes appendices.
+- visible fact reality: every required/supporting unit has a `visibleFacts` mapping whose declared text is present in that module's rendered title, body, metric, chart data, or table data. A source ID attached to an otherwise empty/abbreviated carrier fails.
 
 Additional deterministic blockers:
 
@@ -53,6 +54,10 @@ Additional deterministic blockers:
 - `VISUAL_HIERARCHY_FLAT`: no single P0 focus and subordinate P1/P2 evidence.
 - `CONCLUSION_NOT_VISUALLY_ENCODED`: the claim names a focus/rank/gap but the visual does not highlight it.
 - `LAYOUT_PATTERN_OVERUSE`: four consecutive content pages use the same geometry variant without necessity.
+- `OUTLINE_FRAGMENTATION` / `OUTLINE_ADJACENT_PAGES_CAN_MERGE`: an outline item was split into more pages than readable capacity requires.
+- `OUTLINE_SPLIT_UNJUSTIFIED`: a continuation page lacks a natural evidence/business boundary.
+- `CHART_DOMINANCE_FORBIDDEN`: a chart was assigned P0 or allowed to replace the page's written claim/evidence/meaning chain.
+- `CHART_WITHOUT_VISIBLE_ARGUMENT`: a chart lacks at least two substantive non-chart carriers.
 
 Every content slide must provide a Page Evidence Bundle, and every bundle item must appear in a visible module. Primary bundle evidence must be rendered through a `primaryEvidence` module. A slide cannot pass merely because its evidence IDs exist in notes.
 
