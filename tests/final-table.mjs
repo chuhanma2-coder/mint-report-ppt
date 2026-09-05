@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { auditFinalTable } from '../scripts/lib/final-facts.mjs';
+const data = {headers:['项目','金额'],rows:[['银行甲',100],['银行乙',200]]};
+const table = {cells:[data.headers,...data.rows].flatMap((row,i)=>row.map((text,j)=>({row:i+1,column:j+1,text:String(text)})))};
+assert.deepEqual(auditFinalTable(data,table),[]);
+const swapped=structuredClone(table);
+[swapped.cells[3].text,swapped.cells[5].text]=[swapped.cells[5].text,swapped.cells[3].text];
+assert.equal(auditFinalTable(data,swapped).length,2,'all keywords and numbers still exist, but ownership was swapped');
+assert.deepEqual(auditFinalTable(data,{cells:table.cells.slice(1)}),['FINAL_TABLE_CELL_COUNT']);
+console.log('final table binding regression passed');

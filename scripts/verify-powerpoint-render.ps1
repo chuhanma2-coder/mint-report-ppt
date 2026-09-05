@@ -18,16 +18,17 @@ $exportPath = Join-Path $outputPath "powerpoint-export"
 $powerPoint = $null; $presentation = $null
 try {
   $powerPoint = New-Object -ComObject PowerPoint.Application
+  $existingPresentationCount = $powerPoint.Presentations.Count
   $presentation = $powerPoint.Presentations.Open($pptxPath, $true, $false, $false)
   $slideCount = $presentation.Slides.Count
   $presentation.SaveAs($exportPath, 18)
 } finally {
   if ($null -ne $presentation) { $presentation.Close() }
-  if ($null -ne $powerPoint) { $powerPoint.Quit() }
+  if ($null -ne $powerPoint -and $existingPresentationCount -eq 0 -and $powerPoint.Presentations.Count -eq 0) { $powerPoint.Quit() }
   [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers()
 }
 
-$images = Get-ChildItem -LiteralPath $exportPath -File | Where-Object { $_.Extension -match '^\.(png|jpg|jpeg)$' } | Sort-Object Name
+$images = Get-ChildItem -LiteralPath $exportPath -File | Where-Object { $_.Extension -match '^\.(png|jpg|jpeg)$' } | Sort-Object { [int]([regex]::Match($_.BaseName, '\d+$').Value) }
 if ($images.Count -ne $slideCount) { throw "PowerPoint rendered $($images.Count) images; expected $slideCount." }
 for ($i = 0; $i -lt $images.Count; $i++) {
   $target = Join-Path $outputPath ("slide-{0:D2}.png" -f ($i + 1))

@@ -5,7 +5,7 @@ Add-Type -AssemblyName System.Drawing
 $codexRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }
 $skillsRoot = Join-Path $codexRoot "skills"
 $target = Join-Path $skillsRoot "mint-report-ppt"
-try { $powerPoint = New-Object -ComObject PowerPoint.Application; $powerPoint.Quit() } catch { throw "Microsoft PowerPoint desktop is required for automatic PPT merge." }
+if ($null -eq [System.Type]::GetTypeFromProgID("PowerPoint.Application")) { throw "Microsoft PowerPoint desktop is required for automatic PPT merge." }
 $browserCandidates = @(
   (Join-Path $env:ProgramFiles "Google\Chrome\Application\chrome.exe"),
   (Join-Path ${env:ProgramFiles(x86)} "Microsoft\Edge\Application\msedge.exe"),

@@ -10,6 +10,7 @@ import { applyDomLayout, extractDesignLayout } from "../scripts/lib/dom-layout-e
 import { renderPresentation, exportPresentation } from "../scripts/lib/ppt-renderer.mjs";
 import { inspectPptxPackage } from "../scripts/lib/pptx-metadata.mjs";
 import { compareRenderedSlides } from "../scripts/lib/visual-parity.mjs";
+import { auditFinalFacts } from "../scripts/lib/final-facts.mjs";
 
 if (!process.env.RUNTIME_NODE_MODULES) throw new Error("RUNTIME_NODE_MODULES is required");
 const folder = fs.mkdtempSync(path.join(os.tmpdir(), "mint-design-canvas-")), imageFile = path.join(folder, "architecture.svg");
@@ -17,7 +18,7 @@ fs.writeFileSync(imageFile, `<svg xmlns="http://www.w3.org/2000/svg" width="1200
 
 const slides = [
   { id: "finance", role: "content", claim: "压降主要来自人力与IT咨询费", semanticIntent: "contribution", pageComposition: "standard", modules: [
-    { id: "f-chart", type: "chart", semanticRole: "primaryEvidence", visualPriority: "P1", expression: { type: "chart", variant: "waterfall", focusCategories: ["人力", "IT"] }, data: { categories: ["人力", "IT", "职场", "运营"], series: [{ name: "压降", values: [-203.3, -89.6, -42.8, 12] }], start: 857.6 } },
+    { id: "f-chart", type: "chart", semanticRole: "primaryEvidence", visualPriority: "P1", expression: { type: "chart", variant: "waterfall", focusCategories: ["人力", "IT"] }, data: { categories: ["人力", "IT", "职场", "运营"], series: [{ name: "压降", values: [-203.3, -89.6, -42.8, 12] }], start: 857.6, end: 533.9 } },
     { id: "f-callout", type: "callout", semanticRole: "managementConclusion", visualPriority: "P0", title: "管理含义", text: "能力底座不减配，优先压缩弹性投入。", expression: { type: "callout", variant: "conclusion" } },
     { id: "f-detail", type: "callout", semanticRole: "supportingEvidence", visualPriority: "P1", title: "压降抓手", text: "人力压降203.3万美元，IT咨询费压降89.6万美元，职场压降42.8万美元。", expression: { type: "callout", variant: "evidence" } },
     { id: "f-boundary", type: "callout", semanticRole: "boundary", visualPriority: "P1", title: "能力边界", text: "DEV与SIT环境保持不变，避免以削弱交付底座换取短期成本下降。", expression: { type: "callout", variant: "boundary" } }
@@ -35,13 +36,50 @@ const slides = [
     { id: "m-action", type: "callout", semanticRole: "action", visualPriority: "P1", title: "后续动作", text: "坦桑尼亚低额度切入；科特迪瓦在验证完成后再承接规模增长。", expression: { type: "callout", variant: "action" } }
   ] }
 ];
+slides.push({id:'relations',role:'content',claim:'条件与方向保留',modules:[{
+  id:'relation',type:'diagram',semanticRole:'primaryEvidence',expression:{type:'diagram',variant:'role-network'},
+  data:{nodes:[{id:'long',label:'项目主体\n银行甲\n银行乙'},{id:'short',label:'服务商'}],edges:[{from:'long',to:'short',label:'支付服务费',condition:'仅在验收通过后'}]}
+}]});
 const ir = { slides }, htmlFile = path.join(folder, "design.html"), designDir = path.join(folder, "design-render"), pptx = path.join(folder, "poc.pptx"), pptDir = path.join(folder, "ppt-render");
+slides[2].modules[0].title = '四国策略比较';
+slides[1].modules[0].imageTextReview = {status:'reviewed',regions:[{id:'labels',text:'客户 平台 银行',minimumGlyphHeightPx:40}]};
 writeDesignCanvas(ir, theme, htmlFile);
-const manifest = await extractDesignLayout({ htmlFile, outputDir: designDir, expectedSlides: 3 });
+const manifest = await extractDesignLayout({ htmlFile, outputDir: designDir, expectedSlides: 4 });
 assert.deepEqual(manifest.issues, []);
+const imageLayout=manifest.slides[1].modules, primary=imageLayout[0];
+assert.ok(imageLayout.slice(1).every(m=>m.rect.left > primary.rect.left + primary.rect.width),'all image explanations must occupy the right rail');
+assert.ok(imageLayout[2].rect.top > imageLayout[1].rect.top && imageLayout[3].rect.top > imageLayout[2].rect.top,'the rail stacks vertically');
+assert.ok(new Set(manifest.slides.flatMap(s=>s.modules.flatMap(m=>m.textObjects.filter(t=>t.className==='module-title').map(t=>t.color)))).size >= 3,'semantic headings must not collapse to one green');
+const shortCopy = imageLayout[1].textObjects.find(t=>t.className==='module-copy');
+assert.ok(shortCopy.contentRect.height >= shortCopy.fontSizePx * 2,'single-line prose needs native wrap capacity too');
+for (const copy of manifest.slides.flatMap(s=>s.modules.flatMap(m=>m.textObjects)).filter(t=>t.className==='module-copy')) {
+  assert.equal(copy.renderText.replace(/\s/g,''),copy.text.replace(/\s/g,''),'measured line breaks must preserve every character');
+}
+const countryCells = manifest.slides[2].modules[0].table.rows.slice(1).map(row=>row.cells[0]);
+assert.ok(countryCells.every(cell=>cell.contentRect.width >= cell.fontSizePx * 4),'country names must not be forced into one-character columns');
+assert.ok(manifest.slides[2].modules[0].table.rect.width < 1000, 'short qualitative table must use natural width');
+const relation = manifest.slides[3].modules[0].diagramRelations[0];
+assert.ok(Math.abs(relation.nodes[0].rect.height - relation.nodes[1].rect.height) < 1,'connector sites must be aligned');
+assert.ok(relation.label.rect.top + relation.label.rect.height < relation.nodes[0].rect.top + relation.nodes[0].rect.height / 2,'the relation label must clear the connector lane');
 const laid = applyDomLayout(ir, manifest), { presentation } = await renderPresentation(laid, theme); await exportPresentation(presentation, pptx);
-const pkg = await inspectPptxPackage(pptx); assert.equal(pkg.slides.length, 3); assert.ok(pkg.nativeTables >= 1); assert.ok(pkg.charts.length >= 0); assert.ok(pkg.media.length >= 1); assert.equal(pkg.fullSlideImages.length, 0);
+const pkg = await inspectPptxPackage(pptx); assert.equal(pkg.slides.length, 4); assert.ok(pkg.nativeTables >= 1); assert.ok(pkg.charts.length >= 0); assert.ok(pkg.media.length >= 1); assert.equal(pkg.fullSlideImages.length, 0);
+const relationXml = await pkg.zip.file('ppt/slides/slide4.xml').async('string');
+assert.match(relationXml, /<p:cxnSp>/, 'relations must be real connected shapes');
+assert.match(relationXml, /<a:tailEnd[^>]*type="triangle"/, 'the exported arrow must have its actual direction marker');
 const require = createRequire(path.join(process.env.RUNTIME_NODE_MODULES, "package.json")), { FileBlob, PresentationFile } = await import(pathToFileURL(require.resolve("@oai/artifact-tool")).href), imported = await PresentationFile.importPptx(await FileBlob.load(pptx)); fs.mkdirSync(pptDir);
-for (const [index, slide] of imported.slides.items.entries()) { const png = await imported.export({ slide, format: "png", scale: 1 }); fs.writeFileSync(path.join(pptDir, `slide-${String(index + 1).padStart(2, "0")}.png`), new Uint8Array(await png.arrayBuffer())); }
-const parity = await compareRenderedSlides({ referenceDir: designDir, candidateDir: pptDir, slideCount: 3, outputFile: path.join(folder, "parity.json") }); assert.equal(parity.passed, true, parity.issues.join("; "));
+const layouts = [];
+for (const [index, slide] of imported.slides.items.entries()) { const png = await imported.export({ slide, format: "png", scale: 1 }); fs.writeFileSync(path.join(pptDir, `slide-${String(index + 1).padStart(2, "0")}.png`), new Uint8Array(await png.arrayBuffer())); layouts.push(JSON.parse(await (await slide.export({format:'layout'})).text())); }
+const nativeTableTitle = layouts[2].elements.find(e=>e.name?.includes('mint|table-title|'));
+assert.ok(nativeTableTitle,'the color regression requires a native table title');
+assert.ok(nativeTableTitle.paragraphs.flatMap(p=>p.runs || []).every(r=>r.color.toLowerCase()===theme.semanticColors.roleAccents.primaryEvidence.toLowerCase()),'native table title must preserve measured semantic color');
+const imageModule = laid.slides[1].modules[0];
+imageModule.visibleFacts = [{sourceUnitId:'image-labels',text:'客户 平台 银行'}];
+const source = {sourceUnits:[{id:'image-labels',visibility:'required-visible',text:'客户 平台 银行'}]};
+const facts = await auditFinalFacts({file:pptx,source,ir:laid,layouts});
+assert.deepEqual(facts.issues, [], 'final embedded image must retain readable reviewed text');
+const tiny = structuredClone(layouts), embedded = tiny[1].elements.find(e=>e.kind==='image');
+embedded.bbox[2] /= 10; embedded.bbox[3] /= 10;
+const unreadable = await auditFinalFacts({file:pptx,source,ir:laid,layouts:tiny});
+assert.ok(unreadable.issues.some(issue=>issue.includes('IMAGE_FINE_TEXT')), 'unchanged image bytes cannot bypass final displayed-size checking');
+const parity = await compareRenderedSlides({ referenceDir: designDir, candidateDir: pptDir, slideCount: 4, outputFile: path.join(folder, "parity.json") }); assert.equal(parity.passed, true, parity.issues.join("; "));
 console.log(JSON.stringify({ passed: true, tests: 8, folder, occupancy: manifest.slides.map(slide => slide.visualOccupancy), parity: parity.results.map(item => item.perceptualDifference) }));

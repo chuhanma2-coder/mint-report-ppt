@@ -4,7 +4,7 @@ The production layout authority is the internal 1920×1080 HTML Design Canvas. I
 
 ## Capacity and consolidation
 
-Group source evidence by task-card outline item before creating pages. One outline item first gets one complete readable page. If it cannot fit at the role-specific font floors, split only between coherent evidence groups, business stages, or decision steps. Every continuation declares its part number, reason, natural boundary, and previous part. Before adding a slide, ask whether it would naturally become one module of the preceding page; if yes, consolidate it. A page may hold one conclusion, three to five primary modules, and several lightweight facts when hierarchy remains readable.
+Group source evidence by task-card outline item before creating pages. One outline item first gets one complete readable page. If it cannot fit at the role-specific font floors, split only between coherent evidence groups, business stages, or decision steps. Every continuation declares its part number, reason, natural boundary, and previous part. Before adding a slide, ask whether it would naturally become one module of the preceding page; if yes, consolidate it. A page may hold the complete outline item, its coherent evidence groups, and several lightweight facts when hierarchy remains readable.
 
 Aggregation is not summarization. Consolidation changes hierarchy and placement; it does not delete facts. First assemble a Page Evidence Bundle containing context, primary proof, supporting proof, cases, risks, actions, and boundaries. Then map every item to a visible module before choosing geometry.
 
@@ -13,7 +13,7 @@ The Agent does not select `pageComposition`. The deterministic Composition Class
 Use the derived `pageComposition` to choose composition density without inventing new geometry families:
 
 - `standard`: one primary expression plus limited support;
-- `evidence-rich`: a lead band, primary-evidence band, and result/action band; at least five visible modules and ten effective information units;
+- `evidence-rich`: a lead band, primary-evidence band, and result/action band; do not fabricate modules to meet a count;
 - `dashboard`: metrics lead, aligned comparisons in the middle, decision/action at the bottom;
 - `banded-story`: context → proof → implication in three bands;
 - `strategy-map`: resources/capabilities → operating paths → results/actions.
@@ -24,7 +24,7 @@ Capacity order: change geometry; rebalance module shares; use the compact varian
 
 Track three independent diagnostics: Visual Occupancy, Information Density, and Story Completeness. Occupancy is diagnostic, not a fill target. Standard pages below 55% and explicitly dense pages below 65% fail for consolidation review; composite classification does not raise the visual-area target by itself because its information-density and story-completeness gates are checked separately. A single large image, chart, or table is not high-density merely because it occupies most of the canvas; it must also provide enough supporting evidence and a complete Claim/Evidence/Meaning chain. Inspect one-point pagination, undersized visuals, and short tables without interpretation. Above 92%, inspect crowding and auto-shrink. Do not stretch empty cards/tables or add decoration to improve the ratio. Hero, cover, section, and closing slides may intentionally use more whitespace.
 
-Adjacent low-density pages in the same `storyCluster` or outline item must merge unless either page carries a genuinely independent management decision. `independentDecision` is not a manual escape hatch: the title and evidence must support a different decision.
+Adjacent parts of the same outline must be merged whenever a complete browser-measured candidate fits. Different subquestions or decisions do not override this rule. Different outline items remain separate by default.
 
 The browser measures final wrapped text with the configured CJK font and calculates occupancy from the union of actually painted DOM bounds, not allocated rectangles. Equal-area cards are allowed only for genuinely equal semantic weight. A headline number, written management conclusion, or source image may dominate. Charts, tables, and diagrams default to supporting regions; they do not grow merely because a page has little text. The compiler uses `autoFit=none`; unresolved DOM or PowerPoint overflow blocks delivery.
 
@@ -41,8 +41,6 @@ The internal canvas must expose semantic DOM markers for title, question, module
 | Standard content title | 26–34pt |
 | Dense title | 22–30pt |
 | Core metric | 28–44pt |
-| Body | 14–18pt |
-| Dense supporting body | 13–16pt |
 | Body | 17–20pt; 16pt absolute floor |
 | Supporting body | 15–17pt |
 | Chart axis/category | 15–18pt |
@@ -50,14 +48,13 @@ The internal canvas must expose semantic DOM markers for title, question, module
 | Table | 14–16pt |
 | Diagram node | 15–18pt |
 | Diagram edge | 13–15pt |
-| Chart axis/category/value label | 13.5–15pt (18–20px in native chart API) |
 | Caption | 10–12pt |
 
 Choose within the range using role, text length, language, available width, and reading distance. Keep titles to one or two lines. If the lower bound still fails, change geometry or split at an independent conclusion. Do not use PowerPoint shrink-to-fit as a capacity strategy. Default to no more than four primary size levels; captions and necessary labels are excluded.
 
 ## Dominant artifact and support rail
 
-When one source image is the main proof and the remaining modules explain it, use an internal `primary-rail` variant: 55–65% for the image on the left and 35–45% for smaller support modules stacked vertically on the right. Charts instead use a sidecar region no wider than roughly 42% of the content area, while visible facts and management meaning use the larger region. Short tables use only the height required by their rows and never stretch to fill the canvas. Do not divide width equally by module count.
+When one source image is the main proof and the remaining modules explain it, use an internal `primary-rail` variant: 55–65% for the image on the left and 35–45% for smaller support modules stacked vertically on the right. Charts receive their measured readable size; there is no fixed width cap. Preserve room for the complete outline argument. Short tables use only the height required by their rows and never stretch to fill the canvas. Do not divide width equally by module count.
 
 Every page has one P0 object, one or two P1 objects, and subordinate P2 context. Occupancy is an anomaly signal, not a reason to inflate empty cards. Repeated geometry is acceptable only when it remains the best expression; four consecutive identical variants trigger review.
 

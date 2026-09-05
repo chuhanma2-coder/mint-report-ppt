@@ -11,27 +11,35 @@ function visibilityClass(unit) {
 }
 
 function normalizedText(value) {
-  return String(value ?? "").normalize("NFKC").replace(/\s+/g, "").replace(/[，。；：、,.!?！？：;()（）\[\]【】]/g, "").toLowerCase();
+  return String(value ?? "").normalize("NFKC").replaceAll('−','-').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g,'').replace(/(\d)\s+(?=[+-]?\d)/g,'$1|').replace(/\s+/g, "").replace(/[，。；：、,!！？：;()（）\[\]【】]/g, "").toLowerCase();
 }
 
-function visibleModulePayload(module = {}) {
+export function visibleModulePayload(module = {}) {
   const parts = [module.title, module.text, module.value, module.unit];
   const walk = value => {
     if (Array.isArray(value)) value.forEach(walk);
     else if (value && typeof value === "object") Object.values(value).forEach(walk);
     else if (value !== undefined && value !== null) parts.push(value);
   };
-  walk(module.data);
+  const data = module.data || {};
+  // Only presentation fields, never evidence IDs, hidden JSON, image paths or alt text.
+  for (const field of ['headers', 'columns', 'rows', 'values', 'categories']) walk(data[field]);
+  for (const series of data.series || []) walk([series.name, series.values, series.displayUnit]);
+  for (const node of data.nodes || []) walk(node.label || node.name);
+  for (const edge of data.edges || []) walk([edge.label, edge.condition]);
+  if (module.type === 'image' && module.imageTextReview?.status === 'reviewed') walk(module.imageTextReview.regions?.map(region => region.text));
   return normalizedText(parts.join(" "));
 }
 
-export function auditVisibleFactContent(source, ir) {
+export function auditVisibleFactContent(source, ir, { renderedModules = null } = {}) {
   const units = new Map(sourceUnits(source).map(unit => [unitId(unit), unit]));
   const omissions = new Set((source.approvedOmissions || []).filter(item => item.approved === true && String(item.reason || "").trim()).map(item => String(item.sourceUnitId || item.id || "")));
   const required = new Set([...units].filter(([id, unit]) => !omissions.has(id) && ["required-visible", "supporting-visible"].includes(visibilityClass(unit))).map(([id]) => id));
   const mapped = new Map(), issues = [];
   for (const slide of ir.slides || []) for (const module of slide.modules || []) {
-    const payload = visibleModulePayload(module);
+    if (slide.role && slide.role !== 'content' && slide.role !== 'body') continue;
+    const rendered = renderedModules?.find(item => item.slideId === slide.id && item.moduleId === module.id);
+    const payload = renderedModules ? normalizedText(rendered?.text || '') : visibleModulePayload(module);
     for (const fact of module.visibleFacts || []) {
       const id = String(fact.sourceUnitId || ""), text = normalizedText(fact.text);
       if (!units.has(id)) issues.push(`VISIBLE_FACT_UNKNOWN_SOURCE: slide ${slide.id} module ${module.id || "(unnamed)"} maps unknown source ${id || "(empty)"}`);
@@ -41,6 +49,34 @@ export function auditVisibleFactContent(source, ir) {
         if (!mapped.has(id)) mapped.set(id, []);
         mapped.get(id).push({ slideId: slide.id, moduleId: module.id || null, text: fact.text });
       }
+    }
+  }
+  for (const id of required) {
+    const unit = units.get(id), destinations = mapped.get(id) || [];
+    if (!destinations.length) continue;
+    const original = normalizedText(unit.text || unit.content || unit.sourceText || '');
+    const visible = destinations.map(destination => {
+      const slide = (ir.slides || []).find(item => item.id === destination.slideId);
+      const module = slide?.modules?.find(item => item.id === destination.moduleId);
+      return renderedModules ? normalizedText(renderedModules.find(item => item.slideId === destination.slideId && item.moduleId === destination.moduleId)?.text || '') : visibleModulePayload(module);
+    }).join(' ');
+    if (original && visible.includes(original)) continue;
+    // Paraphrases require explicitly reviewed components. A short substring cannot
+    // stand in for the whole source sentence. Semantic review is not a regex claim.
+    const components = unit.requiredComponents;
+    if (!Array.isArray(components) || !components.length || unit.componentReview?.status !== 'reviewed' || unit.componentReview?.sourceText !== (unit.text || unit.content || unit.sourceText)) {
+      issues.push(`SOURCE_COMPONENT_REVIEW_REQUIRED: ${id} is abbreviated; retain the source text or review all factual components against the unchanged original`);
+      continue;
+    }
+    for (const component of components) {
+      const alternatives = typeof component === 'string' ? [component] : component.alternatives || [component.text];
+      if (!alternatives.some(value => value && visible.includes(normalizedText(value)))) issues.push(`SOURCE_COMPONENT_MISSING: ${id} lacks ${typeof component === 'string' ? component : component.role || component.text}`);
+    }
+    // Regardless of authored components, protect numeric tokens and key qualifiers.
+    for (const token of (unit.text || unit.content || '').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g,'').match(/\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9-]*|人民币|美元|预计|全年|计划|正编|外包|仅|至少|至多/g) || []) {
+      const escaped = normalizedText(token).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const present = /^\d/.test(token) ? new RegExp(`(?<![\\d.])${escaped}(?![\\d.])`).test(visible) : visible.includes(normalizedText(token));
+      if (!present) issues.push(`SOURCE_QUALIFIER_MISSING: ${id} lacks ${token}`);
     }
   }
   for (const id of required) if (!mapped.has(id)) issues.push(`VISIBLE_FACT_MISSING: source unit ${id} is required on a body page; an evidenceRef alone is not visible content`);

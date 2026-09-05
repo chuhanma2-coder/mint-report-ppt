@@ -29,7 +29,7 @@ function priority(module) {
 }
 
 function sameDataset(a, b) {
-  if (!a?.data || !b?.data) return false;
+  if (!a?.data || !b?.data || !Object.keys(a.data).length || !Object.keys(b.data).length) return false;
   return stable(a.data.categories || a.data.values || a.data.rows || a.data) === stable(b.data.categories || b.data.values || b.data.rows || b.data)
     || (a.dataRef && b.dataRef && a.dataRef === b.dataRef);
 }
@@ -109,7 +109,7 @@ export function evidenceAllocationIssues(slides, { allowAppendix = false } = {})
     }
     const charts = modules.filter(module => typeOf(module) === "chart"), nonCharts = modules.filter(module => typeOf(module) !== "chart");
     if (charts.some(module => module.visualPriority === "P0")) issues.push(`CHART_DOMINANCE_FORBIDDEN: slide ${slide.id} treats a chart as the page-dominant object; charts are supporting evidence`);
-    if (charts.length && nonCharts.filter(module => ["metric", "text", "callout"].includes(typeOf(module))).length < 2) issues.push(`CHART_WITHOUT_VISIBLE_ARGUMENT: slide ${slide.id} needs at least two substantive non-chart carriers so the chart supports, rather than replaces, the written management argument`);
+    if (charts.length && !String(slide.claim || '').trim() && !nonCharts.some(module => module.semanticRole === 'managementConclusion' && module.text)) issues.push(`CHART_WITHOUT_VISIBLE_ARGUMENT: slide ${slide.id} needs a written claim, not an arbitrary number of support boxes`);
   }
   if (genericContextPages > Math.max(1, Math.floor((slides || []).length * 0.2))) issues.push(`GENERIC_CONTEXT_OVERUSE: generic background/core-evidence blocks appear on ${genericContextPages} slides`);
   return issues;

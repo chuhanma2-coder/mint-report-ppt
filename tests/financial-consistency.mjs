@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { financialConsistencyIssues } from '../scripts/lib/financial-consistency.mjs';
+const slides = [{ id: 'p', modules: [{ id: 'm', data: { headers: ['科目', '压降后', '27年预算', '压降额'], rows: [['总成本', 486, 857.6, 386.1], ['人力', 308.6, 500.1, 203.3], ['项目损益', -472.3, -743.9, 286.1]] } }] }];
+const result = financialConsistencyIssues(slides);
+assert.equal(result.issues.length, 3);
+assert.deepEqual(result.findings.map(f => f.calculatedValue), [371.6, 191.5, 271.6]);
+slides[0].modules[0].data.headers[1]='27年预算压降后';
+slides[0].modules[0].data.rows.push(['总收入',13.7,113.7,-100]);
+assert.deepEqual(financialConsistencyIssues(slides).findings.map(f=>f.calculatedValue),[371.6,191.5,271.6]);
+console.log('financial-consistency: 2 assertions passed');

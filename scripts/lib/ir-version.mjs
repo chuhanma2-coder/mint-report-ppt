@@ -10,6 +10,12 @@ export function upgradeSlideIr(ir) {
     geometry: undefined,
     layout: undefined,
     typography: undefined,
+    measuredComposition: undefined,
+    measuredDensity: undefined,
+    capacityProof: undefined,
+    domModules: undefined,
+    outlineSplit: undefined,
+    outlinePart: undefined,
     modules: (slide.modules || []).map(module => ({ ...module, expression: undefined, dataShape: undefined, layout: undefined, ownedEvidenceRefs: undefined, visualPriority: undefined, carrierPurpose: undefined }))
   }));
   return {

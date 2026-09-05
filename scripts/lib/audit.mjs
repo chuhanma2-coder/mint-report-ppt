@@ -41,6 +41,8 @@ async function visualChecks(file, outputDir) {
     const png = await presentation.export({ slide, format: "png", scale: 1 }); fs.writeFileSync(path.join(outputDir, `${stem}.png`), new Uint8Array(await png.arrayBuffer()));
     const layoutBlob = await slide.export({ format: "layout" }), layout = JSON.parse(await layoutBlob.text()); fs.writeFileSync(path.join(outputDir, `${stem}.layout.json`), `${JSON.stringify(layout, null, 2)}\n`);
     const elements = layout.elements || [], outOfBounds = elements.filter(item => { const box = item.bbox || []; return box.length < 4 || !box.every(Number.isFinite) || (box[2] <= 0 && box[3] <= 0) || box[2] < 0 || box[3] < 0 || box[0] < -0.5 || box[1] < -0.5 || box[0] + box[2] > 1920.5 || box[1] + box[3] > 1080.5; });
+    const { artifactLayoutIssues } = await import('./artifact-layout.mjs');
+    issues.push(...artifactLayoutIssues(layout).map(issue => `Slide ${index + 1} ${issue}`));
     const overShrunk = elements.filter(item => item.text && Number(item.resolvedTextStyle?.autoFitScale || 1) < 0.65);
     if (outOfBounds.length) issues.push(`Slide ${index + 1} has ${outOfBounds.length} out-of-bounds objects`);
     if (overShrunk.length) issues.push(`Slide ${index + 1} has ${overShrunk.length} severely auto-shrunk text objects`);

@@ -11,6 +11,8 @@
   },
   "semanticColors": {
     "actual": "#00866A", "target": "#7891A0", "positive": "#00866A", "risk": "#D95D4F", "history": "#87938E",
+    "moduleHeading": "#126C86", "riskHeading": "#A63E33", "metricText": "#00745C",
+    "roleAccents": { "primaryEvidence": "#126C86", "supportingEvidence": "#665397", "comparison": "#A55725", "progress": "#126C86", "managementConclusion": "#00745C", "decision": "#665397", "action": "#00745C", "risk": "#A63E33", "boundary": "#A55725", "context": "#60706A" },
     "peerSeries": ["#1686A6", "#E98245"], "multiSeries": ["#1686A6", "#E98245", "#00866A", "#7161A8", "#C79A32"]
   },
   "typographyPt": {

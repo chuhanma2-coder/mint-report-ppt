@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { inferDataShape, routeExpression, resolveSlideExpressions, expressionSuitability } from "../scripts/lib/expression-router.mjs";
+import { inferDataShape, routeExpression, resolveSlideExpressions, expressionSuitability, tableToChartData } from "../scripts/lib/expression-router.mjs";
 
 const twoPeriods = { categories: ["Y1", "Y2"], series: [{ name: "收入", values: [80, 92] }] };
 assert.equal(inferDataShape(twoPeriods).hasTime, true);
@@ -14,10 +14,10 @@ assert.equal(routeExpression({ semanticIntent: "trend", type: "callout", semanti
 const sameValues = { categories: ["A", "B", "C"], series: [{ name: "实际", values: [80, 72, 55] }] };
 assert.equal(routeExpression({ managementQuestion: "谁最高？", semanticIntent: "ranking", type: "chart", data: sameValues }).variant, "sorted-bar");
 assert.equal(routeExpression({ managementQuestion: "谁完成目标？", semanticIntent: "variance", type: "chart", data: { ...sameValues, hasTarget: true } }).variant, "variance-bar");
-assert.equal(routeExpression({ managementQuestion: "逐项核对数字", semanticIntent: "comparison", type: "chart", data: sameValues }).type, "table");
+assert.equal(routeExpression({ managementQuestion: "逐项核对数字", semanticIntent: "lookup", type: "chart", data: sameValues }).type, "table");
 const costTable = { exactLookup: true, values: [["科目", "压降后", "压降额"], ["人力", "308.6", "203.3"], ["IT", "21.7", "89.6"]] };
 assert.equal(routeExpression({ managementQuestion: "主要压降项是什么？", claim: "人力与IT是主要压降项", semanticIntent: "comparison", type: "table", data: costTable }).type, "chart");
-assert.equal(routeExpression({ managementQuestion: "逐项核对成本明细", semanticIntent: "comparison", type: "table", data: costTable }).type, "table");
+assert.equal(routeExpression({ managementQuestion: "逐项核对成本明细", semanticIntent: "lookup", type: "table", data: costTable }).type, "table");
 assert.equal(routeExpression({ semanticIntent: "process", type: "text", data: {} }).type, "text");
 const invalid = { id: "S1", modules: [{ id: "m1", type: "chart", dataShape: inferDataShape(twoPeriods), expression: { type: "chart", variant: "line" } }] };
 assert.equal(expressionSuitability(invalid).length, 1);
@@ -25,3 +25,14 @@ const focused = resolveSlideExpressions({ claim: "人力与IT是主要压降项"
 assert.deepEqual(focused.modules[0].expression.focusCategories, ["人力", "IT"]);
 assert.equal(focused.modules[0].expression.annotationIntent, "rank");
 console.log(JSON.stringify({ passed: true, tests: 18 }));
+const separated = { headers: ['项目', '金额'], rows: [['人力', 203.3], ['IT', 89.6], ['职场', 42.8]] };
+assert.deepEqual(tableToChartData(separated).categories, ['人力', 'IT', '职场']);
+assert.deepEqual(tableToChartData(separated).series, [{name:'金额',values:[203.3,89.6,42.8],unitKind:'magnitude',displayUnit:''}]);
+assert.equal(inferDataShape(separated).categoryCount, 3);
+assert.throws(() => tableToChartData({headers:['项目','金额'],rows:[['A',null],['B',2]]}), /MISSING_CHART_VALUE/);
+assert.throws(() => tableToChartData({headers:['项目','金额'],rows:[['A','待确认'],['B',2]]}), /MISSING_CHART_VALUE/);
+assert.deepEqual(tableToChartData({headers:['项目','实际','预算'],rows:[['A',0,2],['B',1,3]]}).series.map(s=>s.values), [[0,1],[2,3]]);
+const fourPairs={categories:['A','B','C','D'],series:[{values:[1,2,3,4]},{values:[2,3,4,5]}]};
+assert.equal(inferDataShape(fourPairs).observationCount,4);
+assert.equal(routeExpression({semanticIntent:'correlation',data:fourPairs}).type,'table');
+assert.equal(routeExpression({semanticIntent:'process',type:'text',data:{nodes:[{id:'a'},{id:'b'}],edges:[{from:'a',to:'b'}]}}).type,'diagram');

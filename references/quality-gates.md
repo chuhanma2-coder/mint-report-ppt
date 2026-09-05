@@ -57,7 +57,6 @@ Additional deterministic blockers:
 - `OUTLINE_FRAGMENTATION` / `OUTLINE_ADJACENT_PAGES_CAN_MERGE`: an outline item was split into more pages than readable capacity requires.
 - `OUTLINE_SPLIT_UNJUSTIFIED`: a continuation page lacks a natural evidence/business boundary.
 - `CHART_DOMINANCE_FORBIDDEN`: a chart was assigned P0 or allowed to replace the page's written claim/evidence/meaning chain.
-- `CHART_WITHOUT_VISIBLE_ARGUMENT`: a chart lacks at least two substantive non-chart carriers.
 
 Every content slide must provide a Page Evidence Bundle, and every bundle item must appear in a visible module. Primary bundle evidence must be rendered through a `primaryEvidence` module. A slide cannot pass merely because its evidence IDs exist in notes.
 

@@ -47,6 +47,7 @@ $files = $files | Sort-Object Order
 $powerPoint = $null; $presentation = $null; $started = Get-Date
 try {
   $powerPoint = New-Object -ComObject PowerPoint.Application
+  $existingPresentationCount = $powerPoint.Presentations.Count
   $presentation = $powerPoint.Presentations.Add()
   while ($presentation.Slides.Count -gt 0) { $presentation.Slides.Item(1).Delete() }
   foreach ($file in $files) { [void]$presentation.Slides.InsertFromFile($file.Path, $presentation.Slides.Count) }
@@ -70,6 +71,6 @@ try {
   $result | ConvertTo-Json -Depth 4
 } finally {
   if ($null -ne $presentation) { $presentation.Close() }
-  if ($null -ne $powerPoint) { $powerPoint.Quit() }
+  if ($null -ne $powerPoint -and $existingPresentationCount -eq 0 -and $powerPoint.Presentations.Count -eq 0) { $powerPoint.Quit() }
   [System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers()
 }

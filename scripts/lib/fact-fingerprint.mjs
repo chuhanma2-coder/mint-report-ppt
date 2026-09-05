@@ -34,7 +34,6 @@ function factsFromData(data = {}) {
 
 export function moduleFactFingerprints(module) {
   const facts = [
-    ...factsFromText(module.title),
     ...factsFromText(module.text),
     ...factsFromText(`${module.value ?? ""}${module.unit || ""}`),
     ...factsFromData(module.data)

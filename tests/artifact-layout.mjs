@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { artifactLayoutIssues } from '../scripts/lib/artifact-layout.mjs';
+const t = (name, bbox) => ({ name, text: name, bbox });
+assert.match(artifactLayoutIssues({ elements: [t('node', [0, 0, 100, 40]), t('label', [50, 10, 100, 40])] }).join(' '), /TEXT_COLLISION/);
+assert.deepEqual(artifactLayoutIssues({ elements: [{ bbox: [0, 0, 200, 200], fill: 'white' }, t('body', [20, 20, 150, 30])] }), []);
+assert.deepEqual(artifactLayoutIssues({ elements: [t('left', [0, 0, 100, 30]), t('right', [100, 0, 100, 30])] }), []);
+console.log('artifact-layout: 3 assertions passed');
+assert.match(artifactLayoutIssues({elements:[{...t('body',[0,0,100,30]),paragraphs:[{runs:[{fontSize:20}]}]}]}).join(' '),/FONT_FLOOR/);
+assert.match(artifactLayoutIssues({elements:[t('node',[0,0,100,30]),{geometry:'line',bbox:[-10,15,120,0]}]}).join(' '),/CONNECTOR_TEXT_COLLISION/);
+assert.match(artifactLayoutIssues({elements:[t('node',[0,0,100,30]),{geometry:'connector',bbox:[-10,15,120,0]}]}).join(' '),/CONNECTOR_TEXT_COLLISION/);
+assert.match(artifactLayoutIssues({elements:[{...t('body',[0,0,100,30]),order:1},{kind:'shape',fillColor:'#FFFFFF',order:2,bbox:[0,0,100,30]}]}).join(' '),/TEXT_OCCLUDED/);

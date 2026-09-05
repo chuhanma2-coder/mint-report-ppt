@@ -4,24 +4,29 @@ const diagramIntents = new Set(["process", "hierarchy", "causal-chain", "role-re
 const finite = value => typeof value === "number" && Number.isFinite(value);
 const strings = values => values.filter(value => typeof value === "string");
 
+function tableParts(data) {
+  const rows = Array.isArray(data.values) ? data.values : Array.isArray(data.rows) ? data.rows : [];
+  const headers = data.headers || data.columns;
+  return headers?.length ? { headers, body: rows } : { headers: rows[0] || [], body: rows.slice(1) };
+}
+
 export function inferDataShape(data = {}) {
   const categories = Array.isArray(data.categories) ? data.categories : [];
   const series = Array.isArray(data.series) ? data.series : [];
   const tableRows = Array.isArray(data.values) ? data.values : Array.isArray(data.rows) ? data.rows : [];
-  const tableBody = tableRows.length > 1 ? tableRows.slice(1) : tableRows;
-  const tableHeaders = tableRows.length > 1 && Array.isArray(tableRows[0]) ? tableRows[0].slice(1).map(String) : [];
+  const {body: tableBody, headers} = tableParts(data);
+  const tableHeaders = headers.slice(1).map(String);
   const tableValues = tableBody.flatMap(row => Array.isArray(row) ? row.slice(1).map(value => {
-    const parsed = Number(String(value).replaceAll(",", "").replace(/[%万亿美人民币元]/g, ""));
-    return Number.isFinite(parsed) ? parsed : null;
+    return numberFromCell(value);
   }).filter(finite) : []);
   const values = [...series.flatMap(item => Array.isArray(item.values) ? item.values : []).filter(finite), ...tableValues];
   const periods = categories.filter(value => /^(?:Y|FY)\d{1,4}$|^(?:Q|H|M)\d{1,2}$|^\d{4}[-/.]\d{1,2}(?:[-/.]\d{1,2})?$|^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/i.test(String(value)));
   const total = values.reduce((sum, value) => sum + value, 0);
   return {
     dimensionCount: categories.length ? 1 : 0,
-    measureCount: series.length || (values.length ? 1 : 0),
+    measureCount: series.length || tableHeaders.length,
     categoryCount: categories.length || tableBody.length || values.length,
-    observationCount: values.length,
+    observationCount: series.length >= 2 ? (series[0].values || []).filter((value, i) => finite(value) && finite(series[1].values?.[i])).length : series.length ? values.length : tableBody.length,
     hasTime: data.hasTime === true || (categories.length > 0 && periods.length === categories.length),
     hasTarget: data.hasTarget === true || series.some(item => /目标|预算|target|budget/i.test(String(item.name || ""))),
     hasNegative: values.some(value => value < 0),
@@ -51,7 +56,7 @@ export function routeExpression({ managementQuestion = "", claim = "", semanticI
   if (type === "image") return result("image", "evidence", "The source image is itself the evidence", ["callout"]);
   if (type === "callout" || semanticRole === "managementConclusion" || semanticRole === "decision" || semanticRole === "boundary") return result("callout", semanticRole === "decision" ? "decision" : semanticRole === "boundary" ? "boundary" : "conclusion", "The module states the management implication or boundary", ["text"]);
   if (type === "metric") return result("metric", shape.hasTarget ? "target-variance" : "hero", "A small number of values carries the conclusion", ["metric-cards"]);
-  if (type === "text") return result("text", "body", "A text module remains narrative unless the planner supplies relationship nodes", ["callout"]);
+  if (type === "text" && !(diagramIntents.has(intent) && shape.nodeCount > 0)) return result("text", "body", "Narrative text has no explicit relationship graph", ["callout"]);
   if (type === "diagram" || (diagramIntents.has(intent) && shape.nodeCount > 0)) {
     if (intent === "network" && shape.nodeCount > 10) return result("diagram", "grouped-network", "Dense networks require grouping before placement", ["layered-network", "split-diagram"]);
     const variants = { process: "flow", hierarchy: "tree", "causal-chain": "causal-chain", "role-relationship": "role-network", "system-architecture": "architecture", timeline: "timeline", swimlane: "swimlane", network: "network" };
@@ -59,7 +64,7 @@ export function routeExpression({ managementQuestion = "", claim = "", semanticI
   }
   const explicitLookupQuestion = /核对|明细|查数|逐项|完整参数|原始数据/i.test(question);
   if (intent === "matrix") return result("table", "decision-matrix", "Several dimensions must be compared together", ["heatmap-table", "small-multiples"]);
-  if (explicitLookupQuestion) return result("table", "highlighted", "Exact lookup is the management purpose", ["heatmap-table"]);
+  if (intent === 'lookup' || (!intent && explicitLookupQuestion)) return result("table", "highlighted", "Exact lookup is the management purpose", ["heatmap-table"]);
   if (intent === "composition") {
     if (!shape.partToWhole) return result("chart", "sorted-bar", "The values do not form a verified whole, so part-to-whole charts are forbidden", ["table"]);
     return result("chart", shape.categoryCount <= 5 ? "doughnut" : "percent-stacked", "The values form a verified whole", ["sorted-bar"]);
@@ -102,8 +107,7 @@ export function resolveSlideExpressions(slide, datasets = {}) {
     const statement = `${slide.claim || ""} ${slide.managementQuestion || ""}`;
     const focusCategories = (resolvedData.categories || []).filter(category => statement.includes(String(category)));
     const focusSeries = (resolvedData.series || []).map(series => series.name).filter(name => statement.includes(String(name)));
-    const tableRows = resolvedData.values || resolvedData.rows || [];
-    const focusRows = tableRows.slice(1).map(row => String(row?.[0] ?? "")).filter(label => label && statement.includes(label));
+    const focusRows = tableParts(resolvedData).body.map(row => String(row?.[0] ?? "")).filter(label => label && statement.includes(label));
     const expression = { ...routed, focusCategories, focusSeries, focusRows, comparisonDirection: /最高|最大|领先|主要/.test(statement) ? "high" : /最低|最小|落后|风险/.test(statement) ? "low" : null, annotationIntent: routed.variant === "sorted-bar" ? "rank" : routed.variant?.includes("variance") ? "gap" : routed.variant === "waterfall" ? "contribution" : null };
     const tableRole = expression.type === "table" ? module.tableRole || (module.semanticRole === "primaryEvidence" ? "primary" : "supporting") : module.tableRole;
     return { ...module, tableRole, data: resolvedData, sourceTable: resolvedData === data ? undefined : data, dataShape: inferDataShape(resolvedData), expression };
@@ -113,6 +117,7 @@ export function resolveSlideExpressions(slide, datasets = {}) {
 
 function numberFromCell(value) {
   const raw = String(value ?? "").replaceAll(",", "").trim();
+  if (!raw || !/[0-9]/.test(raw)) return null;
   const parsed = Number(raw.replace(/[%万亿美人民币元]/g, ""));
   if (!Number.isFinite(parsed)) return null;
   // Magnitude series use ten-thousands as the common display unit so mixed
@@ -122,22 +127,24 @@ function numberFromCell(value) {
 }
 
 export function tableToChartData(data, context = "") {
-  const rows = Array.isArray(data.values) ? data.values : data.rows || [];
-  if (rows.length < 2 || !Array.isArray(rows[0])) return data;
-  const headers = rows[0].map(String), body = rows.slice(1), categories = body.map(row => String(row?.[0] ?? ""));
+  const parts = tableParts(data), headers = parts.headers.map(String), body = parts.body;
+  if (!body.length || !headers.length) return data;
+  const rows = [headers, ...body], categories = body.map(row => String(row?.[0] ?? ""));
   const terms = ["压降额", "差异", "变动", "白名单/月活", "筛选白名单", "月活", "人口", "损失", "利率", "期限", "额度", "实际", "目标", "预算"];
   const scored = headers.slice(1).map((header, index) => {
     const values = body.map(row => numberFromCell(row?.[index + 1]));
     const valid = values.filter(value => value != null).length;
+    if (valid !== body.length) throw new Error(`MISSING_CHART_VALUE: ${header}; preserve missing/qualitative cells in a visible table, never substitute zero`);
     let score = valid * 2 + (context.includes(header) ? 12 : 0);
     for (const [rank, term] of terms.entries()) if (header.includes(term) && context.includes(term.replace("额", ""))) score += 10 - Math.min(8, rank);
     if (/压降额|差异|变动/.test(header) && /压降|变化|差异|主要/.test(context)) score += 12;
     const unitKind = /%|率|占比|份额/.test(header) || body.some(row => String(row?.[index + 1] ?? "").includes("%")) ? "percent" : "magnitude";
     const displayUnit = unitKind === "percent" ? "%" : body.some(row => /[万亿]/.test(String(row?.[index + 1] ?? ""))) ? "万" : "";
-    return { header, values: values.map(value => value ?? 0), valid, score, unitKind, displayUnit };
+    return { header, values, valid, score, unitKind, displayUnit };
   }).filter(item => item.valid > 0).sort((a, b) => b.score - a.score);
-  const first = scored[0], second = scored.find(item => item.unitKind !== first?.unitKind);
-  const chosen = first ? [first, ...(second && second !== first && second.score > 0 ? [second] : [])] : [];
+  // Preserve every numeric column; ranking a preferred series must not erase
+  // other periods or measures from the source. Mixed units use small multiples.
+  const chosen = scored;
   return { categories, series: chosen.map(item => ({ name: item.header, values: item.values, unitKind: item.unitKind, displayUnit: item.displayUnit })), exactLookup: false, sourceTable: rows };
 }
 
