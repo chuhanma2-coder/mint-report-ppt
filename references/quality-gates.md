@@ -6,7 +6,7 @@
 |---|---|---|
 | Content | Missing evidence, wrong number, unsupported title | Source model or planner |
 | Expression | False trend, false whole, process drawn as chart | Expression Router |
-| Layout | Sparse page, overlap, clipped label, crossing connector | Geometry Engine |
+| Layout | Sparse page, overlap, clipped label, crossing connector | Design Canvas / DOM layout |
 | Artifact | External image, broken PPT object, wrong slide size | Renderer or publisher |
 
 Repairs stay within the responsible layer. A layout repair cannot rewrite content. Visual QA cannot change chart semantics; it returns `expression-review-required` when it suspects an expression problem.
@@ -33,6 +33,8 @@ Block or return for review when:
 ## Visual and artifact gate
 
 Render every delivered slide. Check readability, hierarchy, sparse/crowded composition, labels, tables, diagrams, image crop, semantic colors, and overall rhythm. Also check 16:9 size, native editable tables/charts/diagrams, embedded media, no external relationships, no visible audit metadata, no headers/footers/page numbers, no severe auto-shrink, no unintended overlap, and no out-of-bounds objects.
+
+Before compilation, the DOM gate verifies a 1920×1080 canvas, font readiness, image readiness, unique module identity, actual painted-bounds occupancy, text overflow, role-specific font floors, and canvas bounds. After compilation, the artifact gate rejects full-slide images, non-native semantic tables/diagrams, missing media, external relationships, unapproved fonts, and any `shrinkText`/automatic fit. The parity gate compares the internal canvas render with the PPT render using perceptual difference and non-background coverage; either failure blocks success. Final release also requires a render made by Microsoft PowerPoint on the target platform; Artifact Tool rendering is a preliminary cross-platform gate, not a substitute for PowerPoint.
 
 Before rendering, require 100% source-unit disposition and real-font text fit at the minimum readable size. Automatic shrink is forbidden. Ordinary pages with low real-content occupancy fail unless the IR explicitly identifies intentional whitespace for a hero/section purpose.
 

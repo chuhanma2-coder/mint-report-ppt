@@ -1,6 +1,6 @@
 # Design and layout
 
-Use eight geometry skeletons only: `hero`, `single-primary`, `primary-secondary`, `balanced-columns`, `grid`, `sequence`, `matrix`, and `network`. Geometry controls rectangles and spacing, never semantics.
+The production layout authority is the internal 1920×1080 HTML Design Canvas. Its CSS grid/flex composition is measured in a real browser after fonts and images finish loading. The legacy numeric Geometry Engine is retired from the build path and remains only for compatibility tests. Composition controls placement and spacing, never semantics.
 
 ## Capacity and consolidation
 
@@ -26,7 +26,11 @@ Track three independent diagnostics: Visual Occupancy, Information Density, and 
 
 Adjacent low-density pages in the same `storyCluster` or outline item must merge unless either page carries a genuinely independent management decision. `independentDecision` is not a manual escape hatch: the title and evidence must support a different decision.
 
-The engine measures real text with the configured CJK font before rendering and calculates real-content occupancy from measured text/table/visual demand, not allocated rectangles. Equal-area cards are allowed only for genuinely equal semantic weight. A headline number, primary chart, or relationship diagram receives the dominant area; boundaries and caveats receive a smaller support area. The renderer uses `autoFit=none`; unresolved overflow blocks delivery.
+The browser measures final wrapped text with the configured CJK font and calculates occupancy from the union of actually painted DOM bounds, not allocated rectangles. Equal-area cards are allowed only for genuinely equal semantic weight. A headline number, primary image, chart, relationship diagram, or primary table receives dominant area; boundaries and caveats receive a smaller support area. The compiler uses `autoFit=none`; unresolved DOM or PowerPoint overflow blocks delivery.
+
+## Design Canvas and native compilation
+
+The internal canvas must expose semantic DOM markers for title, question, module kind, module role, P0/P1/P2 priority, table/chart/diagram data, and evidence identity. After `document.fonts.ready`, all images decode, and `renderReady=true`, extract each final DOM rectangle and computed font size. Compile those measurements as follows: text to native text boxes; panels and rules to shapes; semantic tables to native PowerPoint tables; ordinary charts to native PowerPoint charts; complex charts to editable shapes; diagrams to native nodes/connectors; images to embedded media. Never compile the full slide as a screenshot. Missing, duplicated, unsupported, overflowing, or out-of-bounds semantic objects block output.
 
 ## Typography
 

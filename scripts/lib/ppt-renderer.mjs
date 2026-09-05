@@ -96,8 +96,8 @@ function addWaterfall(slide, module, frame, theme, font, index) {
   columns.forEach((column, i) => {
     const topValue = Math.max(column.before, column.after), bottomValue = Math.min(column.before, column.after), x = plot.left + i * step + (step - barW) / 2, y = plot.top + (hi - topValue) * scale, h = Math.max(3, (topValue - bottomValue) * scale), color = column.total ? theme.palette.blue : column.value < 0 ? theme.palette.coral : theme.palette.mint;
     slide.shapes.add({ geometry: "rect", name: `mint|waterfall-bar|${index}-${i}`, position: { left: x, top: y, width: barW, height: h }, fill: solid(color), line: noLine });
-    addText(slide, `${!column.total && column.value > 0 ? "+" : ""}${column.value}`, { left: x - 15, top: Math.max(plot.top, y - 38), width: barW + 30, height: 34 }, { typeface: font, fontSizePt: 15, bold: true, color: theme.palette.ink }, `mint|waterfall-value|${index}-${i}`);
-    addText(slide, column.label, { left: plot.left + i * step, top: plot.top + plot.height + 8, width: step, height: 48 }, { typeface: font, fontSizePt: 14, color: theme.palette.muted }, `mint|waterfall-label|${index}-${i}`);
+    addText(slide, `${!column.total && column.value > 0 ? "+" : ""}${column.value}`, { left: x - 15, top: Math.max(plot.top, y - 42), width: barW + 30, height: 38 }, { typeface: font, fontSizePt: 18, bold: true, color: theme.palette.ink }, `mint|waterfall-value|${index}-${i}`);
+    addText(slide, column.label, { left: plot.left + i * step, top: plot.top + plot.height + 8, width: step, height: 52 }, { typeface: font, fontSizePt: 17, color: theme.palette.muted }, `mint|waterfall-label|${index}-${i}`);
   });
   slide.shapes.add({ geometry: "line", position: { left: plot.left, top: baseY, width: plot.width, height: 0 }, fill: "none", line: { fill: theme.palette.line, width: 1 } });
 }
@@ -182,7 +182,7 @@ function addShapeChart(slide, module, frame, theme, font, index) {
 }
 
 function addTable(slide, module, frame, theme, font, index) {
-  const data = moduleData(module), values = data.values || data.rows || [];
+  const data = moduleData(module), headers = data.headers || data.columns || [], body = data.values || data.rows || [], values = headers.length && body[0]?.join?.("|") !== headers.join("|") ? [headers, ...body] : body;
   if (!Array.isArray(values) || !values.length) return addNarrative(slide, { ...module, text: module.text || "表格数据缺失" }, frame, theme, font, index);
   const columns = Math.max(...values.map(row => row.length));
   const table = slide.tables.add({ rows: values.length, columns, left: frame.left, top: frame.top, width: frame.width, height: frame.height, values });
@@ -192,6 +192,10 @@ function addTable(slide, module, frame, theme, font, index) {
   all.textStyle.fontSize = (values.length > 10 ? 14 : 16) * 96 / 72; all.textStyle.typeface = font; all.textStyle.color = theme.palette.ink;
   const header = table.cells.block({ row: 0, column: 0, rowCount: 1, columnCount: columns });
   header.fill = theme.palette.mintLight; header.textStyle.bold = true;
+  const focusRows = new Set((module.expression?.focusRows || []).map(String));
+  for (let row = 1; row < values.length; row++) if (focusRows.has(String(values[row]?.[0])) || focusRows.has(String(row))) {
+    const focused = table.cells.block({ row, column: 0, rowCount: 1, columnCount: columns }); focused.fill = theme.palette.orangeLight; focused.textStyle.bold = true;
+  }
   if (module.expression?.variant === "decision-matrix") {
     table.styleOptions = { headerRow: true, firstColumn: true, bandedRows: false };
     for (let row = 1; row < values.length; row++) {
@@ -258,7 +262,7 @@ export async function renderPresentation(ir, theme) {
       const rawFrame = spec.layout.modules[index] || spec.layout.modules.at(-1), type = module.expression?.type || module.type, variant = module.expression?.variant;
       const frame = { ...rawFrame, height: ["text", "callout", "metric", "table"].includes(type) ? Math.min(rawFrame.height, rawFrame.usedHeight || rawFrame.height) : rawFrame.height };
       if (type === "metric") addMetric(slide, module, frame, theme, font, index);
-      else if (type === "chart") (["line", "column", "variance-bar", "doughnut", "percent-stacked", "scatter"].includes(variant) && !(module.expression?.focusCategories || []).length ? addNativeChart : addShapeChart)(slide, module, frame, theme, font, index);
+      else if (type === "chart") (["line", "column", "variance-bar", "doughnut", "percent-stacked", "scatter"].includes(variant) ? addNativeChart : addShapeChart)(slide, module, frame, theme, font, index);
       else if (type === "table") addTable(slide, module, frame, theme, font, index);
       else if (type === "diagram") addDiagram(slide, module, frame, theme, font, index);
       else if (type === "image") addImage(slide, module, frame, index);

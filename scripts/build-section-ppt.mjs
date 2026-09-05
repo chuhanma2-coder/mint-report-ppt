@@ -5,7 +5,6 @@ import path from "node:path";
 import { skillVersion, theme } from "./lib/config.mjs";
 import { readTaskCard } from "./lib/task-card.mjs";
 import { expressionSuitability, resolveSlideExpressions } from "./lib/expression-router.mjs";
-import { layoutIssues, layoutSlide } from "./lib/geometry-engine.mjs";
 import { exportPresentation, renderPresentation } from "./lib/ppt-renderer.mjs";
 import { writePptxMetadata } from "./lib/pptx-metadata.mjs";
 import { auditPpt } from "./lib/audit.mjs";
@@ -15,6 +14,10 @@ import { consolidationIssues, evidenceBundleRefs } from "./lib/page-consolidatio
 import { chapterCompositionIssues, classifyChapterCompositions, materializeCompositeEvidence } from "./lib/composition-classifier.mjs";
 import { allocateSlideEvidence, evidenceAllocationIssues } from "./lib/evidence-allocation.mjs";
 import { CURRENT_PLANNING_SCHEMA_VERSION, CURRENT_SLIDE_IR_VERSION, upgradeSlideIr } from "./lib/ir-version.mjs";
+import { writeDesignCanvas } from "./lib/design-canvas.mjs";
+import { applyDomLayout, extractDesignLayout } from "./lib/dom-layout-extractor.mjs";
+import { semanticDuplicationIssues } from "./lib/fact-fingerprint.mjs";
+import { compareRenderedSlides } from "./lib/visual-parity.mjs";
 
 const [sourceArg, irArg, taskArg, sectionId, outputArg] = process.argv.slice(2);
 const sourceFile = path.resolve(sourceArg || ""), irFile = path.resolve(irArg || ""), taskFile = path.resolve(taskArg || ""), output = path.resolve(outputArg || "");
@@ -62,19 +65,25 @@ try {
   const datasets = source.datasets || {};
   const groundedSlides = authored.slides.map(slide => ({ ...slide, sourceEvidence: evidenceForSlide(source, slide) }));
   const classified = classifyChapterCompositions(groundedSlides);
-  const slides = classified.slides.map(slide => layoutSlide(allocateSlideEvidence(resolveSlideExpressions(materializeCompositeEvidence(slide), datasets)), theme));
-  const expressionIssues = slides.flatMap(expressionSuitability);
-  const presentationIssues = presentationIntentIssues({ ...authored, slides });
-  const layoutWarnings = slides.flatMap(slide => layoutIssues(slide, theme));
-  const consolidationWarnings = consolidationIssues(slides, theme);
-  const chapterIssues = chapterCompositionIssues(slides);
-  const allocationIssues = evidenceAllocationIssues(slides, { allowAppendix: task.allowAppendix === true });
-  const variants = slides.filter(slide => slide.role === "content").map(slide => slide.layout?.layoutVariant || slide.geometry);
-  const patternIssues = [];
-  for (let i = 3; i < variants.length; i++) if (variants.slice(i - 3, i + 1).every(value => value === variants[i])) patternIssues.push(`LAYOUT_PATTERN_OVERUSE: ${variants[i]} repeats on four consecutive content slides`);
-  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...allocationIssues.map(issue => `Allocation: ${issue}`), ...layoutWarnings.map(issue => `Layout: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`), ...chapterIssues.map(issue => `Chapter: ${issue}`), ...patternIssues.map(issue => `Chapter: ${issue}`)];
+  const plannedSlides = classified.slides.map(slide => allocateSlideEvidence(resolveSlideExpressions(materializeCompositeEvidence(slide), datasets)));
+  const allocatedCoverageFile = `${output}.allocated-source-coverage.json`, allocatedCoverage = auditSourceCoverage(source, { ...authored, slides: plannedSlides }, { allowAppendix: task.allowAppendix === true });
+  fs.writeFileSync(allocatedCoverageFile, `${JSON.stringify(allocatedCoverage, null, 2)}\n`);
+  if (!allocatedCoverage.passed) throw new Error(`Post-allocation source coverage gate failed: ${allocatedCoverage.issues.join("; ")}`);
+  const expressionIssues = plannedSlides.flatMap(expressionSuitability);
+  const presentationIssues = presentationIntentIssues({ ...authored, slides: plannedSlides });
+  const consolidationWarnings = consolidationIssues(plannedSlides, theme);
+  const allocationIssues = evidenceAllocationIssues(plannedSlides, { allowAppendix: task.allowAppendix === true });
+  const duplicationIssues = plannedSlides.flatMap(semanticDuplicationIssues);
+  const generationIssues = [...expressionIssues.map(issue => `Expression: ${issue}`), ...presentationIssues.map(issue => `Presentation: ${issue}`), ...allocationIssues.map(issue => `Allocation: ${issue}`), ...duplicationIssues.map(issue => `Content: ${issue}`), ...consolidationWarnings.map(issue => `Consolidation: ${issue}`)];
   if (generationIssues.length) throw new Error(`Generation gates failed: ${generationIssues.join("; ")}`);
-  const resolved = { ...authored, slides, compositionDiagnostics: classified.diagnostics, resolvedBy: { skillVersion, themeVersion: theme.themeVersion, slideIrVersion: CURRENT_SLIDE_IR_VERSION, planningSchemaVersion: CURRENT_PLANNING_SCHEMA_VERSION, generatedAt: new Date().toISOString() } };
+  const designInput = { ...authored, slides: plannedSlides, compositionDiagnostics: classified.diagnostics };
+  const designFile = `${output}.design.html`, designDir = `${output}.design-render`;
+  writeDesignCanvas(designInput, theme, designFile);
+  const domManifest = await extractDesignLayout({ htmlFile: designFile, outputDir: designDir, expectedSlides: plannedSlides.length });
+  if (!domManifest.passed) throw new Error(`DOM design gate failed: ${domManifest.issues.join("; ")}`);
+  const resolved = { ...applyDomLayout(designInput, domManifest), compositionDiagnostics: classified.diagnostics, resolvedBy: { skillVersion, themeVersion: theme.themeVersion, slideIrVersion: CURRENT_SLIDE_IR_VERSION, planningSchemaVersion: CURRENT_PLANNING_SCHEMA_VERSION, generatedAt: new Date().toISOString() } };
+  const chapterIssues = chapterCompositionIssues(resolved.slides);
+  if (chapterIssues.length) throw new Error(`Chapter gates failed: ${chapterIssues.join("; ")}`);
   const { presentation, diagnostics } = await renderPresentation(resolved, theme);
   await exportPresentation(presentation, output);
   await writePptxMetadata(output, {
@@ -87,6 +96,9 @@ try {
   fs.writeFileSync(resolvedFile, `${JSON.stringify(resolved, null, 2)}\n`);
   const auditFile = `${output}.audit.json`, audit = await auditPpt({ file: output, taskFile, sectionId, mode: "section", output: auditFile, resolvedIrFile: resolvedFile });
   if (!audit.passed) throw new Error(`PPT audit failed: ${audit.issues.join("; ")}`);
-  fs.writeFileSync(`${output}.build.json`, `${JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, slides: slides.length, diagnostics, warnings: [], skillVersion, themeVersion: theme.themeVersion }, null, 2)}\n`);
-  console.log(JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, slides: slides.length, warnings: [], authority: "pptx", skillVersion, themeVersion: theme.themeVersion }, null, 2));
+  const auditRenderDir = path.join(path.dirname(auditFile), `${path.basename(output, path.extname(output))}-audit-render`), parityFile = `${output}.visual-parity.json`;
+  const parity = await compareRenderedSlides({ referenceDir: designDir, candidateDir: auditRenderDir, slideCount: resolved.slides.length, outputFile: parityFile });
+  if (!parity.passed) throw new Error(`Visual parity gate failed: ${parity.issues.join("; ")}`);
+  fs.writeFileSync(`${output}.build.json`, `${JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, designFile, domManifest: path.join(designDir, "dom-layout.json"), parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, diagnostics, warnings: [], skillVersion, themeVersion: theme.themeVersion }, null, 2)}\n`);
+  console.log(JSON.stringify({ passed: true, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, designFile, parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, warnings: [], authority: "pptx", skillVersion, themeVersion: theme.themeVersion }, null, 2));
 } catch (error) { console.error(JSON.stringify({ passed: false, error: error.message }, null, 2)); process.exit(1); }

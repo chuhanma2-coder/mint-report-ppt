@@ -51,6 +51,12 @@ export async function inspectPptxPackage(file) {
     const typefaces = [...shape.matchAll(/<a:(?:latin|ea|cs)\b[^>]*\btypeface="([^"]+)"/g)].map(item => item[1]);
     return { slide: slideIndex + 1, name, minimumFontPt: sizes.length ? Math.min(...sizes) / 100 : null, typefaces: [...new Set(typefaces)], noAutoFit: /<a:noAutofit\s*\/>/.test(shape) };
   }).filter(Boolean));
+  const fullSlideImages = slideXml.flatMap((xml, slideIndex) => [...xml.matchAll(/<p:pic>([\s\S]*?)<\/p:pic>/g)].map(match => {
+    const picture = match[1], ext = picture.match(/<a:ext\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/);
+    if (!ext || !size) return null;
+    const areaShare = Number(ext[1]) * Number(ext[2]) / (Number(size[1]) * Number(size[2]));
+    return areaShare >= 0.9 ? { slide: slideIndex + 1, areaShare } : null;
+  }).filter(Boolean));
   const relNames = names.filter(name => /^ppt\/(slides|charts|drawings)\/_rels\/.*\.rels$/.test(name));
   const relXml = await Promise.all(relNames.map(name => zip.file(name).async("string")));
   return {
@@ -61,6 +67,6 @@ export async function inspectPptxPackage(file) {
     hasPageChrome: slideXml.some(xml => /<p:ph\b[^>]*\btype="(?:dt|ftr|sldNum)"/i.test(xml)),
     nativeTables: slideXml.reduce((sum, xml) => sum + (xml.match(/<a:tbl\b/g) || []).length, 0),
     nativeShapes: slideXml.reduce((sum, xml) => sum + (xml.match(/<p:sp\b/g) || []).length, 0),
-    mintTextObjects
+    mintTextObjects, fullSlideImages
   };
 }

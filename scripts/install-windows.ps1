@@ -6,6 +6,13 @@ $codexRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USER
 $skillsRoot = Join-Path $codexRoot "skills"
 $target = Join-Path $skillsRoot "mint-report-ppt"
 try { $powerPoint = New-Object -ComObject PowerPoint.Application; $powerPoint.Quit() } catch { throw "Microsoft PowerPoint desktop is required for automatic PPT merge." }
+$browserCandidates = @(
+  (Join-Path $env:ProgramFiles "Google\Chrome\Application\chrome.exe"),
+  (Join-Path ${env:ProgramFiles(x86)} "Microsoft\Edge\Application\msedge.exe"),
+  (Join-Path $env:ProgramFiles "Microsoft\Edge\Application\msedge.exe")
+)
+$browser = $browserCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+if (-not $browser) { throw "Google Chrome or Microsoft Edge is required for the internal 1920x1080 Design Canvas." }
 $font = New-Object System.Drawing.Font("Microsoft YaHei", 12)
 if ($font.Name -ne "Microsoft YaHei") { throw "Microsoft YaHei font is required." }
 $font.Dispose()
@@ -17,4 +24,5 @@ if (Test-Path $target) {
 }
 Copy-Item -LiteralPath $Source -Destination $target -Recurse
 Write-Host "Installed mint-report-ppt at $target"
+Write-Host "Browser for Design Canvas: $browser"
 Write-Host "mint-report-deck was not modified. Restart Codex before first use."

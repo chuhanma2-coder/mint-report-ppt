@@ -10,7 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const skill = fs.readFileSync(path.join(root, "SKILL.md"), "utf8"), routing = fs.readFileSync(path.join(root, "references/expression-routing.md"), "utf8"), workflow = fs.readFileSync(path.join(root, "references/workflow.md"), "utf8"), quality = fs.readFileSync(path.join(root, "references/quality-gates.md"), "utf8");
 assert.match(skill, /sole human work authority/);
 assert.match(skill, /does not require that Skill/);
-assert.match(skill, /Do not generate draft HTML/);
+assert.match(skill, /temporary internal 1920×1080 Design Canvas/);
 assert.match(skill, /Visual QA may request `expression-review-required`/);
 assert.match(skill, /Aggregation is not summarization/);
 assert.match(skill, /Page Evidence Bundle/);

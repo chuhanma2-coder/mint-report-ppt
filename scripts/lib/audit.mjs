@@ -14,6 +14,7 @@ function packageChecks(pkg, metadata, task, expectedSection, mode) {
   if (!pkg.slideSize || Math.abs(pkg.slideSize.ratio - 16 / 9) > 0.002) issues.push("Slide size is not 16:9");
   if (pkg.hasExternalMedia) issues.push("External media relationship is forbidden");
   if (pkg.hasPageChrome) issues.push("Visible date/footer/page-number placeholder is forbidden");
+  if (pkg.fullSlideImages?.length) issues.push(`Full-slide screenshot fallback is forbidden on slides ${pkg.fullSlideImages.map(item => item.slide).join(", ")}`);
   for (const pattern of forbidden) if (pattern.test(pkg.visibleText)) issues.push(`Visible audit metadata matched ${pattern}`);
   if (metadata.MintReportId !== task.reportId) issues.push("MintReportId does not match task card");
   if (metadata.MintThemeVersion !== task.themeVersion) issues.push("MintThemeVersion does not match task card");
@@ -23,6 +24,7 @@ function packageChecks(pkg, metadata, task, expectedSection, mode) {
     if (!item.noAutoFit) issues.push(`Slide ${item.slide} ${item.name} must use noAutoFit; shrinkText is forbidden`);
     const floor = item.name.includes("|title|") ? 22 : item.name.includes("|module-body|") ? 13 : item.name.includes("|diagram-node|") ? 12 : 10;
     if (item.minimumFontPt != null && item.minimumFontPt < floor) issues.push(`Slide ${item.slide} ${item.name} is ${item.minimumFontPt}pt, below the ${floor}pt role floor`);
+    if (item.typefaces?.length && !item.typefaces.some(typeface => /Microsoft YaHei|Aptos|微软雅黑/i.test(typeface))) issues.push(`Slide ${item.slide} ${item.name} uses an unapproved typeface: ${item.typefaces.join(", ")}`);
   }
   return issues;
 }
@@ -56,7 +58,7 @@ export async function auditPpt({ file, taskFile, sectionId = null, mode = "secti
     if ((ir.slides || []).length !== pkg.slides.length) issues.push("Resolved IR slide count differs from PPTX");
   }
   const visual = await visualChecks(file, renderDir); issues.push(...visual.issues);
-  const report = { schemaVersion: "2.0", passed: issues.length === 0, mode, file, taskCard: taskFile, reportId: task.reportId, sectionId, metadata, semantic, package: { slides: pkg.slides.length, charts: pkg.charts.length, media: pkg.media.length, nativeTables: pkg.nativeTables, nativeShapes: pkg.nativeShapes, mintTextObjects: pkg.mintTextObjects?.length || 0, slideSize: pkg.slideSize, externalMedia: pkg.hasExternalMedia, pageChrome: pkg.hasPageChrome }, visual, issues, generatedAt: new Date().toISOString() };
+  const report = { schemaVersion: "2.1", passed: issues.length === 0, mode, file, taskCard: taskFile, reportId: task.reportId, sectionId, metadata, semantic, package: { slides: pkg.slides.length, charts: pkg.charts.length, media: pkg.media.length, nativeTables: pkg.nativeTables, nativeShapes: pkg.nativeShapes, mintTextObjects: pkg.mintTextObjects?.length || 0, fullSlideImages: pkg.fullSlideImages || [], slideSize: pkg.slideSize, externalMedia: pkg.hasExternalMedia, pageChrome: pkg.hasPageChrome }, visual, issues, generatedAt: new Date().toISOString() };
   if (output) fs.writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
   return report;
 }

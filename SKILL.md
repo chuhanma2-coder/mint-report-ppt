@@ -14,18 +14,19 @@ Produce a strong first-draft PPTX that leaders can edit directly. After the firs
 - Use the Presentations Skill directly for a generic final-PPT-only deliverable.
 - Never invoke or modify `mint-report-deck` as a fallback.
 - Use the bundled presentation runtime and `@oai/artifact-tool`; never use `python-pptx`.
-- Do not generate draft HTML, extract HTML coordinates, embed ZIPs, sync PPT edits back to IR, or implement PDF export.
+- Do not expose a draft HTML workfile, embed ZIPs, sync PPT edits back to IR, or implement PDF export. The build may create a temporary internal 1920×1080 Design Canvas solely for browser layout and verification; users receive the native PPTX, not that internal canvas.
 
 ## Required pipeline
 
 1. Read all supplied material once. Build a source/evidence model without adding facts.
 2. Classify every source unit as `required-visible`, `supporting-visible`, or `traceability`. Plan story clusters around complete management conclusions and their evidence systems—not one source topic or one question per page. Consolidate adjacent candidates before adding slides. Write an explicit transition for every content slide after the first; the title chain alone must read as one management story.
 3. Build a Page Evidence Bundle for every content slide, then write light Slide IR conforming to `schemas/slide-ir.schema.json`. AI writes facts, semantic intent, evidence hierarchy, story cluster, and decision unit—not `pageComposition`, coordinates, fonts, colors, or PowerPoint code.
-4. Run the deterministic Composition Classifier, Expression Router, and Geometry Engine in that order. `pageComposition` and `dataShape` are recomputed by code; expression and geometry are separate.
-5. Run the native PPT Renderer and content/expression/layout/artifact QA, then deliver one current section PPTX.
-6. People edit that PPTX directly, including slide insertion, deletion, reordering, splitting, merging, and object changes.
-7. Merge current PPTX files in task-card section order without model calls, source rereading, or slide reconstruction.
-8. Publish the actual final PPT slides and order through `scripts/publish-report-html.mjs`. The HTML is a read-only publication artifact.
+4. Run the deterministic Composition Classifier and Expression Router. `pageComposition` and `dataShape` are recomputed by code; expression and visual composition stay separate.
+5. Render a temporary internal 1920×1080 HTML Design Canvas, wait for fonts and images, measure the final DOM, and compile those measured frames into native PowerPoint text, tables, charts, diagrams, shapes, and embedded images. The retired Geometry Engine must not participate in the production build path.
+6. Run content, expression, DOM layout, native-artifact, rendered-visual, and HTML/PPT parity gates, then deliver one current section PPTX. Any failed gate blocks success.
+7. People edit that PPTX directly, including slide insertion, deletion, reordering, splitting, merging, and object changes.
+8. Merge current PPTX files in task-card section order without model calls, source rereading, or slide reconstruction.
+9. Publish the actual final PPT slides and order through `scripts/publish-report-html.mjs`. The HTML is a read-only publication artifact.
 
 Read these only when needed:
 
@@ -51,6 +52,8 @@ Read these only when needed:
 - Text fit is measured with the actual CJK font before rendering. The renderer uses the selected readable font size with no automatic shrink. If title, body, label, or table cannot fit above its role-specific minimum, change geometry, consolidate/split by management conclusion, or block delivery.
 - Chart legibility: chart axes, legends, category labels, and data labels use the chart typography tokens. They must remain readable at normal presentation distance; a dense chart must be regrouped or split instead of reducing labels below the configured minimum.
 - Native editability: formal text, tables, charts, images, and required diagrams are native PowerPoint objects. Full-slide screenshots are forbidden in working PPTX files.
+- Design-canvas compiler: the browser owns final layout measurement; the native compiler owns PowerPoint objects. Regular charts remain native charts, complex charts use editable shapes, tables remain native tables, diagrams remain shapes/connectors, and images are embedded. Unsupported semantic objects block the build instead of being rasterized or silently simplified.
+- Painted-bounds QA: occupancy is calculated from visible DOM paint bounds, not assigned rectangles. HTML/PPT visual parity and native PowerPoint render verification are release gates; a structural audit alone cannot approve a deck.
 - Clean pages: 16:9, no visible task IDs, hashes, outline numbers, source-unit IDs, headers, footers, or page numbers.
 - Images must be embedded. Charts preserve categories, series, units, signs, targets, and axis meaning.
 - QA issues return only to their owner layer: content → source/planner; expression → router; layout → geometry; artifact → renderer/publisher.

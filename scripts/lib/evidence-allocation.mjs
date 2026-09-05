@@ -54,7 +54,7 @@ export function allocateSlideEvidence(slide) {
       && new Set(existing.evidenceRefs || []).size === new Set([...(existing.evidenceRefs || []), ...refs]).size
       && !module.reinforcementReason
       && !["implication", "boundary", "action"].includes(module.carrierPurpose));
-    if (generic || (refs.length && !ownedEvidenceRefs.length && duplicateArtifact)) {
+    if ((generic && !ownedEvidenceRefs.length) || (refs.length && !ownedEvidenceRefs.length && duplicateArtifact)) {
       suppressedModules.push({ ...module, ownedEvidenceRefs, suppressedAsDuplicate: true, suppressionReason: generic ? "generic-context" : "redundant-carrier" });
       continue;
     }
@@ -70,7 +70,9 @@ export function evidenceAllocationIssues(slides, { allowAppendix = false } = {})
   let genericContextPages = 0;
   for (const slide of slides || []) {
     if (!allowAppendix && slide.role === "appendix") issues.push(`APPENDIX_FORBIDDEN: slide ${slide.id} is appendix content; move all supplied material into a normal body page`);
-    if ((slide.modules || []).some(module => /^(关键背景|核心证据)$/.test(String(module.title || "")))) genericContextPages++;
+    const genericModules = (slide.modules || []).filter(module => /^(关键背景|核心证据)$/.test(String(module.title || "")));
+    if (genericModules.length) genericContextPages++;
+    for (const module of genericModules) if ((module.ownedEvidenceRefs || module.evidenceRefs || []).length) issues.push(`GENERIC_CONTEXT_REAUTHOR: slide ${slide.id} must move ${module.id || module.title} facts into specific evidence carriers before rendering`);
     const byRef = new Map();
     for (const module of slide.modules || []) for (const ref of uniq(module.evidenceRefs)) {
       if (!byRef.has(ref)) byRef.set(ref, []);
