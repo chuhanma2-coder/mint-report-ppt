@@ -3,11 +3,14 @@
   "$id": "https://mint.local/schemas/slide-ir.schema.json",
   "title": "Mint Report Slide IR",
   "type": "object",
-  "required": ["schemaVersion", "slideIrVersion", "planningSchemaVersion", "reportId", "sectionId", "slides"],
+  "required": ["schemaVersion", "slideIrVersion", "planningSchemaVersion", "reportId", "slides"],
+  "anyOf": [{"required":["sectionId"]},{"required":["sectionIds"]}],
   "properties": {
-    "schemaVersion": { "const": "1.4" },
-    "slideIrVersion": { "const": "1.4" },
-    "planningSchemaVersion": { "const": "2.4" },
+    "schemaVersion": { "const": "1.5" },
+    "slideIrVersion": { "const": "1.5" },
+    "planningSchemaVersion": { "const": "2.5" },
+    "sectionIds": {"$ref":"#/$defs/refList"},
+    "designRequirements": {"type":"array","items":{"$ref":"#/$defs/designRequirement"}},
     "reportId": { "type": "string", "minLength": 1 },
     "sectionId": { "type": "string", "minLength": 1 },
     "slides": {
@@ -17,11 +20,20 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "designRequirement": {
+      "type":"object","required":["id","scope","type","strength","requirement"],
+      "properties":{"id":{"type":"string","minLength":1},"scope":{"enum":["slide","report"]},"slideId":{"type":"string"},"type":{"type":"string"},"strength":{"enum":["hard","soft"]},"requirement":{"type":"string","minLength":1},"targetId":{"type":"string"},"expectedText":{"type":"string"},"from":{"type":"string"},"to":{"type":"string"}},"additionalProperties":false
+    },
     "slide": {
       "type": "object",
       "required": ["id", "role", "managementQuestion", "claim", "semanticIntent", "density", "evidenceRefs", "modules"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
+        "sectionId":{"type":"string"},
+        "outlineItems":{"$ref":"#/$defs/refList"},
+        "designRequirementRefs":{"$ref":"#/$defs/refList"},
+        "designIntent":{"type":"object","properties":{"dominantMessage":{"type":"string"},"relationshipTypes":{"$ref":"#/$defs/refList"},"primaryCarrier":{"type":"string"},"focusObjects":{"$ref":"#/$defs/refList"},"focusMetrics":{"$ref":"#/$defs/refList"}},"additionalProperties":false},
+        "visualNarrative":{"type":"object","required":["pattern","primaryCarrier","readingOrder"],"properties":{"pattern":{"type":"string"},"primaryCarrier":{"type":"string"},"readingOrder":{"$ref":"#/$defs/refList"}},"additionalProperties":false},
         "role": { "enum": ["cover", "section", "content", "appendix", "closing"] },
         "managementQuestion": { "type": "string" },
         "showManagementQuestion": { "type": "boolean", "default": false },
@@ -88,6 +100,9 @@
       "required": ["type", "semanticRole"],
       "properties": {
         "id": { "type": "string" },
+        "visualPriority":{"enum":["P0","P1","P2"]},
+        "primitive":{"enum":["takeaway-band","status-chip","metric-badge","risk-strip","decision-strip"]},
+        "preferredExpression":{"type":"object","required":["type","variant"],"properties":{"type":{"enum":["text","metric","chart","table","diagram","image","callout"]},"variant":{"type":"string"}},"additionalProperties":false},
         "type": { "enum": ["text", "metric", "chart", "table", "diagram", "image", "callout"] },
         "semanticRole": { "enum": ["context", "primaryEvidence", "supportingEvidence", "managementConclusion", "comparison", "progress", "risk", "action", "decision", "boundary"] },
         "title": { "type": "string" }, "text": { "type": "string" }, "value": {}, "unit": { "type": "string" },

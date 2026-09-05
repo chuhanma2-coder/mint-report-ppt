@@ -2,15 +2,33 @@
   "schemaVersion": "2.0",
   "kind": "mint-ppt-task-card",
   "requiredSkill": "mint-report-ppt",
-  "skillVersion": "0.4.0-rc.2",
-  "planningSchemaVersion": "2.4",
-  "slideIrVersion": "1.4",
-  "allowAppendix": false,
+  "skillVersion": "0.4.0-rc.4",
+  "planningSchemaVersion": "2.5",
+  "slideIrVersion": "1.5",
   "themeVersion": "mint-fresh-2/1",
   "pptMasterVersion": "mint-fresh-2/1",
   "reportId": "router-demo",
   "title": "经营例会路由测试",
   "purpose": "管理汇报",
+  "presentationBrief": {
+    "audience": "executive",
+    "meetingContext": "progress-and-decision-review",
+    "communicationGoal": "decision-first",
+    "visualTone": "executive-fintech",
+    "language": "zh-CN",
+    "decisionFirst": true
+  },
+  "workPackages": [
+    {
+      "workPackageId": "wp-1",
+      "owner": "A",
+      "sectionIds": [
+        "section-a"
+      ]
+    }
+  ],
+  "allowAppendix": false,
+  "outlinePageApprovals": [],
   "outlineOrder": [
     "1"
   ],
@@ -63,6 +81,21 @@
       "positive": "#00866A",
       "risk": "#D95D4F",
       "history": "#87938E",
+      "moduleHeading": "#126C86",
+      "riskHeading": "#A63E33",
+      "metricText": "#00745C",
+      "roleAccents": {
+        "primaryEvidence": "#126C86",
+        "supportingEvidence": "#665397",
+        "comparison": "#A55725",
+        "progress": "#126C86",
+        "managementConclusion": "#00745C",
+        "decision": "#665397",
+        "action": "#00745C",
+        "risk": "#A63E33",
+        "boundary": "#A55725",
+        "context": "#60706A"
+      },
       "peerSeries": [
         "#1686A6",
         "#E98245"
@@ -141,5 +174,5 @@
     "final": "read-only-html",
     "pdf": "native-powerpoint-export"
   },
-  "taskCardHash": "c10d6f8fed952d9bbfa8460429ed9fd214dbdce281535214a5b13e92d0cc8e0a"
+  "taskCardHash": "02d3df41e85f01aee1d96b993fde28193559770c265da1756ecc0905205e4ffe"
 }

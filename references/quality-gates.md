@@ -69,3 +69,11 @@ Version gates reject stale task cards. IR upgrades preserve source facts/data/me
 For ordinary position/style edits, recheck affected slides. For split, merge, add, delete, reorder, title, or conclusion changes, recheck previous/current/next slides and the full title chain. Finish with one chapter thumbnail scan.
 
 Passing geometry checks does not prove factual completeness or good expression. Passing source coverage does not prove a readable page.
+
+## Design execution and executive review
+
+Validate the Design Requirement Ledger before generation; verify hard requirements on measured Canvas and exported native objects. Require 100% hard recall. Unknown hard requirements block instead of disappearing. Native shape names are implementation bindings, not business visibility proof; final fact checks and rendered review remain mandatory. Verify interval bounds, dependency direction, parallel lanes and explicit page/image/focus/table requirements.
+
+Executive Visual QA checks firstFocus, bodyProvesTitle, relationships, space, carrierSuitability, hierarchy and readingOrder for every rendered page. Record issues and their responsible layer. Pending review is not a pass. The delivery audit binds review to the current PPT hash; changes invalidate that review. No visual model may alter numbers, delete facts, change chart semantics or manufacture coordinates.
+
+Composition fallback does not override a supported Planner narrative. Hard requirements survive fallback. Visual rhythm is assessed over the chapter, not through mandatory template rotation. Record low-content whitespace for review instead of stretching empty frames to satisfy area thresholds.

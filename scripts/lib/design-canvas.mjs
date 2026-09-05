@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chartDisplayModel } from "./chart-display-model.mjs";
+import { primitiveMarkup, primitiveCss, visualModuleMarkup } from './visual-primitives.mjs';
 
 const esc = value => String(value ?? "").replace(/[&<>\"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
 const json = value => esc(JSON.stringify(value ?? {}));
@@ -12,6 +13,9 @@ function moduleMarkup(module, index, placement = '') {
   const priority = module.visualPriority || (["chart", "table", "diagram"].includes(type) ? "P1" : ["managementConclusion", "decision"].includes(role) ? "P0" : ["primaryEvidence", "risk", "action", "boundary"].includes(role) ? "P1" : "P2");
 const attrs = `style="${placement}" data-mint-object="module" data-mint-index="${index}" data-mint-id="${esc(module.id || `M${index + 1}`)}" data-mint-kind="${esc(type)}" data-mint-role="${esc(role)}" data-mint-priority="${priority}" data-mint-band="${esc(module.compositionBand || "")}" data-mint-semantic="${json({ expression: module.expression, data: module.data, imageTextReview: module.imageTextReview, evidenceRefs: module.evidenceRefs })}"`;
   const title = module.title ? `<div class="module-title" data-mint-object="text">${esc(module.title)}</div>` : "";
+  const visual = visualModuleMarkup(module);
+  if (visual != null) return `<section class="module visual-narrative" ${attrs}>${title}${visual}${module.text ? `<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>` : ''}</section>`;
+  if (module.primitive && ['takeaway-band','risk-strip','decision-strip','status-chip','metric-badge'].includes(module.primitive)) return `<section class="module narrative" ${attrs}>${title}${primitiveMarkup(module.primitive, module.text || String(module.value ?? ''), module.id)}</section>`;
   if (type === 'metric' && module.data?.categories?.length && module.data.series?.length) {
     const cells = module.data.categories.map((label,i) => `<div><div class="module-title" data-mint-object="text">${esc(label)}</div>${module.data.series.map(s => {
       if (s.values?.[i] == null) throw new Error(`MISSING_METRIC_VALUE: ${module.id}/${label}`);
@@ -26,7 +30,7 @@ const attrs = `style="${placement}" data-mint-object="module" data-mint-index="$
   }
   if (type === "table") {
     const data = module.data || {}, headers = data.headers || data.columns || [], rows = data.rows || [];
-    return `<section class="module table" ${attrs}>${title}<table><thead><tr>${headers.map(cell => `<th>${esc(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr>${(Array.isArray(row) ? row : headers.map(key => row[key])).map(cell => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>${module.text ? `<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>` : ""}</section>`;
+    return `<section class="module table" ${attrs}>${title}<div class="table-content ${rows.length<=4&&module.text?'table-with-note':''}"><div class="table-body"><table><thead><tr>${headers.map(cell => `<th>${esc(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr>${(Array.isArray(row) ? row : headers.map(key => row[key])).map(cell => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>${module.text ? `<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>` : ""}</div></section>`;
   }
   if (type === "chart") return `<section class="module chart" ${attrs}>${title}<div class="chart-preview"></div></section>`;
   if (type === "diagram") {
@@ -64,7 +68,8 @@ function slideMarkup(slide, index) {
   const modules = slide.modules || [], placements = modules.map(() => '');
   let bandCount = 0, railPrimary = -1;
   if (['primary-rail', 'primary-above'].includes(comp) && modules.length > 1) {
-    let primary = modules.findIndex(m => (m.expression?.type || m.type) === 'image');
+    let primary = modules.findIndex(m => m.id === slide.visualNarrative?.primaryCarrier || m.id === slide.designIntent?.primaryCarrier);
+    if (primary < 0) primary = modules.findIndex(m => (m.expression?.type || m.type) === 'image');
     if (primary < 0) {
       const demand = m => String(m.text || '').length + JSON.stringify(m.data || {}).length;
       primary = modules.reduce((best,m,i) => demand(m) > demand(modules[best]) ? i : best,0);
@@ -87,7 +92,9 @@ function slideMarkup(slide, index) {
       }
     }
   }
-  const content = railPrimary >= 0 ? moduleMarkup(modules[railPrimary],railPrimary) + `<aside class="support-rail">${modules.map((m,i)=>i===railPrimary?'':moduleMarkup(m,i)).join('')}</aside>` : modules.map((m,i)=>moduleMarkup(m,i,placements[i])).join('');
+  const order = slide.compositionClassification?.narrativeAccepted ? slide.visualNarrative?.readingOrder || [] : [];
+  const indexes = [...order.map(id=>modules.findIndex(m=>m.id===id)).filter(i=>i>=0), ...modules.map((_,i)=>i).filter(i=>!order.includes(modules[i].id))];
+  const content = railPrimary >= 0 ? moduleMarkup(modules[railPrimary],railPrimary) + `<aside class="support-rail">${modules.map((m,i)=>i===railPrimary?'':moduleMarkup(m,i)).join('')}</aside>` : indexes.map(i=>moduleMarkup(modules[i],i,placements[i])).join('');
   return `<article class="mint-ppt-slide ${comp} ${slide.measuredDensity === 'compact' ? 'compact' : ''}" data-slide-index="${index}" data-slide-id="${esc(slide.id)}" data-composition="${comp}">
     <header><h1 data-mint-object="title">${esc(slide.claim)}</h1>${slide.showManagementQuestion && slide.managementQuestion ? `<p data-mint-object="question">${esc(slide.managementQuestion)}</p>` : ""}</header>
     <main data-band-count="${bandCount}">${content}</main>
@@ -104,7 +111,7 @@ body{display:flex;flex-direction:column;gap:24px;padding:24px}
 .mint-ppt-slide{width:1920px;height:1080px;background:${p.page};padding:56px 88px;overflow:hidden;display:grid;grid-template-rows:auto 1fr;gap:24px}
 .mint-ppt-slide header h1{font-size:${fontPx('contentTitle')}px;line-height:1.16;margin:0;max-width:1720px}
 .mint-ppt-slide header p{font-size:${fontPx('supportBody')}px;color:${p.muted};margin:12px 0 0}
-.mint-ppt-slide main{min-height:0;display:grid;gap:22px;align-content:start;align-items:start;grid-auto-rows:auto}
+.mint-ppt-slide main{min-height:0;display:grid;gap:22px;align-content:start;align-items:start;grid-auto-rows:max-content}
 .module{position:relative;min-width:0;min-height:0;height:auto;padding:20px;align-self:start}
 .module-title{font-size:${fontPx('body',1)}px;font-weight:700;line-height:1.2;margin-bottom:10px;color:${theme.semanticColors.moduleHeading}}
 ${Object.entries(theme.semanticColors.roleAccents || {}).map(([role,color]) => `[data-mint-role="${role}"]{--role-accent:${color}}[data-mint-role="${role}"] .module-title{color:${color}}`).join('\n')}
@@ -119,6 +126,7 @@ ${Object.entries(theme.semanticColors.roleAccents || {}).map(([role,color]) => `
 .table th,.table td{padding:8px 10px;vertical-align:top;border:1px solid ${p.line};text-align:left}
 .table th{background:${p.blueLight};font-weight:700;color:${theme.semanticColors.moduleHeading}}
 .table tbody tr:nth-child(even){background:${p.neutralLight}}
+.table-with-note{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(200px,.8fr);gap:24px}.table-body{min-width:0}
 .chart-preview{position:relative;min-width:0}
 .diagram-preview{display:grid;gap:16px}
 .diagram-rel{display:grid;grid-template-columns:minmax(110px,1fr) minmax(140px,1.5fr) minmax(110px,1fr);gap:16px;align-items:end}
@@ -141,6 +149,8 @@ ${Object.entries(theme.semanticColors.roleAccents || {}).map(([role,color]) => `
 .compact .diagram-node{font-size:${fontPx('diagramNode')}px}
 .compact .edge-label{font-size:${fontPx('diagramEdge')}px}
 .compact header h1{font-size:${fontPx('denseTitle')}px}
+${primitiveCss(p)}
+.narrative-flow main{grid-template-columns:1fr}
 </style></head><body>${ir.slides.map(slideMarkup).join("")}<script>
 (() => {
 const chartDisplayModel = ${chartDisplayModel.toString()};
@@ -169,7 +179,7 @@ function renderCharts() {
       })))));
     }
     const table = module.querySelector('table');
-    const available = module.clientWidth - parseFloat(getComputedStyle(module).paddingLeft) - parseFloat(getComputedStyle(module).paddingRight);
+    const available = table.parentElement.clientWidth;
     table.style.width = Math.min(available, preferredWidths.reduce((sum, width) => sum + width, 0)) + 'px';
     rows.forEach((row, i) => {
       if (focus.includes(row.cells[0]?.textContent)) for (const cell of row.cells) { cell.style.backgroundColor = '${p.orangeLight}'; cell.style.fontWeight = '700'; }

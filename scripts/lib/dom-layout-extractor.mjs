@@ -6,6 +6,7 @@ import { createDesignCanvas, writeDesignCanvas } from "./design-canvas.mjs";
 import { planOutlinePages } from "./outline-planner.mjs";
 import { imageReadabilityIssues } from './image-readability.mjs';
 import { browserExecutable } from './browser-executable.mjs';
+import { auditDesignRequirements } from './design-intent.mjs';
 
 function playwrightModule() {
   if (!process.env.RUNTIME_NODE_MODULES) throw new Error("RUNTIME_NODE_MODULES is required; load workspace dependencies first");
@@ -87,6 +88,10 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         };
         return {
           id: element.dataset.mintId || null, nodeId: element.dataset.nodeId || null, kind: element.dataset.mintKind || element.dataset.mintObject || null,
+          primitive: element.dataset.visualPrimitive || null, primitiveParent:element.closest('[data-visual-primitive]')?.dataset.visualPrimitive || null,
+          bindingId:element.dataset.vpBindingId,edgeId:element.dataset.vpEdgeId,laneId:element.dataset.vpLaneId,parallelTo:element.dataset.vpParallelTo,from:element.dataset.vpFrom,to:element.dataset.vpTo,
+          primitiveNodeId:element.dataset.vpNodeId,
+          borderColor:hex(style.borderBottomColor),borderBottomWidth:parseFloat(style.borderBottomWidth),borderTopWidth:parseFloat(style.borderTopWidth),borderTopColor:hex(style.borderTopColor),borderLeftColor:hex(style.borderLeftColor),
           role: element.dataset.mintRole || null, priority: element.dataset.mintPriority || null,
           index: element.dataset.mintIndex == null ? null : Number(element.dataset.mintIndex), rect,
           text: element.innerText || "", renderText, fontSizePx: Number.parseFloat(style.fontSize) || null,
@@ -101,6 +106,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
       const modules = [...slide.querySelectorAll("main [data-mint-object='module']")].map(element => ({ ...info(element), textObjects: [...element.querySelectorAll("[data-mint-object='text'], th, td, .diagram-node, .bar-row span, .bar-row b")].map(info), chart: element.dataset.chartModel ? { rect: rel(element.querySelector('.chart-preview').getBoundingClientRect()), model: JSON.parse(element.dataset.chartModel) } : null, diagramRelations: [...element.querySelectorAll('.diagram-rel')].map(row => ({ nodes: [...row.querySelectorAll('.diagram-node')].map(info), label: info(row.querySelector('.edge-label')), arrow: info(row.querySelector('.edge-arrow')) })), table: element.querySelector('table') ? { rect: rel(element.querySelector('table').getBoundingClientRect()), rows: [...element.querySelectorAll('tr')].map(row => ({ rect: rel(row.getBoundingClientRect()), cells: [...row.cells].map(info) })) } : null }));
       for (const module of modules) {
         const element = slide.querySelector(`main [data-mint-index="${module.index}"]`), image = element?.querySelector('img');
+        module.primitives = [...element.querySelectorAll('[data-visual-primitive]')].map(p=>{const item=info(p);return {...item,nodeId:item.primitiveNodeId};});
         if (image) module.image = { rect: rel(image.getBoundingClientRect()), naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
       }
       const title = info(slide.querySelector("[data-mint-object='title']"));
@@ -135,7 +141,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         }
         for (const text of module.textObjects || []) {
           if (text.overflow) issues.push(`Slide ${slide.slideId} module ${module.id} contains overflowing text`);
-          const floor = module.table ? 14 : text.className === 'edge-label' ? 13 : text.className === 'diagram-node' || module.kind === 'chart' ? 15 : ['context','supportingEvidence','boundary'].includes(module.role) ? 15 : 16;
+          const floor = module.table ? 14 : text.className === 'edge-label' || text.primitiveParent === 'dependency-edge' ? 13 : text.className === 'diagram-node' || module.kind === 'chart' ? 15 : ['context','supportingEvidence','boundary'].includes(module.role) ? 15 : 16;
           if (text.fontSizePx != null && text.fontSizePx * 72 / 96 < floor - .05) issues.push(`Slide ${slide.slideId} module ${module.id} text is below ${floor}pt`);
         }
         if ([module.rect.left, module.rect.top, module.rect.width, module.rect.height].some(value => !Number.isFinite(value)) || module.rect.left < 0 || module.rect.top < 0 || module.rect.left + module.rect.width > 1920.5 || module.rect.top + module.rect.height > 1080.5) issues.push(`Slide ${slide.slideId} module ${module.id} is outside the canvas`);
@@ -157,9 +163,20 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
       const top = Math.min(...slide.modules.map(m=>m.rect.top));
       const moduleArea = unionArea(slide.modules.map(m=>m.rect));
       const holes = 1 - moduleArea / Math.max(1,1744 * (bottom-top));
-      slide.compositionScore = (slide.bandCount >= 2 ? 1 : 0)
-        - 16 * Math.max(0,holes) - (bottom - top) / 1000
-        + (image && slide.modules.length > 1 ? (image.rect.width > supportWidth ? 5 : -5) : 0);
+      const priorities = slide.modules.map(m=>({priority:m.priority,size:Math.max(0,...m.textObjects.map(t=>t.fontSizePx || 0))}));
+      const primarySize = Math.max(slide.title.fontSizePx,...priorities.filter(m=>m.priority==='P0').map(m=>m.size));
+      const secondarySize = Math.max(1,...priorities.filter(m=>m.priority==='P2').map(m=>m.size));
+      const primitives = slide.modules.flatMap(m=>m.primitives || []);
+      const distance=(a,b)=>Math.hypot(Math.max(0,a.left-b.left-b.width,b.left-a.left-a.width),Math.max(0,a.top-b.top-b.height,b.top-a.top-a.height));
+      const labels=primitives.filter(p=>p.nodeId && ['time-range','risk-strip','status-chip','metric-badge'].includes(p.primitive));
+      const proximity=labels.map(p=>{const node=primitives.find(n=>n.nodeId===p.nodeId&&['milestone','entity-profile'].includes(n.primitive));return node?Math.max(0,1-distance(p.rect,node.rect)/300):0;});
+      const edges=primitives.filter(p=>p.primitive==='dependency-edge');
+      const relation=edges.map(e=>{const a=primitives.find(n=>n.nodeId===e.from&&n.primitive==='milestone'),b=primitives.find(n=>n.nodeId===e.to&&n.primitive==='milestone');return a&&b&&a.rect.left<e.rect.left&&e.rect.left<b.rect.left?1:0;});
+      const lanes=primitives.filter(p=>p.primitive==='parallel-lane'&&p.parallelTo);
+      relation.push(...lanes.map(p=>{const other=primitives.find(n=>n.laneId===p.parallelTo);return other&&Math.abs(other.rect.left-p.rect.left)<30&&Math.abs(other.rect.top-p.rect.top)>p.rect.height?1:0;}));
+      slide.designScores = {hierarchy:Math.min(2,primarySize/secondarySize),relationship:relation.length?2*relation.reduce((a,b)=>a+b,0)/relation.length:0,semanticProximity:proximity.length?proximity.reduce((a,b)=>a+b,0)/proximity.length:0,whitespaceBalance:-Math.max(0,holes)*4,readingOrder:0};
+      slide.compositionScore = Object.values(slide.designScores).reduce((a,b)=>a+b,0)
+        + (image && slide.modules.length > 1 ? (image.rect.width > supportWidth ? 2 : -2) : 0);
       slide.whitespaceReview = slide.visualOccupancy < 0.48; // diagnostic, never a fill target
       const locator = page.locator(".mint-ppt-slide").nth(slide.slideIndex);
       if (capture) await locator.screenshot({ path: path.join(outputDir, `slide-${String(slide.slideIndex + 1).padStart(2, "0")}.png`) });
@@ -176,7 +193,16 @@ export async function planAndMeasureOutline(ir, theme, htmlFile, outputDir, opti
   const browser = await chromium.launch({ headless: true, executablePath: browserExecutable({bundled:chromium.executablePath()}) });
   try {
     const page = await browser.newPage({ viewport: { width: 1968, height: 1128 }, deviceScaleFactor: 1 });
-    const planned = await planOutlinePages(ir.slides, candidate => extractDesignLayout({ existingPage: page, htmlMarkup: createDesignCanvas({ slides: [candidate] }, theme), capture: false }), options);
+    const planned = await planOutlinePages(ir.slides, async candidate => {
+      const result = await extractDesignLayout({ existingPage: page, htmlMarkup: createDesignCanvas({ slides: [candidate] }, theme), capture: false });
+      // Check local targets here; report-wide recall is checked on the complete
+      // measured deck. A continuation without this target must not invent it.
+      const targets=new Set(candidate.modules.flatMap(m=>[m.id,...(m.data?.nodes || []).map(n=>n.id),...(m.data?.edges || []).map(e=>e.id),...(m.data?.lanes || []).map(l=>l.id)]));
+      const requirements=(ir.designRequirements || []).filter(r=>(r.scope==='report'||(candidate.originSlideIds || [candidate.id]).includes(r.slideId)) && (r.type==='single-page'||(r.targetId&&targets.has(r.targetId))));
+      const local={...candidate,designRequirementRefs:(candidate.designRequirementRefs || []).filter(id=>requirements.some(r=>r.id===id))};
+      const gate=auditDesignRequirements({...ir,slides:[local],designRequirements:requirements},result);
+      return {...result,passed:result.passed&&gate.passed,issues:[...result.issues,...gate.issues]};
+    }, {...options,designRequirements:ir.designRequirements || []});
     const grouped = { ...ir, slides: planned.slides };
     writeDesignCanvas(grouped, theme, htmlFile);
     const manifest = await extractDesignLayout({ existingPage: page, htmlFile, outputDir, expectedSlides: grouped.slides.length });
@@ -194,6 +220,6 @@ export function applyDomLayout(ir, manifest) {
       const sizes = (item.textObjects || []).map(text => text.fontSizePx * 72 / 96).filter(Number.isFinite);
       return { title: { fontSizePt: sizes[0] || 18 }, body: { fontSizePt: sizes.at(-1) || 17 } };
     });
-    return { ...slide, domModules: ordered, geometry: layout.composition, typography: { title: { fontSizePt: layout.title.fontSizePx * 72 / 96 }, question: layout.question ? { fontSizePt: layout.question.fontSizePx * 72 / 96 } : null, modules: moduleTypography }, layout: { title: layout.title.rect, claim: layout.question?.rect || { left: 0, top: 0, width: 0, height: 0 }, modules: frames, layoutVariant: layout.composition, occupancy: layout.visualOccupancy, visualOccupancy: layout.visualOccupancy, compositeApplied: layout.bandCount >= 2, errors: [] } };
+    return { ...slide, domModules: ordered, geometry: layout.composition, typography: { title: { fontSizePt: layout.title.fontSizePx * 72 / 96 }, question: layout.question ? { fontSizePt: layout.question.fontSizePx * 72 / 96 } : null, modules: moduleTypography }, layout: { title: layout.title.rect, claim: layout.question?.rect || { left: 0, top: 0, width: 0, height: 0 }, modules: frames, layoutVariant: layout.composition, occupancy: layout.visualOccupancy, visualOccupancy: layout.visualOccupancy, compositeApplied: layout.bandCount >= 2 || layout.modules.some(m=>(m.primitives || []).filter(p=>['parallel-lane','entity-profile'].includes(p.primitive)).length>=2), errors: [] } };
   }) };
 }

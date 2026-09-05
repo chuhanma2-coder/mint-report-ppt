@@ -25,8 +25,9 @@ export function visibleModulePayload(module = {}) {
   // Only presentation fields, never evidence IDs, hidden JSON, image paths or alt text.
   for (const field of ['headers', 'columns', 'rows', 'values', 'categories']) walk(data[field]);
   for (const series of data.series || []) walk([series.name, series.values, series.displayUnit]);
-  for (const node of data.nodes || []) walk(node.label || node.name);
+  for (const node of data.nodes || []) walk([node.label || node.name,node.timeRange?.label,node.duration,node.status,node.condition,node.text,...(node.metrics || [])]);
   for (const edge of data.edges || []) walk([edge.label, edge.condition]);
+  for (const lane of data.lanes || []) walk(lane.label);
   if (module.type === 'image' && module.imageTextReview?.status === 'reviewed') walk(module.imageTextReview.regions?.map(region => region.text));
   return normalizedText(parts.join(" "));
 }

@@ -2,7 +2,7 @@
 
 ## Outline before slides
 
-One task-card outline item is one complete page attempt. Supply stable module IDs and coherent `evidenceGroup` names; dependent evidence and its conditions share the same group. The browser measures a complete outline using standard layouts, then compact layouts at the existing font floors. Only measured failure permits contiguous splitting between groups. More than three necessary parts requires reporting the measured requirement to the user. Never split a fact, erase a qualifier, move business detail to notes or fabricate filler.
+Outline items define content identity and sequence, not page boundaries. Supply stable module IDs and coherent evidenceGroup names; dependent evidence and its conditions share the same group. Adjacent same-decision content is measured together; independent stories may be separated. Browser measurement chooses standard before compact typography. A strict single-page requirement blocks an over-capacity candidate. More than three capacity continuations requires reporting the measured requirement to the user. Never split a fact, erase a qualifier, move business detail to notes or fabricate filler.
 
 `measuredComposition`, `measuredDensity`, `capacityProof`, `domModules` and old split decisions are disposable outputs, not Agent-authored inputs. The current browser run recomputes them. Candidate exploration shares one browser session and does not take screenshots; only the selected output is captured.
 

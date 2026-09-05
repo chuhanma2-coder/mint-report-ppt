@@ -48,7 +48,7 @@ export function allocateSlideEvidence(slide) {
   const prepared = (slide.modules || []).map((module, index) => ({
     ...module,
     carrierPurpose: purposeFor(module),
-    visualPriority: defaultVisualPriority(module),
+    visualPriority: ['P0','P1','P2'].includes(module.visualPriority) ? module.visualPriority : defaultVisualPriority(module),
     _sourceIndex: index
   }));
   const owners = new Map();

@@ -250,6 +250,24 @@ function addTable(slide, module, frame, theme, font, index, measured = null) {
   return table;
 }
 
+function addVisualPrimitives(slide, measured, theme, font, index) {
+  for (const p of measured.primitives) {
+    const name=`mint|primitive:${p.primitive}|binding:${encodeURIComponent(p.bindingId)}`;
+    // Compile browser-measured surfaces and rules, not estimated card frames.
+    slide.shapes.add({geometry:'rect',name,position:p.rect,fill:p.backgroundColor || 'none',line:noLine});
+    if(p.borderLeftWidth) slide.shapes.add({geometry:'rect',name:name+'|accent',position:{...p.rect,width:p.borderLeftWidth},fill:p.borderLeftColor,line:noLine});
+    if(p.borderTopWidth) slide.shapes.add({geometry:'rect',name:name+'|top',position:{...p.rect,height:p.borderTopWidth},fill:p.borderTopColor,line:noLine});
+    if(p.borderBottomWidth) {
+      if(p.primitive==='dependency-edge') {
+        const anchor=x=>slide.shapes.add({geometry:'rect',name:name+'|anchor',position:{left:x,top:p.rect.top+p.rect.height-1,width:1,height:1},fill:'none',line:noLine});
+        const connector=slide.shapes.connect(anchor(p.rect.left),anchor(p.rect.left+p.rect.width),{kind:'straight',fromSide:'right',toSide:'left',line:{fill:p.borderColor,width:p.borderBottomWidth},tail:{type:'triangle',width:'med',length:'med'}});
+        connector.name=name+'|rule';
+      } else slide.shapes.add({geometry:'line',name:name+'|rule',position:{left:p.rect.left,top:p.rect.top+p.rect.height-1,width:p.rect.width,height:0},line:{fill:p.borderColor,width:p.borderBottomWidth}});
+    }
+  }
+  for(const [j,text] of measured.textObjects.entries()) addText(slide,text.renderText || text.text,text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,bold:text.bold,color:text.color || theme.palette.ink},`mint|${text.primitiveParent==='dependency-edge'?'edge-label':'visual-text'}|${index}-${j}`);
+}
+
 function addDiagram(slide, module, frame, theme, font, index, measured = null) {
   if (measured?.diagramRelations) {
     for (const [i, relation] of measured.diagramRelations.entries()) {
@@ -347,7 +365,8 @@ export async function renderPresentation(ir, theme) {
         if (measured.backgroundColor) slide.shapes.add({geometry:'rect',name:`mint|panel|${index}`,position:frame,fill:measured.backgroundColor,line:noLine});
         slide.shapes.add({geometry:'rect',name:`mint|accent|${index}`,position:{...frame,width:measured.borderLeftWidth},fill:measured.accent || theme.palette.mint,line:noLine});
       }
-      if (measured && ['text', 'callout', 'metric'].includes(type)) {
+      if (measured?.primitives?.length) addVisualPrimitives(slide,measured,theme,font,index);
+      else if (measured && ['text', 'callout', 'metric'].includes(type)) {
         for (const [j, text] of measured.textObjects.entries()) addText(slide, text.renderText || text.text, text.contentRect, { typeface: font, fontSizePt: text.fontSizePx * 72 / 96, bold: text.bold, color: text.color || theme.palette.ink }, `mint|measured-text|${index}-${j}`);
       }
       else if (type === "metric") addMetric(slide, module, frame, theme, font, index);
@@ -369,7 +388,7 @@ export async function renderPresentation(ir, theme) {
       else addNarrative(slide, module, frame, theme, font, index, spec.typography?.modules?.[index]);
       for (const object of collections.flatMap(collection => collection.items)) if (!existing.has(object)) object.name = `${object.name || 'mint|object'}|role:${module.semanticRole || 'primaryEvidence'}|module:${encodeURIComponent(module.id)}`;
     }
-    slide.speakerNotes.textFrame.setText(JSON.stringify({ slideId: spec.id, evidenceRefs: spec.evidenceRefs, sourceEvidence: spec.sourceEvidence || [], moduleEvidence: spec.modules.map(module => module.evidenceRefs || []) }));
+    slide.speakerNotes.textFrame.setText(JSON.stringify({ slideId: spec.id, sectionId: spec.sectionId || ir.sectionId, outlineItems:spec.outlineItems || [spec.outlineItem], outlineItem:spec.outlineItem, evidenceRefs: spec.evidenceRefs, sourceEvidence: spec.sourceEvidence || [], moduleEvidence: spec.modules.map(module => module.evidenceRefs || []) }));
     diagnostics.push({ slideId: spec.id, geometry: spec.geometry, occupancy: spec.layout.occupancy, expressions: spec.modules.map(module => module.expression) });
   }
   return { presentation, diagnostics };

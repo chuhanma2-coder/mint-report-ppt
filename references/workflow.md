@@ -1,49 +1,44 @@
 # Workflow and prompts
 
-## 1. One coordinator creates the task card
+## 1. Coordinator: shared task card
 
-Prompt:
+> 请使用 $mint-report-ppt。先读取我提供的分工、大纲及会议要求，只生成统一任务卡，不制作PPT。保持负责人、正式章节ID和大纲顺序。为每个负责人汇总其全部章节到Work Package，并记录汇报对象、目的和风格。使用当前安装版本，不沿用旧版布局决定。
 
-> Use $mint-report-ppt. Create only the collaboration task card; do not create slides. Preserve the leader's outline and order exactly. A owns items 1–3, B owns 4 and 6, and C owns 7–8. Use stable section IDs `section-a-1-3`, `section-b-4-6`, and `section-c-7-8`. Do not invent a missing item 5. Output `report.mint-ppt-task.json` using the current Skill and Mint Fresh 2 versions.
+Run `node scripts/create-task-card.mjs config.json report.mint-ppt-task.json`. Task cards fix identity, scope, order and Presentation Brief, not pagination. All owners use the same card; upgrade it once with the coordinator when versions change, preserving business assignments. Do not hand-edit the hash.
 
-Generate from a small JSON config with `scripts/create-task-card.mjs config.json report.mint-ppt-task.json`. Everyone uses the same file. The task card fixes report/section identity and order; it does not fix page numbers.
+## 2. Owner: generate current PPT
 
-## 2. Each owner creates one current PPTX in a separate task
+> 请使用 $mint-report-ppt，读取统一任务卡和所附材料，制作我负责的完整PPT。根据明确的负责人和材料范围自动匹配全部正式章节，有真正歧义再询问。先理解内容和管理故事，保留全部正文事实、数值、单位、条件和预测属性。让关键关系与重点在页面上清楚可见，按真实测量排版，不机械套表格或卡片。检查内容、设计要求、可读性和原生对象后交付当前版。
 
-Prompt:
+An owner with multiple assigned sections selects all of them in task-card order; an explicit section ID restricts scope. Never invent a combined section ID. All required-visible and supporting-visible facts appear in readable body content. No implicit appendix or notes-only facts.
 
-> Use $mint-report-ppt and the attached shared task card. I own the section assigned to me in the task card; resolve its sectionId automatically from the owner/material scope. Read all my source files before planning. Do not browse, add facts, or drop any source unit. First group every source fact by task-card outline item. Try to place each outline item completely on one readable page; only when measured capacity cannot fit may you split it at a natural evidence or business-chain boundary, with sequential outlinePart and an explicit outlineSplit reason. Put every required-visible and supporting-visible fact in normal body pages; only traceability material may stay only in notes, and do not create an appendix unless allowAppendix=true. For each visible module, add visibleFacts mappings and ensure each mapped text is truly present in the visible module payload; evidenceRefs alone do not count. Plan story clusters, decision units, and complete management conclusions; do not create one page per topic/question. Map every fact to one primary visible carrier and never repeat one dataset as chart, table, and prose. Never auto-create a generic “关键背景” block. Do not choose pageComposition. Keep managementQuestion internal by default. Route by management question + semantic intent + computed data shape. Charts, diagrams, and tables are supporting evidence, not automatic P0 objects: a chart defaults to P1, occupies no more than the supporting region, and needs at least two substantive non-chart carriers for the factual explanation and management meaning. Give every table a primary/supporting/reference/detail role. Keep body text at least 16pt, chart categories at least 15pt, chart values at least 16pt, tables at least 14pt, diagram nodes at least 15pt, and edge labels at least 13pt; rebalance or split at a natural boundary instead of shrinking. Generate one native editable 16:9 PPTX. The internal Design Canvas is for layout calculation only. Keep audit IDs out of visible slides. Require destination coverage, visible-fact coverage, outline-integrity, DOM overflow, native-object, rendered visual, and HTML/PPT parity gates to pass before delivery.
-
-Build command:
+One Planner pass produces source model, Brief, story, IR and Design Requirement Ledger. Read `design-intent.md` for semantic payloads. A page needs a claim and sufficient visible evidence, with no minimum carrier count. Outline identity is not a forced page boundary. Explicit single-page instructions block rather than silently split when capacity fails.
 
 ```text
-node scripts/build-section-ppt.mjs source-model.json slide-ir.json report.mint-ppt-task.json <section-id> <owner>-<section>-current.pptx
+node scripts/build-section-ppt.mjs source-model.json slide-ir.json report.mint-ppt-task.json section-01 current.pptx
+node scripts/build-section-ppt.mjs source-model.json slide-ir.json report.mint-ppt-task.json owner:刘屹 刘屹-当前版.pptx
 ```
 
-The build writes an internal design canvas, DOM layout manifest, source-coverage ledger, native PPT audit, and visual-parity report. These are QA artifacts, not user editing files. Use `scripts/audit-section-ppt.mjs` separately only after a later manual or Agent edit, passing `--resolved-ir=<pptx>.resolved-ir.json` when the PPT still corresponds to the first-generation IR.
+For a multi-section work package, IR supplies sectionIds in task-card order and each slide retains its official sectionId. Use the full source model for the selected scope. The builder never merges separately authored PPTs by reconstruction.
 
-On the target Windows computer, run `scripts/verify-powerpoint-render.ps1 -Pptx <pptx> -DesignRenderDir <pptx>.design-render -OutputDir <verification-folder>`. It renders through Microsoft PowerPoint, normalizes the slide images, and reruns visual parity. A release candidate is not formally approved until this target-platform gate passes.
+Canvas, coverage ledgers, resolved IR, measured frames, requirement reports and visual review form are private QA files. A technical candidate is not delivery approval. Review the rendered pages, fill the executive-review result for the current PPT hash, and run `audit-design-delivery.mjs`. Output is a native editable PPTX, not an HTML editing workfile.
 
-## 3. Review and edit directly in PowerPoint
+## 3. Edit and merge in PowerPoint
 
-After the first PPTX, the PPTX is the only human work authority. Leaders may edit text, tables, charts, images, shapes, positions, and may add/delete/reorder/split/merge slides. Save and circulate one current PPTX per section. Do not ask people to export ZIP or synchronize changes to IR.
+Leaders may change text, data, objects, images and pages directly. PPTX is now sole human work authority. Do not restore deleted pages or old values from IR.
 
-## 4. Merge current sections
+People may manually merge on Mac or Windows using PowerPoint and retain source formatting; inspect final order, fonts, objects and notes. Agent merge is optional. Existing Windows `merge-section-ppt.ps1` handles individual formal section packages only; multi-section owner files can be manually inserted in task-card order. Do not treat a work package as a fake section. No Mac automation is introduced.
 
-On the leader's Windows computer, use `scripts/merge-section-ppt.ps1`. It validates report/section identity, inserts each section in task-card order, preserves native objects and human edits, and performs zero model calls. It does not re-layout or reread source material.
+## 4. Final HTML publication
 
-After merge, the leader may continue editing the complete PPTX. Run `scripts/audit-final-ppt.mjs` for final artifact checks. Export PDF through PowerPoint if needed; this Skill does not implement PDF.
-
-## 5. Publish the final HTML
-
-Prompt:
-
-> Use $mint-report-ppt. Treat the attached complete PPTX as final authority. Do not read old IR or task-card page counts, and do not rewrite or re-layout any slide. Publish every actual PPT slide in its current order as one offline read-only HTML. Keep only dot navigation with no page titles.
-
-Set the bundled presentation runtime variables and run:
+> 请使用 $mint-report-ppt。把所附最终PPT作为唯一权威，按它实际的全部页面和顺序发布为一个离线只读HTML。不读取旧IR恢复内容，不改写、不重新排版、不漏掉人工新增页。
 
 ```text
 node scripts/publish-report-html.mjs final.pptx final.html
 ```
 
-The publisher renders the actual final PPT pages, embeds every frame in the HTML, and verifies that frame count equals the PPT slide count. The HTML is for delivery, not further editing.
+The publisher uses the actual final PPT pages, not old task-card page counts. PDF is exported through PowerPoint, not a separate Skill PDF engine.
+
+## Target-platform acceptance
+
+On a real Windows PowerPoint installation run `scripts/verify-powerpoint-render.ps1 -Pptx <pptx> -DesignRenderDir <pptx>.design-render -OutputDir <verification-folder>`. Compare actual rendering, edit native objects and verify save/reopen. Record Windows and Mac statuses separately. Missing Windows evidence prevents formal cross-platform acceptance, not honest prerelease publication.

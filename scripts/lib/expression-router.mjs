@@ -102,9 +102,17 @@ export function resolveSlideExpressions(slide, datasets = {}) {
   const modules = (slide.modules || []).map(module => {
     const data = module.data ?? datasets[module.dataRef] ?? {};
     const dataShape = inferDataShape(data);
-    const routed = routeExpression({ ...slide, ...module, data, dataShape });
+    let routed = routeExpression({ ...slide, ...module, data, dataShape });
+    const pattern = slide.compositionClassification?.narrativeAccepted && slide.visualNarrative?.pattern;
+    if (pattern && data.nodes?.length) routed = {type:'diagram',variant:data.nodes.every(n=>n.entity) ? 'entity-comparison' : pattern,reason:'Validated visual narrative',alternatives:routed.alternatives || []};
+    const preferred = module.preferredExpression;
+    if (preferred) {
+      const variants = new Set([routed.variant,...(routed.alternatives || [])]);
+      const candidate = {...module,data,dataShape,expression:preferred};
+      if (preferred.type === routed.type && variants.has(preferred.variant) && !expressionSuitability({...slide,semanticIntent:'',modules:[candidate]}).length) routed = {...routed,...preferred,reason:'Validated Planner preference',alternatives:[routed.variant,...(routed.alternatives || [])].filter(v=>v!==preferred.variant)};
+    }
     const resolvedData = routed.type === "chart" && (Array.isArray(data.values) || Array.isArray(data.rows)) ? tableToChartData(data, `${slide.managementQuestion} ${slide.claim}`) : data;
-    const statement = `${slide.claim || ""} ${slide.managementQuestion || ""}`;
+    const statement = `${slide.claim || ""} ${slide.managementQuestion || ""} ${(slide.designIntent?.focusObjects || []).join(' ')} ${(slide.designIntent?.focusMetrics || []).join(' ')}`;
     const focusCategories = (resolvedData.categories || []).filter(category => statement.includes(String(category)));
     const focusSeries = (resolvedData.series || []).map(series => series.name).filter(name => statement.includes(String(name)));
     const focusRows = tableParts(resolvedData).body.map(row => String(row?.[0] ?? "")).filter(label => label && statement.includes(label));

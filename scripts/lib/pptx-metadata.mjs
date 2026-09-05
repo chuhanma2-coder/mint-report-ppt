@@ -38,10 +38,23 @@ export async function readPptxMetadata(file) {
 
 export async function inspectPptxPackage(file) {
   const JSZip = await jsZip(), zip = await JSZip.loadAsync(fs.readFileSync(file)), names = Object.keys(zip.files);
-  const slides = names.filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
   const charts = names.filter(name => /^ppt\/(?:slides\/)?charts\/chart\d+\.xml$/.test(name));
   const media = names.filter(name => /^ppt\/media\//.test(name) && !zip.files[name].dir);
   const presentation = await zip.file("ppt/presentation.xml")?.async("string");
+  const presentationRels = await zip.file('ppt/_rels/presentation.xml.rels')?.async('string');
+  if(!presentation || !presentationRels) throw new Error('PPTX_PRESENTATION_RELATIONSHIPS_MISSING');
+  const relationships=new Map([...presentationRels.matchAll(/<Relationship\b[^>]*\/?>/g)].map(match=>{
+    const attr=key=>xmlUnescape(match[0].match(new RegExp(`\\b${key}="([^"]+)"`))?.[1]);
+    return [attr('Id'),{target:attr('Target'),type:attr('Type'),external:attr('TargetMode')==='External'}];
+  }));
+  const list=presentation.match(/<p:sldIdLst\b[^>]*>([\s\S]*?)<\/p:sldIdLst>/)?.[1] || '';
+  const slides=[...list.matchAll(/<p:sldId\b[^>]*\br:id="([^"]+)"[^>]*\/?>/g)].map(match=>{
+    const rel=relationships.get(match[1]);
+    if(!rel || rel.external || !rel.type.endsWith('/slide')) throw new Error(`PPTX_SLIDE_RELATIONSHIP_INVALID: ${match[1]}`);
+    const target=path.posix.normalize(rel.target.startsWith('/')?rel.target.slice(1):path.posix.join('ppt',rel.target));
+    if(!zip.file(target)) throw new Error(`PPTX_SLIDE_PART_MISSING: ${target}`);
+    return target;
+  });
   const size = presentation?.match(/<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/);
   const slideXml = await Promise.all(slides.map(name => zip.file(name).async("string")));
   const mintTextObjects = slideXml.flatMap((xml, slideIndex) => [...xml.matchAll(/<p:sp>([\s\S]*?)<\/p:sp>/g)].map(match => {

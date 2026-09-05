@@ -5,12 +5,16 @@ Add-Type -AssemblyName System.Drawing
 $codexRoot = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }
 $skillsRoot = Join-Path $codexRoot "skills"
 $target = Join-Path $skillsRoot "mint-report-ppt"
+$Source = (Resolve-Path -LiteralPath $Source).Path
+if (-not (Test-Path -LiteralPath (Join-Path $Source "SKILL.md"))) { throw "Invalid Mint skill source" }
+$version = (Get-Content -LiteralPath (Join-Path $Source "VERSION") -Raw).Trim()
+if ($Source.TrimEnd('\') -eq $target.TrimEnd('\')) { throw "Install from a separate extracted release directory" }
 if ($null -eq [System.Type]::GetTypeFromProgID("PowerPoint.Application")) { throw "Microsoft PowerPoint desktop is required for automatic PPT merge." }
-$browserCandidates = @(
-  (Join-Path $env:ProgramFiles "Google\Chrome\Application\chrome.exe"),
-  (Join-Path ${env:ProgramFiles(x86)} "Microsoft\Edge\Application\msedge.exe"),
-  (Join-Path $env:ProgramFiles "Microsoft\Edge\Application\msedge.exe")
-)
+$browserCandidates = @($env:MINT_CHROMIUM_EXECUTABLE, $env:CHROME_PATH, $env:EDGE_PATH)
+foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA) | Where-Object { $_ }) {
+  $browserCandidates += Join-Path $base "Google\Chrome\Application\chrome.exe"
+  $browserCandidates += Join-Path $base "Microsoft\Edge\Application\msedge.exe"
+}
 $browser = $browserCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 if (-not $browser) { throw "Google Chrome or Microsoft Edge is required for the internal 1920x1080 Design Canvas." }
 $font = New-Object System.Drawing.Font("Microsoft YaHei", 12)
@@ -22,7 +26,10 @@ if (Test-Path $target) {
   $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
   Move-Item -LiteralPath $target -Destination "$target.backup-$stamp"
 }
-Copy-Item -LiteralPath $Source -Destination $target -Recurse
-Write-Host "Installed mint-report-ppt at $target"
+[System.IO.Directory]::CreateDirectory($target) | Out-Null
+foreach ($entry in @('SKILL.md','VERSION','RELEASE-FINGERPRINT','package.json','agents','assets','references','schemas','scripts','tests')) {
+  Copy-Item -LiteralPath (Join-Path $Source $entry) -Destination $target -Recurse
+}
+Write-Host "Installed mint-report-ppt $version at $target (previous installation backed up)"
 Write-Host "Browser for Design Canvas: $browser"
 Write-Host "mint-report-deck was not modified. Restart Codex before first use."

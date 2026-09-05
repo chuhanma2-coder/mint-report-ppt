@@ -4,11 +4,11 @@ The production layout authority is the internal 1920×1080 HTML Design Canvas. I
 
 ## Capacity and consolidation
 
-Group source evidence by task-card outline item before creating pages. One outline item first gets one complete readable page. If it cannot fit at the role-specific font floors, split only between coherent evidence groups, business stages, or decision steps. Every continuation declares its part number, reason, natural boundary, and previous part. Before adding a slide, ask whether it would naturally become one module of the preceding page; if yes, consolidate it. A page may hold the complete outline item, its coherent evidence groups, and several lightweight facts when hierarchy remains readable.
+Preserve task-card outline ownership and order, then plan management stories. Adjacent outline content may share a page when it supports the same decision. An outline may contain independent stories, but do not split individual sentences into pages. Within a story, browser-measured capacity selects natural evidence/business boundaries. Every continuation records its reason and provenance; explicit single-page requirements block instead of silently splitting.
 
 Aggregation is not summarization. Consolidation changes hierarchy and placement; it does not delete facts. First assemble a Page Evidence Bundle containing context, primary proof, supporting proof, cases, risks, actions, and boundaries. Then map every item to a visible module before choosing geometry.
 
-The Agent does not select `pageComposition`. The deterministic Composition Classifier derives it from information-unit count, evidence-group count, evidence diversity, and the page decision unit. A complex evidence system must be upgraded from `standard` even when only two top-level modules were authored.
+The Planner proposes visualNarrative; Composition Validator accepts grounded relationships or falls back to information-unit/evidence classification. It does not accept raw coordinates or a self-declared pageComposition. See `design-intent.md` for supported patterns. A valid parallel story is not overwritten because it has only two modules.
 
 Use the derived `pageComposition` to choose composition density without inventing new geometry families:
 
@@ -24,7 +24,7 @@ Capacity order: change geometry; rebalance module shares; use the compact varian
 
 Track three independent diagnostics: Visual Occupancy, Information Density, and Story Completeness. Occupancy is diagnostic, not a fill target. Standard pages below 55% and explicitly dense pages below 65% fail for consolidation review; composite classification does not raise the visual-area target by itself because its information-density and story-completeness gates are checked separately. A single large image, chart, or table is not high-density merely because it occupies most of the canvas; it must also provide enough supporting evidence and a complete Claim/Evidence/Meaning chain. Inspect one-point pagination, undersized visuals, and short tables without interpretation. Above 92%, inspect crowding and auto-shrink. Do not stretch empty cards/tables or add decoration to improve the ratio. Hero, cover, section, and closing slides may intentionally use more whitespace.
 
-Adjacent parts of the same outline must be merged whenever a complete browser-measured candidate fits. Different subquestions or decisions do not override this rule. Different outline items remain separate by default.
+Adjacent content supporting the same decision is measured together, including across outline boundaries within the same formal section. Independent stories may remain distinct. Preserve outlineItems and original section identity on each output page. No table, image, chart or fixed module count determines the page boundary by itself.
 
 The browser measures final wrapped text with the configured CJK font and calculates occupancy from the union of actually painted DOM bounds, not allocated rectangles. Equal-area cards are allowed only for genuinely equal semantic weight. A headline number, written management conclusion, or source image may dominate. Charts, tables, and diagrams default to supporting regions; they do not grow merely because a page has little text. The compiler uses `autoFit=none`; unresolved DOM or PowerPoint overflow blocks delivery.
 

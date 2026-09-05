@@ -1,8 +1,12 @@
 // The measurer is a browser-backed dependency; no estimated point budget is used.
-export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3, pageApprovals = [] } = {}) {
+export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3, pageApprovals = [], designRequirements = [] } = {}) {
   const groups = new Map(), output = [], measurements = [];
   for (const slide of slides) {
-    const key = slide.role === 'content' ? String(slide.outlineItem) : `standalone:${slide.id}`;
+    // Only adjacent, explicitly shared decisions may cross outline boundaries.
+    // Missing decision intent retains the safe legacy outline grouping.
+    const previous = [...groups.values()].at(-1)?.at(-1);
+    const sameDecision = slide.decisionUnit && previous?.decisionUnit === slide.decisionUnit && previous?.sectionId === slide.sectionId && previous?.role === 'content' && !slide.independentDecision;
+    const key = slide.role === 'content' ? sameDecision ? [...groups.keys()].at(-1) : `${slide.sectionId || ''}:${slide.outlineItem}${slide.independentDecision ? ':'+slide.id : ''}` : `standalone:${slide.id}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(slide);
   }
@@ -34,7 +38,7 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       }
       const refs = new Set(modules.flatMap(module => module.evidenceRefs || []));
       for (const field of Object.keys(bundle)) bundle[field] = bundle[field].filter(ref => refs.has(ref));
-      const page = { ...first, modules, evidenceRefs: [...refs], evidenceBundle: bundle, outlinePart: undefined, outlineSplit: undefined };
+      const page = { ...first, modules, originSlideIds:[...new Set(chosen.map(b=>b.slide.id))], outlineItems:[...new Set(chosen.flatMap(b=>b.slide.outlineItems || [b.slide.outlineItem]))], sourceEvidence:[...new Map(chosen.flatMap(b=>b.slide.sourceEvidence || []).map(e=>[e.id,e])).values()], designRequirementRefs:[...new Set(chosen.flatMap(b=>b.slide.designRequirementRefs || []))], evidenceRefs: [...refs], evidenceBundle: bundle, outlinePart: undefined, outlineSplit: undefined };
       if (start !== 0) {
         // Measured continuation titles name the actual evidence groups on this
         // page. Preserve the chapter-level claim as internal narrative context.
@@ -47,19 +51,24 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
         page.modules = [...page.modules, { id: `${first.id}-claim-${page.modules.length}`, type: 'text', semanticRole: 'managementConclusion', text: claim, evidenceRefs: [], visibleFacts: [] }];
       }
       let fitted = null;
-      const variants = page.modules.length === 1 ? ['single'] : ['story-bands', 'balanced', 'primary-rail', 'primary-above', 'single'];
+      let bestScore = -Infinity;
+      const variants = page.compositionClassification?.narrativeAccepted ? ['narrative-flow','primary-above','primary-rail'] : ['story-bands', 'balanced', 'primary-rail', 'primary-above', 'single'];
       for (const density of ['standard', 'compact']) {
-        let bestScore = -Infinity;
         for (const variant of variants) {
         const candidate = { ...page, measuredComposition: variant, measuredDensity: density };
         const result = await measure(candidate);
         measurements.push({ outlineItem: outline, start, end, variant, density, passed: result.passed, issues: result.issues || [] });
-        if (result.passed && (result.slides?.[0]?.compositionScore ?? 0) > bestScore) {
-          bestScore = result.slides?.[0]?.compositionScore ?? 0;
+        const layout=result.slides?.[0], desired=page.visualNarrative?.readingOrder || [];
+        const reading=layout?.modules ? [...layout.modules].sort((a,b)=>Math.abs(a.rect.top-b.rect.top)>8?a.rect.top-b.rect.top:a.rect.left-b.rect.left).map(m=>m.id) : [];
+        const rank=desired.filter(id=>reading.includes(id)).map(id=>reading.indexOf(id));
+        const inversions=rank.reduce((sum,v,i)=>sum+rank.slice(i+1).filter(n=>n<v).length,0);
+        const score=(layout?.compositionScore ?? 0)-inversions*4-(density==='compact'?.5:0);
+        if (result.passed && score > bestScore) {
+          bestScore = score;
           fitted = candidate;
         }
         }
-        if (fitted) break; // Prefer readable standard type over compact packing.
+        if (fitted && !page.compositionClassification?.narrativeAccepted) break;
       }
       cache.set(key, fitted); return fitted;
     }
@@ -67,6 +76,7 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
     let selected;
     if (full) selected = [full];
     else {
+      if (designRequirements.some(r=>r.strength==='hard'&&r.type==='single-page'&&(r.scope==='report'||input.some(s=>s.id===r.slideId)))) throw new Error(`HARD_SINGLE_PAGE_CAPACITY: ${outline}; cannot split, drop facts, or shrink below floors`);
       // Expand only explicit business row groups, and only after the original
       // complete outline fails. Preserve every row, qualifier and source map.
       blocks = blocks.flatMap(block => block.modules.length === 1 ? splitTableBlock(block) : [block]);
@@ -86,7 +96,7 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       }
       selected = best[blocks.length]?.pages;
       if (!selected) throw new Error(`OUTLINE_CAPACITY_BLOCKED: ${outline}; an atomic evidence group cannot fit. ${measurements.filter(item => item.outlineItem === outline).at(-1)?.issues.join('; ')}. Name a smaller natural source boundary; do not shrink or delete facts`);
-      const approval=pageApprovals.find(a=>String(a.outlineItem)===outline && a.approved===true && a.reason?.trim());
+      const approval=pageApprovals.find(a=>String(a.outlineItem)===String(input[0].outlineItem) && a.approved===true && a.reason?.trim());
       if (selected.length > Math.max(maxAutomaticParts,Number(approval?.maxParts)||0)) throw new Error(`OUTLINE_PAGE_APPROVAL_REQUIRED: ${outline} requires ${selected.length} measured readable pages`);
     }
     selected.forEach((page, index) => {
@@ -96,6 +106,15 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       if (index) page.outlineSplit = { reason: 'Full-outline browser measurement failed', naturalBoundary: page.modules[0]?.evidenceGroup || page.claim, continuationOf: selected[index - 1].id };
       output.push(page);
     });
+  }
+  const prior=new Map();
+  for(const page of output) {
+    page.outlineProvenance=(page.outlineItems || [page.outlineItem]).map(outlineItem=>{
+      const key=`${page.sectionId || ''}:${outlineItem}`,previous=prior.get(key),part=(previous?.part || 0)+1;
+      const item={sectionId:page.sectionId,outlineItem,part,continuationOf:previous?.id || null};prior.set(key,{part,id:page.id});return item;
+    });
+    const first=page.outlineProvenance[0];page.outlinePart=first.part;
+    if(first.continuationOf && !page.outlineSplit) page.outlineSplit={reason:'Explicit independent management story',naturalBoundary:page.decisionUnit || page.claim,continuationOf:first.continuationOf};
   }
   return { slides: output, measurements };
 }

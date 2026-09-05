@@ -1,12 +1,13 @@
 {
   "name": "mint-report-ppt",
-  "version": "0.4.0-rc.3",
+  "version": "0.4.0-rc.4",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "npm run test:core && node tests/browser-executable.mjs && node tests/semantic-colors.mjs && npm run test:native-charts && npm run test:final-table",
-    "test:core": "node tests/contracts.mjs && node tests/source-coverage.mjs && node tests/readable-content.mjs && node tests/outline-planner.mjs && node tests/artifact-layout.mjs && node tests/image-readability.mjs && node tests/financial-consistency.mjs && node tests/outline-integrity.mjs && node tests/expression-router.mjs && node tests/evidence-allocation.mjs && node tests/fact-fingerprint.mjs && node tests/presentation-gates.mjs && node tests/page-consolidation.mjs && node tests/composition-classifier.mjs && node tests/ir-version.mjs && node tests/geometry-engine.mjs && node tests/text-layout.mjs && node tests/a-regression.mjs && node tests/evidence-rich.e2e.mjs && node tests/metadata.e2e.mjs && node tests/design-canvas.e2e.mjs && node tests/readable-layout.e2e.mjs",
+    "test:core": "node tests/design-intent.mjs && node tests/contracts.mjs && node tests/source-coverage.mjs && node tests/readable-content.mjs && node tests/outline-planner.mjs && node tests/artifact-layout.mjs && node tests/image-readability.mjs && node tests/financial-consistency.mjs && node tests/outline-integrity.mjs && node tests/expression-router.mjs && node tests/evidence-allocation.mjs && node tests/fact-fingerprint.mjs && node tests/presentation-gates.mjs && node tests/page-consolidation.mjs && node tests/composition-classifier.mjs && node tests/ir-version.mjs && node tests/geometry-engine.mjs && node tests/text-layout.mjs && node tests/a-regression.mjs && node tests/evidence-rich.e2e.mjs && node tests/metadata.e2e.mjs && node tests/design-canvas.e2e.mjs && node tests/readable-layout.e2e.mjs && node tests/design-intent.e2e.mjs && node tests/build-design.e2e.mjs",
     "test:native-charts": "node tests/native-charts.e2e.mjs",
+    "test:publication": "node tests/publisher-authority.e2e.mjs",
     "test:final-table": "node tests/final-table.mjs"
   }
 }

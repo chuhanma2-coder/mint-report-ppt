@@ -1,4 +1,5 @@
 import { informationUnitCount } from "./page-consolidation.mjs";
+import { narrativeSupport } from './design-intent.mjs';
 
 const composite = new Set(["dashboard", "banded-story", "evidence-rich"]);
 const bundleGroups = ["contextRefs", "kpiRefs", "primaryEvidenceRefs", "supportingEvidenceRefs", "caseRefs", "comparisonRefs", "chartRefs", "tableRefs", "imageRefs", "riskRefs", "actionRefs", "decisionRefs", "boundaryRefs", "explanationRefs"];
@@ -33,6 +34,8 @@ export function compositionSignals(slide) {
 export function classifySlideComposition(slide, { strict = false } = {}) {
   if (slide.role !== "content") return { ...slide, pageComposition: slide.role === "cover" ? "standard" : slide.pageComposition || "standard" };
   const signals = compositionSignals(slide);
+  const narrative = narrativeSupport(slide);
+  if (narrative.valid) return {...slide,pageComposition:'evidence-rich',compositionClassification:{...signals,narrativeAccepted:true,pattern:narrative.pattern,reason:'Grounded Planner narrative accepted',strict}};
   let pageComposition = "standard", reason = "A single evidence relationship is sufficient";
   if (signals.metricCount >= 3 || (signals.metricCount >= 2 && signals.evidenceDiversity >= 3)) {
     pageComposition = "dashboard"; reason = "Several KPIs must be judged together";
@@ -41,7 +44,7 @@ export function classifySlideComposition(slide, { strict = false } = {}) {
   } else if (signals.informationUnits >= (strict ? 8 : 10) || signals.evidenceGroupCount >= (strict ? 3 : 4) || (signals.evidenceDiversity >= (strict ? 3 : 4) && signals.informationUnits >= (strict ? 6 : 8))) {
     pageComposition = "evidence-rich"; reason = "The evidence system requires a composite page";
   }
-  return { ...slide, pageComposition, compositionClassification: { pageComposition, reason, strict, ...signals, ignoredAuthoredComposition: slide.pageComposition || null } };
+  return { ...slide, pageComposition, compositionClassification: { pageComposition, reason, strict, ...signals, narrativeAccepted:false, narrativeIssues:narrative.issues, ignoredAuthoredComposition: slide.pageComposition || null } };
 }
 
 function chapterComplexity(slides) {

@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import {regulatoryFixture} from './fixtures/design-intent.mjs';
+import {createTaskCard} from '../scripts/lib/task-card.mjs';
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-build-design-'));
+const ir=regulatoryFixture(),source={sourceUnits:[]};
+for(const [i,m] of ir.slides[0].modules.entries()) {
+  const texts=[m.text,...(m.data?.nodes || []).flatMap(n=>[n.label,n.text,n.status,n.condition,n.duration,n.timeRange?.label,...(n.metrics || [])]),...(m.data?.edges || []).map(e=>e.label),...(m.data?.lanes || []).map(l=>l.label)].filter(Boolean);
+  m.evidenceRefs=[];m.visibleFacts=[];
+  texts.forEach((text,j)=>{const id=`E${i+1}-${j}`;source.sourceUnits.push({id,text,visibility:'required-visible'});m.evidenceRefs.push(id);m.visibleFacts.push({sourceUnitId:id,text});});
+}
+ir.slides[0].evidenceRefs=source.sourceUnits.map(u=>u.id);
+ir.slides[0].evidenceBundle=Object.fromEntries(['decisionRefs','primaryEvidenceRefs','supportingEvidenceRefs','actionRefs'].map((key,i)=>[key,ir.slides[0].modules[i].evidenceRefs]));
+source.sourceUnits.push({id:'E-extra',text:'第二章节仍保留原始身份',visibility:'required-visible'});
+ir.slides.push({id:'second-section',sectionId:'section-03',role:'content',outlineItem:'3',storyCluster:'identity',decisionUnit:'identity',managementQuestion:'分工是否准确？',claim:'第二章节仍保留原始身份',semanticIntent:'explanation',density:'standard',evidenceRefs:['E-extra'],evidenceBundle:{primaryEvidenceRefs:['E-extra']},modules:[{id:'identity',type:'text',semanticRole:'primaryEvidence',text:'第二章节仍保留原始身份',evidenceRefs:['E-extra'],visibleFacts:[{sourceUnitId:'E-extra',text:'第二章节仍保留原始身份'}]}]});
+delete ir.sectionId;ir.sectionIds=['section-01','section-03'];
+ir.slides[1].narrative={transition:'完成监管路径说明后，检查负责人章节身份。'};
+const card=createTaskCard({reportId:ir.reportId,title:'Synthetic design acceptance',sections:[{sectionId:'section-01',title:'Regulatory',owner:'测试负责人',outlineItems:['1']},{sectionId:'section-02',title:'Other owner',owner:'B',outlineItems:['2']},{sectionId:'section-03',title:'Identity',owner:'测试负责人',outlineItems:['3']}]});
+for(const [name,value] of Object.entries({ir,source,card}))fs.writeFileSync(path.join(dir,name+'.json'),JSON.stringify(value));
+const file=path.join(dir,'candidate.pptx');
+const build=spawnSync(process.execPath,['scripts/build-section-ppt.mjs',path.join(dir,'source.json'),path.join(dir,'ir.json'),path.join(dir,'card.json'),'测试负责人',file],{encoding:'utf8',maxBuffer:10_000_000});
+assert.equal(build.status,0,build.stderr+build.stdout);
+const report=JSON.parse(fs.readFileSync(file+'.build.json'));
+assert.equal(report.deliveryApproved,false);assert.equal(report.passed,true);
+assert.equal(report.slides,2);
+const pending=spawnSync(process.execPath,['scripts/audit-design-delivery.mjs',file,file+'.executive-review.json'],{encoding:'utf8'});
+assert.equal(pending.status,1,'A technical build must not pass pending executive review');
+assert.equal(report.pptxSha256,crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
+console.log(JSON.stringify({passed:true,dir,scope:'synthetic full CLI, not prompt invariance or mentor acceptance'}));

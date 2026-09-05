@@ -8,6 +8,8 @@ Route the complete Page Evidence Bundle, not isolated source atoms. First identi
 
 Use `managementQuestion`, `claim`, `semanticIntent`, computed `dataShape`, exact-lookup need, decision intent, units, targets, time, signs, whole/part status, ordering, process/hierarchy/direction, label length, and data volume. Output `{type, variant, reason, alternatives}`. `reason` and `alternatives` remain internal.
 
+The Planner may propose `preferredExpression:{type,variant}` and a grounded `visualNarrative`. The Router validates a proposed variant against the supported candidate set and semantic suitability before selecting it. A preference cannot force an unsupported chart or invent a relation. Valid time-window/dependency/parallel and entity-profile structures use the reusable primitives described in `design-intent.md`; module counts do not override this intent.
+
 `exactLookup=true` preserves detail but does not automatically force the primary expression to be a table. When the management question asks for change, rank, contribution, target attainment, or comparison, route the primary proof visually. Preserve additional rows in the same body page or a normal body detail page; do not use an appendix unless explicitly authorized. Use a table as the primary expression only when lookup/reconciliation is itself the management purpose.
 
 Every table declares `tableRole`: `primary`, `supporting`, `reference`, or `detail`. Table is a content carrier, never a geometry. Only a primary table may dominate a page; supporting/reference/detail tables obey the page's main expression and cannot force matrix geometry.

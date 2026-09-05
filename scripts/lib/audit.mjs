@@ -20,6 +20,7 @@ function packageChecks(pkg, metadata, task, expectedSection, mode) {
   if (metadata.MintThemeVersion !== task.themeVersion) issues.push("MintThemeVersion does not match task card");
   if (metadata.MintSkillVersion !== task.skillVersion) issues.push("MintSkillVersion does not match task card");
   if (mode === "section" && metadata.MintSectionId !== expectedSection) issues.push("MintSectionId does not match requested section");
+  if (mode === 'work-package' && metadata.MintSectionIds !== JSON.stringify(expectedSection.split(','))) issues.push('MintSectionIds does not match requested work package');
   for (const item of pkg.mintTextObjects || []) {
     if (!item.noAutoFit) issues.push(`Slide ${item.slide} ${item.name} must use noAutoFit; shrinkText is forbidden`);
     const floor = item.name.includes("|title|") ? 22 : item.name.includes("|module-body|") ? 13 : item.name.includes("|diagram-node|") ? 12 : 10;
