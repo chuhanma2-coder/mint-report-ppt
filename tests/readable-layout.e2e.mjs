@@ -15,7 +15,7 @@ slides[2].modules = [{ id: 'changes', type: 'chart', expression: { type: 'chart'
 const result = await planAndMeasureOutline({ slides }, theme, path.join(folder, 'design.html'), path.join(folder, 'render'));
 assert.equal(result.manifest.passed, true, result.manifest.issues.join('; '));
 assert.equal(result.ir.slides.length, 3);
-assert.ok(result.manifest.slides[0].modules[0].rect.height < 220);
+assert.ok(result.manifest.slides[0].modules.find(m=>m.id==='m1').rect.height < 220,'measure the short table by identity, not a layout-dependent DOM index');
 const { presentation } = await renderPresentation(applyDomLayout(result.ir, result.manifest), theme);
 await exportPresentation(presentation, path.join(folder, 'candidate.pptx'));
 const require = createRequire(path.join(process.env.RUNTIME_NODE_MODULES, 'package.json'));

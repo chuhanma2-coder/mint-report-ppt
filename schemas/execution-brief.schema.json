@@ -1,0 +1,14 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://mint.local/schemas/execution-brief.schema.json",
+  "type":"object",
+  "required":["canonicalLedgerHash","audience","communicationGoal","managementObjective","managementIntent","decisionSystems","requirementsReview","semanticReview"],
+  "properties":{
+    "preflightMode":{"enum":["auto","preview","off"],"default":"auto"},
+    "canonicalLedgerHash":{"type":"string"},"audience":{"type":"string"},"meetingContext":{"type":"string"},"communicationGoal":{"type":"string"},"managementObjective":{"type":"string"},
+    "managementIntent":{"enum":["status","diagnose","explain","compare","decide","plan","recommend","reconcile"]},
+    "managementQuestions":{"type":"array","items":{"type":"string"}},
+    "decisionSystems":{"type":"array","minItems":1,"items":{"type":"object","required":["id","managementQuestion","sourceRefs"],"properties":{"id":{"type":"string"},"managementQuestion":{"type":"string"},"sourceRefs":{"type":"array","minItems":1,"items":{"type":"string"}}},"additionalProperties":false}},
+    "keyClaims":{"type":"array"},"relationshipHints":{"type":"array"},"designRequirements":{"type":"array"},"semanticObligations":{"type":"array"},"visualDirection":{"type":"object"},"pageConstraints":{"type":"object"},"requirementsReview":{"type":"object"},"semanticReview":{"type":"object"},"ambiguities":{"type":"array"}
+  },"additionalProperties":false
+}

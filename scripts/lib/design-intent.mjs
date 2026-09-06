@@ -81,11 +81,11 @@ export function auditDesignRequirements(ir, manifest, { nativePages = null } = {
     if (!passed) issues.push(`DESIGN_REQUIREMENT_UNMET: ${r.id} ${r.requirement}`);
   }
   const hard = results.filter(r => r.status !== 'visual-review-required');
-  return {passed:issues.length===0,issues,results,hardRecall:hard.length ? hard.filter(r=>r.status==='PASS').length/hard.length : 1,visualReviewRequired:true};
+  return {passed:issues.length===0,issues,results,hardRecall:hard.length ? hard.filter(r=>r.status==='PASS').length/hard.length : null,requirementsStatus:hard.length?'evaluated':'no-hard-requirements',visualReviewRequired:true};
 }
 
-export function executiveReviewIssues(review, slideIds) {
-  const issues = [], dimensions = ['firstFocus','bodyProvesTitle','relationships','space','carrierSuitability','hierarchy','readingOrder'];
+export function executiveReviewIssues(review, slideIds, decisionSystems=null) {
+  const issues = [], dimensions = ['firstFocus','bodyProvesTitle','relationships','space','carrierSuitability','hierarchy','readingOrder',...(decisionSystems?['relationshipFidelity','semanticProximity']:[])];
   if (!review || review.status !== 'reviewed') return ['EXECUTIVE_REVIEW_REQUIRED'];
   for (const id of slideIds) {
     const page = review.slides?.find(s => s.slideId === id);
@@ -94,6 +94,11 @@ export function executiveReviewIssues(review, slideIds) {
   }
   for (const issue of review.issues || []) if (!['planner','router','canvas','renderer','publisher'].includes(issue.ownerLayer)) issues.push('QA_OWNER_LAYER_INVALID');
   if ((review.issues || []).some(issue=>issue.status!=='resolved')) issues.push('EXECUTIVE_REVIEW_UNRESOLVED');
+  if(decisionSystems) for(const system of decisionSystems) {
+    const chapter=review.decisionSystems?.find(d=>d.id===system.id);
+    const checks=['storyConcentration','riskResponseProximity','supportingEvidenceRole','mergeNecessity','titleChain','paginationJustification','pathEvidenceBalance'];
+    if(!chapter||checks.some(k=>chapter[k]!=='pass')||!chapter.evidence?.trim()) issues.push(`DECISION_SYSTEM_REVIEW_REQUIRED: ${system.id}`);
+  }
   return issues;
 }
 

@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { fitText } from "./text-layout.mjs";
 import { inspectPptxPackage } from "./pptx-metadata.mjs";
 import { nativeChartCompatibilityIssue } from './chart-display-model.mjs';
+import { textRole } from './typography-contract.mjs';
 
 function artifactTool() {
   if (!process.env.RUNTIME_NODE_MODULES) throw new Error("RUNTIME_NODE_MODULES is required; load workspace dependencies first");
@@ -256,6 +257,7 @@ function addVisualPrimitives(slide, measured, theme, font, index) {
     // Compile browser-measured surfaces and rules, not estimated card frames.
     slide.shapes.add({geometry:'rect',name,position:p.rect,fill:p.backgroundColor || 'none',line:noLine});
     if(p.borderLeftWidth) slide.shapes.add({geometry:'rect',name:name+'|accent',position:{...p.rect,width:p.borderLeftWidth},fill:p.borderLeftColor,line:noLine});
+    if(p.borderRightWidth) slide.shapes.add({geometry:'rect',name:name+'|right',position:{...p.rect,left:p.rect.left+p.rect.width-p.borderRightWidth,width:p.borderRightWidth},fill:p.borderRightColor,line:noLine});
     if(p.borderTopWidth) slide.shapes.add({geometry:'rect',name:name+'|top',position:{...p.rect,height:p.borderTopWidth},fill:p.borderTopColor,line:noLine});
     if(p.borderBottomWidth) {
       if(p.primitive==='dependency-edge') {
@@ -265,7 +267,7 @@ function addVisualPrimitives(slide, measured, theme, font, index) {
       } else slide.shapes.add({geometry:'line',name:name+'|rule',position:{left:p.rect.left,top:p.rect.top+p.rect.height-1,width:p.rect.width,height:0},line:{fill:p.borderColor,width:p.borderBottomWidth}});
     }
   }
-  for(const [j,text] of measured.textObjects.entries()) addText(slide,text.renderText || text.text,text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,bold:text.bold,color:text.color || theme.palette.ink},`mint|${text.primitiveParent==='dependency-edge'?'edge-label':'visual-text'}|${index}-${j}`);
+  for(const [j,text] of measured.textObjects.entries()) addText(slide,text.renderText || text.text,text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,bold:text.bold,color:text.color || theme.palette.ink},`mint|${text.primitiveParent==='dependency-edge'?'edge-label':'visual-text'}|${index}-${j}|text-role:${textRole({...text,kind:measured.kind,role:measured.role})}`);
 }
 
 function addDiagram(slide, module, frame, theme, font, index, measured = null) {
@@ -336,7 +338,7 @@ function addMeasuredChart(slide, measured, theme, font, index) {
   const { rect: origin, model } = measured.chart;
   for (const [i, primitive] of model.primitives.entries()) {
     const frame = { left: origin.left + primitive.x, top: origin.top + primitive.y, width: primitive.width, height: primitive.height };
-    if (primitive.kind === 'text') addText(slide, primitive.text, frame, { typeface: font, fontSizePt: primitive.fontSize * 72 / 96, color: primitive.color }, `mint|chart-label|${index}-${i}`);
+    if (primitive.kind === 'text') addText(slide, primitive.text, frame, { typeface: font, fontSizePt: primitive.fontSize * 72 / 96, color: primitive.color }, `mint|chart-label|${index}-${i}|text-role:${primitive.role || 'chartLabel'}`);
     else if (primitive.kind === 'line') {
       const dx = primitive.x2 - primitive.x, dy = primitive.y2 - primitive.y, length = Math.hypot(dx, dy);
       // Rotation around the line centre preserves both rising and falling

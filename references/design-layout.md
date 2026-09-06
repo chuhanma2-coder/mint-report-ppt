@@ -56,7 +56,7 @@ Choose within the range using role, text length, language, available width, and 
 
 When one source image is the main proof and the remaining modules explain it, use an internal `primary-rail` variant: 55–65% for the image on the left and 35–45% for smaller support modules stacked vertically on the right. Charts receive their measured readable size; there is no fixed width cap. Preserve room for the complete outline argument. Short tables use only the height required by their rows and never stretch to fill the canvas. Do not divide width equally by module count.
 
-Every page has one P0 object, one or two P1 objects, and subordinate P2 context. Occupancy is an anomaly signal, not a reason to inflate empty cards. Repeated geometry is acceptable only when it remains the best expression; four consecutive identical variants trigger review.
+Use a clear P0 focus and subordinate P1/P2 information where the source supports them; do not impose a minimum or maximum carrier count. Occupancy is an anomaly signal, not a reason to inflate empty cards. Repeated geometry is acceptable only when it remains the best expression; four consecutive identical variants trigger review.
 
 `managementQuestion` is hidden by default. It may be shown only when the question itself improves the audience's understanding; never repeat a gray question line mechanically on every slide.
 

@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chartDisplayModel } from "./chart-display-model.mjs";
 import { primitiveMarkup, primitiveCss, visualModuleMarkup } from './visual-primitives.mjs';
+import {sceneMarkup,sceneCss,sceneRepairCss} from './scene-plan.mjs';
 
 const esc = value => String(value ?? "").replace(/[&<>\"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
 const json = value => esc(JSON.stringify(value ?? {}));
@@ -52,6 +53,7 @@ const attrs = `style="${placement}" data-mint-object="module" data-mint-index="$
 }
 
 function composition(slide) {
+  if(slide.scenePlan) return 'scene-plan';
   if (slide.measuredComposition) return slide.measuredComposition;
   const modules = slide.modules || [], explicitPrimary = modules.findIndex(module => module.visualPriority === "P0"), primary = explicitPrimary >= 0 ? explicitPrimary : modules.findIndex(module => module.semanticRole === "primaryEvidence");
   const bands = new Set(modules.map(module => module.compositionBand).filter(Boolean));
@@ -66,7 +68,7 @@ function composition(slide) {
 function slideMarkup(slide, index) {
   const comp = composition(slide);
   const modules = slide.modules || [], placements = modules.map(() => '');
-  let bandCount = 0, railPrimary = -1;
+  let bandCount = slide.scenePlan?.regions.length || 0, railPrimary = -1;
   if (['primary-rail', 'primary-above'].includes(comp) && modules.length > 1) {
     let primary = modules.findIndex(m => m.id === slide.visualNarrative?.primaryCarrier || m.id === slide.designIntent?.primaryCarrier);
     if (primary < 0) primary = modules.findIndex(m => (m.expression?.type || m.type) === 'image');
@@ -94,7 +96,7 @@ function slideMarkup(slide, index) {
   }
   const order = slide.compositionClassification?.narrativeAccepted ? slide.visualNarrative?.readingOrder || [] : [];
   const indexes = [...order.map(id=>modules.findIndex(m=>m.id===id)).filter(i=>i>=0), ...modules.map((_,i)=>i).filter(i=>!order.includes(modules[i].id))];
-  const content = railPrimary >= 0 ? moduleMarkup(modules[railPrimary],railPrimary) + `<aside class="support-rail">${modules.map((m,i)=>i===railPrimary?'':moduleMarkup(m,i)).join('')}</aside>` : indexes.map(i=>moduleMarkup(modules[i],i,placements[i])).join('');
+  const content = slide.scenePlan ? sceneMarkup(slide,moduleMarkup) : railPrimary >= 0 ? moduleMarkup(modules[railPrimary],railPrimary) + `<aside class="support-rail">${modules.map((m,i)=>i===railPrimary?'':moduleMarkup(m,i)).join('')}</aside>` : indexes.map(i=>moduleMarkup(modules[i],i,placements[i])).join('');
   return `<article class="mint-ppt-slide ${comp} ${slide.measuredDensity === 'compact' ? 'compact' : ''}" data-slide-index="${index}" data-slide-id="${esc(slide.id)}" data-composition="${comp}">
     <header><h1 data-mint-object="title">${esc(slide.claim)}</h1>${slide.showManagementQuestion && slide.managementQuestion ? `<p data-mint-object="question">${esc(slide.managementQuestion)}</p>` : ""}</header>
     <main data-band-count="${bandCount}">${content}</main>
@@ -149,7 +151,11 @@ ${Object.entries(theme.semanticColors.roleAccents || {}).map(([role,color]) => `
 .compact .diagram-node{font-size:${fontPx('diagramNode')}px}
 .compact .edge-label{font-size:${fontPx('diagramEdge')}px}
 .compact header h1{font-size:${fontPx('denseTitle')}px}
-${primitiveCss(p)}
+${primitiveCss(theme)}
+.profile-identity{font-size:${fontPx('diagramNode')}px;font-weight:700;color:${p.muted}}
+.profile-secondary{font-size:${fontPx('supportBody',1)}px;line-height:1.25;border-top:1px solid ${p.line};padding-top:8px;white-space:pre-wrap}
+${sceneCss}
+${sceneRepairCss}
 .narrative-flow main{grid-template-columns:1fr}
 </style></head><body>${ir.slides.map(slideMarkup).join("")}<script>
 (() => {
@@ -181,6 +187,15 @@ function renderCharts() {
     const table = module.querySelector('table');
     const available = table.parentElement.clientWidth;
     table.style.width = Math.min(available, preferredWidths.reduce((sum, width) => sum + width, 0)) + 'px';
+    // Shrinking the table must also release its empty track. This is a bounded
+    // repair of a split scene, never a change to comparison/parallel topology.
+    const region = module.parentElement;
+    if (region.matches('.scene-content-first .scene-split') && region.children.length === 2 && [...region.children].filter(child => child.classList.contains('table')).length === 1) {
+      const style = getComputedStyle(module);
+      const natural = table.getBoundingClientRect().width + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const width = Math.min(region.clientWidth * .65, natural);
+      region.style.gridTemplateColumns = [...region.children].map(child => child === module ? width + 'px' : 'minmax(0,1fr)').join(' ');
+    }
     rows.forEach((row, i) => {
       if (focus.includes(row.cells[0]?.textContent)) for (const cell of row.cells) { cell.style.backgroundColor = '${p.orangeLight}'; cell.style.fontWeight = '700'; }
       if (semantic.expression?.variant === 'decision-matrix') for (const [j, cell] of [...row.cells].entries()) {
@@ -222,6 +237,7 @@ function renderCharts() {
         element.style.width = primitive.width + 'px'; element.style.height = primitive.height + 'px';
         if (primitive.kind === 'text') {
           element.textContent = primitive.text; element.dataset.mintObject = 'text';
+          element.className = primitive.role || 'chartLabel';
           element.style.fontSize = primitive.fontSize + 'px'; element.style.lineHeight = '1.2'; element.style.color = primitive.color;
         } else if (primitive.kind === 'sector') {
           const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');

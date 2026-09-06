@@ -36,7 +36,7 @@ Render every delivered slide. Check readability, hierarchy, sparse/crowded compo
 
 Before compilation, the DOM gate verifies a 1920×1080 canvas, font readiness, image readiness, unique module identity, actual painted-bounds occupancy, text overflow, role-specific font floors, and canvas bounds. After compilation, the artifact gate rejects full-slide images, non-native semantic tables/diagrams, missing media, external relationships, unapproved fonts, and any `shrinkText`/automatic fit. The parity gate compares the internal canvas render with the PPT render using perceptual difference and non-background coverage; either failure blocks success. Final release also requires a render made by Microsoft PowerPoint on the target platform; Artifact Tool rendering is a preliminary cross-platform gate, not a substitute for PowerPoint.
 
-Before rendering, require 100% source-unit disposition and real-font text fit at the minimum readable size. Automatic shrink is forbidden. Ordinary pages with low real-content occupancy fail unless the IR explicitly identifies intentional whitespace for a hero/section purpose.
+Before rendering, require 100% source-unit disposition and real-font text fit at the minimum readable size. Automatic shrink is forbidden. Low real-content occupancy triggers full Decision System, proximity and merge review, not a demand to invent content or inflate containers. Genuinely sparse source material may remain sparse when its complete meaning is visible; area alone cannot prove a design pass or failure.
 
 Source coverage has two distinct gates:
 
@@ -69,6 +69,12 @@ Version gates reject stale task cards. IR upgrades preserve source facts/data/me
 For ordinary position/style edits, recheck affected slides. For split, merge, add, delete, reorder, title, or conclusion changes, recheck previous/current/next slides and the full title chain. Finish with one chapter thumbnail scan.
 
 Passing geometry checks does not prove factual completeness or good expression. Passing source coverage does not prove a readable page.
+
+## rc.5 acceptance boundaries
+
+Read `rc5-planning.md` for canonical source IDs, claim support, semantic obligations and Scene Plan. Review both slides and complete Decision Systems. First focus, body/title support, hierarchy, reading order, whitespace, carrier suitability, relationship fidelity and semantic proximity require actual rendered inspection. Chapter review additionally checks fragmentation, risk/response separation, supporting evidence promoted into a separate story, merge opportunities, title chain and page-count justification.
+
+Report TECHNICAL, CONTENT, UNDERSTANDING, DESIGN and TARGET PLATFORM separately. An empty explicit design ledger has recall `null`, not 100%; grounded semantic obligations still apply. A reviewed claim record is not an automatic proof of free-text entailment. No stale review, uninspected rendering or synthetic fixture success may be reported as executive or Windows acceptance.
 
 ## Design execution and executive review
 

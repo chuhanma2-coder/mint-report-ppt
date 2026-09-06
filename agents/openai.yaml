@@ -2,6 +2,6 @@ interface:
   display_name: "Mint Report PPT"
   short_description: "原生PPT协作编辑，最终发布只读HTML"
   brand_color: "#00866A"
-  default_prompt: "Use $mint-report-ppt to create my assigned PPT sections: read all sources, establish the audience and management story, preserve every body fact, express important relationships and design requirements, then measure and verify native editable slides."
+  default_prompt: "Use $mint-report-ppt to create my assigned PPT sections. Establish the canonical raw-source ledger, then in one planning pass form an Execution Brief and complete decision stories, supported claims and semantic relationships. Preserve all visible facts; measure whole-story candidates before splitting; verify understanding, design and editable objects separately."
 policy:
   allow_implicit_invocation: true

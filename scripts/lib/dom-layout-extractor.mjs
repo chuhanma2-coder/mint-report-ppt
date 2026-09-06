@@ -7,6 +7,8 @@ import { planOutlinePages } from "./outline-planner.mjs";
 import { imageReadabilityIssues } from './image-readability.mjs';
 import { browserExecutable } from './browser-executable.mjs';
 import { auditDesignRequirements } from './design-intent.mjs';
+import {textFloorPt} from './typography-contract.mjs';
+import {measuredSceneIssues} from './scene-plan.mjs';
 
 function playwrightModule() {
   if (!process.env.RUNTIME_NODE_MODULES) throw new Error("RUNTIME_NODE_MODULES is required; load workspace dependencies first");
@@ -62,6 +64,8 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
       const rel = rect => ({ left: rect.left - slideRect.left, top: rect.top - slideRect.top, width: rect.width, height: rect.height });
       const info = element => {
         const rect = rel(element.getBoundingClientRect()), style = getComputedStyle(element);
+        const textRange = document.createRange(); textRange.selectNodeContents(element);
+        const inkRect = rel(textRange.getBoundingClientRect());
         let renderText = element.innerText || '';
         if (element.classList.contains('module-copy') || element.classList.contains('diagram-node')) {
           // Freeze the measured CJK line breaks. The native importer's generic
@@ -91,9 +95,9 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
           primitive: element.dataset.visualPrimitive || null, primitiveParent:element.closest('[data-visual-primitive]')?.dataset.visualPrimitive || null,
           bindingId:element.dataset.vpBindingId,edgeId:element.dataset.vpEdgeId,laneId:element.dataset.vpLaneId,parallelTo:element.dataset.vpParallelTo,from:element.dataset.vpFrom,to:element.dataset.vpTo,
           primitiveNodeId:element.dataset.vpNodeId,
-          borderColor:hex(style.borderBottomColor),borderBottomWidth:parseFloat(style.borderBottomWidth),borderTopWidth:parseFloat(style.borderTopWidth),borderTopColor:hex(style.borderTopColor),borderLeftColor:hex(style.borderLeftColor),
+          borderColor:hex(style.borderBottomColor),borderBottomWidth:parseFloat(style.borderBottomWidth),borderTopWidth:parseFloat(style.borderTopWidth),borderTopColor:hex(style.borderTopColor),borderLeftColor:hex(style.borderLeftColor),borderRightWidth:parseFloat(style.borderRightWidth),borderRightColor:hex(style.borderRightColor),
           role: element.dataset.mintRole || null, priority: element.dataset.mintPriority || null,
-          index: element.dataset.mintIndex == null ? null : Number(element.dataset.mintIndex), rect,
+          index: element.dataset.mintIndex == null ? null : Number(element.dataset.mintIndex), rect, inkRect,
           text: element.innerText || "", renderText, fontSizePx: Number.parseFloat(style.fontSize) || null,
           bold: Number(style.fontWeight) >= 600, className: element.className, color: hex(style.color), backgroundColor: hex(style.backgroundColor), accent: style.getPropertyValue('--role-accent').trim(), borderLeftWidth: parseFloat(style.borderLeftWidth),
           contentRect: { left: rect.left + parseFloat(style.paddingLeft), top: rect.top + parseFloat(style.paddingTop), width: rect.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight), height: rect.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) },
@@ -108,6 +112,11 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         const element = slide.querySelector(`main [data-mint-index="${module.index}"]`), image = element?.querySelector('img');
         module.primitives = [...element.querySelectorAll('[data-visual-primitive]')].map(p=>{const item=info(p);return {...item,nodeId:item.primitiveNodeId};});
         if (image) module.image = { rect: rel(image.getBoundingClientRect()), naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
+        const bounds = [...module.textObjects.filter(t=>t.text.trim()).map(t=>t.inkRect), module.table?.rect, module.chart?.rect, module.image?.rect].filter(r=>r&&r.width>0&&r.height>0);
+        if(bounds.length) {
+          const left=Math.min(...bounds.map(r=>r.left)),top=Math.min(...bounds.map(r=>r.top));
+          module.contentBounds={left,top,width:Math.max(...bounds.map(r=>r.left+r.width))-left,height:Math.max(...bounds.map(r=>r.top+r.height))-top};
+        }
       }
       const title = info(slide.querySelector("[data-mint-object='title']"));
       const questionElement = slide.querySelector("[data-mint-object='question']"), question = questionElement ? info(questionElement) : null;
@@ -141,7 +150,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         }
         for (const text of module.textObjects || []) {
           if (text.overflow) issues.push(`Slide ${slide.slideId} module ${module.id} contains overflowing text`);
-          const floor = module.table ? 14 : text.className === 'edge-label' || text.primitiveParent === 'dependency-edge' ? 13 : text.className === 'diagram-node' || module.kind === 'chart' ? 15 : ['context','supportingEvidence','boundary'].includes(module.role) ? 15 : 16;
+          const floor = textFloorPt({...text,tableCell:!!module.table,kind:module.kind,role:module.role});
           if (text.fontSizePx != null && text.fontSizePx * 72 / 96 < floor - .05) issues.push(`Slide ${slide.slideId} module ${module.id} text is below ${floor}pt`);
         }
         if ([module.rect.left, module.rect.top, module.rect.width, module.rect.height].some(value => !Number.isFinite(value)) || module.rect.left < 0 || module.rect.top < 0 || module.rect.left + module.rect.width > 1920.5 || module.rect.top + module.rect.height > 1080.5) issues.push(`Slide ${slide.slideId} module ${module.id} is outside the canvas`);
@@ -161,7 +170,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
       const image = slide.modules.find(m => m.image);
       const supportWidth = Math.max(0, ...slide.modules.filter(m => !m.image).map(m => m.rect.width));
       const top = Math.min(...slide.modules.map(m=>m.rect.top));
-      const moduleArea = unionArea(slide.modules.map(m=>m.rect));
+      const moduleArea = unionArea(slide.modules.map(m=>m.contentBounds || m.rect));
       const holes = 1 - moduleArea / Math.max(1,1744 * (bottom-top));
       const priorities = slide.modules.map(m=>({priority:m.priority,size:Math.max(0,...m.textObjects.map(t=>t.fontSizePx || 0))}));
       const primarySize = Math.max(slide.title.fontSizePx,...priorities.filter(m=>m.priority==='P0').map(m=>m.size));
@@ -201,8 +210,9 @@ export async function planAndMeasureOutline(ir, theme, htmlFile, outputDir, opti
       const requirements=(ir.designRequirements || []).filter(r=>(r.scope==='report'||(candidate.originSlideIds || [candidate.id]).includes(r.slideId)) && (r.type==='single-page'||(r.targetId&&targets.has(r.targetId))));
       const local={...candidate,designRequirementRefs:(candidate.designRequirementRefs || []).filter(id=>requirements.some(r=>r.id===id))};
       const gate=auditDesignRequirements({...ir,slides:[local],designRequirements:requirements},result);
-      return {...result,passed:result.passed&&gate.passed,issues:[...result.issues,...gate.issues]};
-    }, {...options,designRequirements:ir.designRequirements || []});
+      const sceneIssues=measuredSceneIssues(candidate,result.slides?.[0]);
+      return {...result,passed:result.passed&&gate.passed&&!sceneIssues.length,issues:[...result.issues,...gate.issues,...sceneIssues]};
+    }, {...options,designRequirements:ir.designRequirements || [],decisionSystems:ir.executionBrief?.decisionSystems||[]});
     const grouped = { ...ir, slides: planned.slides };
     writeDesignCanvas(grouped, theme, htmlFile);
     const manifest = await extractDesignLayout({ existingPage: page, htmlFile, outputDir, expectedSlides: grouped.slides.length });

@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {validateExecutionBrief,preflightPreview,semanticObligationIssues,claimSupportIssues} from '../scripts/lib/execution-brief.mjs';
+const ledger={sha256:'raw-hash',units:[{id:'S1',text:'甲预计完成后乙启动'}]};
+const brief={preflightMode:'auto',canonicalLedgerHash:ledger.sha256,audience:'executive',communicationGoal:'decide',managementObjective:'判断项目风险',managementIntent:'plan',decisionSystems:[{id:'D1',managementQuestion:'何时可完成？',sourceRefs:['S1']}],requirementsReview:{status:'reviewed',promptSha256:'prompt'},semanticReview:{status:'reviewed',canonicalLedgerHash:ledger.sha256},semanticObligations:[]};
+assert.deepEqual(validateExecutionBrief(brief,ledger),[]);
+assert.equal(preflightPreview({...brief,preflightMode:'preview'}).generationAllowed,false);
+const o={id:'SO1',type:'dependency',strength:'semantic-hard',sourceRefs:['S1'],reason:'乙须等甲',from:'a',to:'b',review:{status:'reviewed',canonicalLedgerHash:ledger.sha256}};
+const slide={id:'P1',role:'content',decisionUnit:'D1',claim:'甲预计完成后乙启动',claimType:'source-supported',claimSupportRefs:['S1'],claimReview:{status:'reviewed',claim:'甲预计完成后乙启动',canonicalLedgerHash:ledger.sha256,...Object.fromEntries(['forecast','range','causality','subject','unit','condition','scope'].map(k=>[k,'preserved']))},semanticObligationRefs:['SO1'],modules:[{data:{edges:[{from:'a',to:'b',relationship:'dependency'}]}}]};
+assert.deepEqual(semanticObligationIssues({...brief,semanticObligations:[o]},[slide]),[]);
+assert.ok(semanticObligationIssues({...brief,semanticObligations:[o]},[{...slide,modules:[]}]).length);
+assert.deepEqual(claimSupportIssues([slide],ledger),[]);
+assert.ok(claimSupportIssues([{...slide,claim:'甲已完成'}],ledger).length);
+assert.ok(claimSupportIssues([{...slide,claimType:'derived',derivation:{inputs:[],logic:'',result:slide.claim}}],ledger).length);
+assert.ok(validateExecutionBrief({...brief,semanticObligations:[{...o,type:'parallel',activities:['a','b'],commonGoal:'交付',concurrent:true,hasPrecedence:true}]},ledger).length);
+console.log('Brief preview, grounded obligations and claim-review binding tests passed');

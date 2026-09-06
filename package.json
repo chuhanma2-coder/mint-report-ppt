@@ -1,10 +1,12 @@
 {
   "name": "mint-report-ppt",
-  "version": "0.4.0-rc.4",
+  "version": "0.4.0-rc.5",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:core && node tests/browser-executable.mjs && node tests/semantic-colors.mjs && npm run test:native-charts && npm run test:final-table",
+    "test:rc5": "node tests/domain-agnostic.mjs && node tests/domain-invariance.mjs && node tests/canonical-source-ledger.mjs && node tests/execution-brief.mjs && node tests/rc5-planning.mjs && node tests/rc5-benchmark-timing.mjs",
+    "test:rc5-scenes": "node tests/rc5-scene.e2e.mjs",
+    "test": "npm run test:rc5 && node tests/source-adapters.mjs && npm run test:core && node tests/browser-executable.mjs && node tests/semantic-colors.mjs && npm run test:native-charts && npm run test:final-table",
     "test:core": "node tests/design-intent.mjs && node tests/contracts.mjs && node tests/source-coverage.mjs && node tests/readable-content.mjs && node tests/outline-planner.mjs && node tests/artifact-layout.mjs && node tests/image-readability.mjs && node tests/financial-consistency.mjs && node tests/outline-integrity.mjs && node tests/expression-router.mjs && node tests/evidence-allocation.mjs && node tests/fact-fingerprint.mjs && node tests/presentation-gates.mjs && node tests/page-consolidation.mjs && node tests/composition-classifier.mjs && node tests/ir-version.mjs && node tests/geometry-engine.mjs && node tests/text-layout.mjs && node tests/a-regression.mjs && node tests/evidence-rich.e2e.mjs && node tests/metadata.e2e.mjs && node tests/design-canvas.e2e.mjs && node tests/readable-layout.e2e.mjs && node tests/design-intent.e2e.mjs && node tests/build-design.e2e.mjs",
     "test:native-charts": "node tests/native-charts.e2e.mjs",
     "test:publication": "node tests/publisher-authority.e2e.mjs",

@@ -1,5 +1,7 @@
 const intersection = (a, b) => ({ width: Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]), height: Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]) });
 
+import {textFloorPt} from './typography-contract.mjs';
+
 export function artifactLayoutIssues(layout) {
   const issues = [], elements = layout.elements || [];
   // Compare actual text carriers, not decorative panels containing those carriers.
@@ -15,13 +17,19 @@ export function artifactLayoutIssues(layout) {
       if (overlap.width > 2 && overlap.height > 2) issues.push(`TEXT_COLLISION: ${a.name || a.id} overlaps ${b.name || b.id}`);
     }
     const sizes = (a.paragraphs || []).flatMap(p => (p.runs || []).map(run => run.fontSize).filter(Number.isFinite));
-    const floorPt = a.tableCell ? 14 : /caption/.test(a.name || '') ? 10 : /edge-label/.test(a.name || '') ? 13 : /chart.*label|diagram-node|diagram-isolated-node|role:(context|supportingEvidence|boundary)/.test(a.name || '') ? 15 : 16;
+    const floorPt = textFloorPt(a);
     if (sizes.some(px => px * 72 / 96 < floorPt - .05)) issues.push(`ARTIFACT_FONT_FLOOR: ${a.name || a.id} is below ${floorPt}pt`);
     if (a.textLayout?.lineCount && sizes.length && a.textLayout.lineCount * Math.max(...sizes) > a.bbox[3] + 2) issues.push(`ARTIFACT_TEXT_HEIGHT: ${a.name || a.id} has more rendered lines than its frame can contain`);
     for (const other of elements) {
       if (!other.bbox || other === a || other.text || other.kind === 'table') continue;
-      const [x,y,w,h] = other.bbox, [tx,ty,tw,th] = a.bbox;
+      let [x,y,w,h] = other.bbox;
+      const [tx,ty,tw,th] = a.bbox;
       if (other.geometry === 'line' || other.geometry === 'connector') {
+        // Imported lines store an unrotated frame. A vertical zero-axis can be
+        // exported as a horizontal frame with rotation=90; its frame is not ink.
+        const rotation=((other.rotation||0)%180+180)%180;
+        if(Math.abs(rotation-90)<.01) [x,y,w,h]=[x+w/2-h/2,y+h/2-w/2,h,w];
+        else if(rotation>.01&&rotation<179.99) continue;
         // Native horizontal/vertical relation lanes. Diagonal paths still
         // require rendered inspection; their bounding box is not their ink.
         if ((Math.abs(h) < 2 && y > ty + 2 && y < ty + th - 2 && x < tx + tw - 2 && x + w > tx + 2) ||

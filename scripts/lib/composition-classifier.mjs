@@ -1,5 +1,6 @@
 import { informationUnitCount } from "./page-consolidation.mjs";
 import { narrativeSupport } from './design-intent.mjs';
+import {scenePlanIssues} from './scene-plan.mjs';
 
 const composite = new Set(["dashboard", "banded-story", "evidence-rich"]);
 const bundleGroups = ["contextRefs", "kpiRefs", "primaryEvidenceRefs", "supportingEvidenceRefs", "caseRefs", "comparisonRefs", "chartRefs", "tableRefs", "imageRefs", "riskRefs", "actionRefs", "decisionRefs", "boundaryRefs", "explanationRefs"];
@@ -34,6 +35,12 @@ export function compositionSignals(slide) {
 export function classifySlideComposition(slide, { strict = false } = {}) {
   if (slide.role !== "content") return { ...slide, pageComposition: slide.role === "cover" ? "standard" : slide.pageComposition || "standard" };
   const signals = compositionSignals(slide);
+  if(slide.scenePlan) {
+    const issues=scenePlanIssues(slide);
+    if(issues.length) throw new Error(issues.join('; '));
+    const narrative=narrativeSupport(slide);
+    return {...slide,pageComposition:'evidence-rich',compositionClassification:{...signals,sceneAccepted:true,narrativeAccepted:narrative.valid,narrativeIssues:narrative.issues,reason:'Semantic scene retained; browser measures regions',strict}};
+  }
   const narrative = narrativeSupport(slide);
   if (narrative.valid) return {...slide,pageComposition:'evidence-rich',compositionClassification:{...signals,narrativeAccepted:true,pattern:narrative.pattern,reason:'Grounded Planner narrative accepted',strict}};
   let pageComposition = "standard", reason = "A single evidence relationship is sufficient";

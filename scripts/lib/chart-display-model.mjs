@@ -29,7 +29,7 @@ export function chartDisplayModel(data, expression, width, colors) {
     return { width, height: series.length <= 2 ? Math.max(...panels.map(p => p.height)) : offsetY - 20, primitives, variant, categories, series };
   }
   const p = [], height = Math.max(230, categories.length * (series.length * 30 + 26) + 84);
-  const text = (value, x, y, w, h = 30, size = 22) => p.push({ kind: 'text', text: String(value), x, y, width: w, height: h, fontSize: size, color: colors.ink });
+  const text = (value, x, y, w, h = 30, size = 22, role = 'chartLabel') => p.push({ kind: 'text', text: String(value), x, y, width: w, height: h, fontSize: size, color: colors.ink,role });
   const line = (x, y, x2, y2, color = colors.line) => p.push({ kind: 'line', x, y, x2, y2, color });
   const rect = (x, y, w, h, color) => p.push({ kind: 'rect', x, y, width: w, height: h, color });
   const peers = [colors.blue, colors.orange, colors.mint, colors.purple, colors.gold];
@@ -53,7 +53,7 @@ export function chartDisplayModel(data, expression, width, colors) {
         const value = Number(s.values[i]), a = scale(0), b = scale(value), barY = y + k * 30;
         if (variant === 'dot-plot') p.push({ kind: 'circle', x: b - 4, y: barY + 4, width: 8, height: 8, color: color(k, categories[i]) });
         else rect(Math.min(a, b), barY + 5, Math.max(1, Math.abs(b - a)), 18, color(k, categories[i]));
-        text(`${value}${s.displayUnit || ''}`, right + 12, barY, 125, 28, 22);
+        text(`${value}${s.displayUnit || ''}`, right + 12, barY, 125, 28, 22,'chartValue');
       });
     });
   } else if (variant === 'bullet') {
@@ -64,7 +64,7 @@ export function chartDisplayModel(data, expression, width, colors) {
     text(categories[0], 0, 70, labelWidth, 45);
     rect(Math.min(scale(0), scale(actual)), 82, Math.max(1, Math.abs(scale(actual) - scale(0))), 26, colors.mint);
     line(scale(target), 65, scale(target), 125, colors.muted);
-    text(`${actual} / ${target}${series[actualIndex].displayUnit || ''}`, left, 135, width - left, 40);
+    text(`${actual} / ${target}${series[actualIndex].displayUnit || ''}`, left, 135, width - left, 40,22,'chartValue');
     outHeight = 185;
   } else if (variant === 'percent-stacked') {
     outHeight = 70 + categories.length * 70;
@@ -76,7 +76,7 @@ export function chartDisplayModel(data, expression, width, colors) {
       series.forEach((s, k) => {
         const value = Number(s.values[i]), w = value / total * plotWidth;
         rect(x, y, w, 22, palette[k]);
-        text(`${value}${s.displayUnit || ''}`, x, y + 25, Math.max(40, w), 30, 22); x += w;
+        text(`${value}${s.displayUnit || ''}`, x, y + 25, Math.max(40, w), 30, 22,'chartValue'); x += w;
       });
     });
   } else if (variant === 'scatter') {
@@ -89,7 +89,7 @@ export function chartDisplayModel(data, expression, width, colors) {
     for (let i = 0; i < xs.length; i++) {
       p.push({ kind: 'circle', x: sx(xs[i]) - 4, y: sy(ys[i]) - 4, width: 8, height: 8, color: colors.blue });
       // Keep the complete two-line label inside the plot, above the axis captions.
-      text(`${categories[i]} (${xs[i]}, ${ys[i]})`, Math.min(width - 180, sx(xs[i]) + 8), Math.min(246, sy(ys[i]) - 20), 180, 54, 22);
+      text(`${categories[i]} (${xs[i]}, ${ys[i]})`, Math.min(width - 180, sx(xs[i]) + 8), Math.min(246, sy(ys[i]) - 20), 180, 54, 22,'chartValue');
     }
     text(`${series[0].name || 'X'} ${loX}—${hiX} ${series[0].displayUnit || ''}`, 65, 322, width - 90);
     text(`${series[1].name || 'Y'} ${loY}—${hiY} ${series[1].displayUnit || ''}`, 65, 352, width - 90);
@@ -108,7 +108,7 @@ export function chartDisplayModel(data, expression, width, colors) {
         p.push({ kind: 'sector', x: 0, y: 0, width, height: outHeight, path: d, color: peers[i % peers.length] });
       }
       rect(cx + radius + 25, 60 + i * 45, 14, 14, peers[i % peers.length]);
-      text(`${label} ${value}${series[0].displayUnit || ''}`, cx + radius + 48, 54 + i * 45, width - cx - radius - 48, 40, 22);
+      text(`${label} ${value}${series[0].displayUnit || ''}`, cx + radius + 48, 54 + i * 45, width - cx - radius - 48, 40, 22,'chartValue');
       angle = next;
     });
   } else if (['dumbbell', 'slope'].includes(variant)) {
@@ -119,7 +119,7 @@ export function chartDisplayModel(data, expression, width, colors) {
       text(s.name || '', 0, y, labelWidth, 45);
       line(a, y + 38, b, y + 38, colors.muted);
       for (const [k, x] of [a, b].entries()) p.push({ kind: 'circle', x: x - 5, y: y + 33, width: 10, height: 10, color: palette[k] });
-      text(`${categories[0]} ${s.values[0]} → ${categories[1]} ${s.values[1]}${s.displayUnit || ''}`, left, y, width - left, 30);
+      text(`${categories[0]} ${s.values[0]} → ${categories[1]} ${s.values[1]}${s.displayUnit || ''}`, left, y, width - left, 30,22,'chartValue');
     });
   } else if (['column', 'line'].includes(variant)) {
     outHeight = 360;
@@ -140,11 +140,29 @@ export function chartDisplayModel(data, expression, width, colors) {
           const bw = xStep * .7 / series.length;
           rect(x - xStep * .35 + k * bw, Math.min(y(0), vy), bw - 3, Math.max(1, Math.abs(y(0) - vy)), palette[k]);
         }
-        const label = `${v}${s.displayUnit || ''}`, labelW = Math.min(xStep, Math.max(100, label.length * 22));
+        const label = `${v}${s.displayUnit || ''}`, labelW = Math.min(xStep-4, Math.max(44, label.length * 22));
         const labelX = variant === 'line' ? x : x - xStep * .35 + (k + .5) * xStep * .7 / series.length;
-        text(label, labelX - labelW / 2, vy - 30 - k * 30, labelW, 28, 22);
+        text(label, labelX - labelW / 2, vy - 30 - k * 30, labelW, 28, 22,'chartValue');
+        if(variant==='line') p.at(-1).dataPoint={x:labelX,y:vy};
       });
     });
+    if(variant==='line') {
+      // Keep labels attached to their own time point, but clear every series,
+      // marker and already placed label. No values are suppressed or abbreviated.
+      const obstacles=p.filter(a=>a.kind==='line'||a.kind==='circle'),placed=[];
+      const intersects=(r,a)=>{
+        if(a.kind!=='line') return r.x<a.x+a.width+3&&r.x+r.width>a.x-3&&r.y<a.y+a.height+3&&r.y+r.height>a.y-3;
+        const lo=Math.max(r.x-3,Math.min(a.x,a.x2)),hi=Math.min(r.x+r.width+3,Math.max(a.x,a.x2));
+        if(lo>hi)return false;
+        const at=x=>a.y+(a.y2-a.y)*(x-a.x)/(a.x2-a.x||1),ys=Math.abs(a.x2-a.x)<.01?[a.y,a.y2]:[at(lo),at(hi)];
+        return Math.max(...ys)>r.y-3&&Math.min(...ys)<r.y+r.height+3;
+      };
+      for(const item of p.filter(a=>a.dataPoint)) {
+        const candidate=[-38,10,-70,42,-102,74].map(d=>({...item,y:item.dataPoint.y+d})).find(r=>r.y>=34&&r.y+r.height<300&&![...obstacles,...placed].some(a=>intersects(r,a)));
+        if(!candidate) throw new Error('CHART_LABEL_CAPACITY: line labels need a wider/taller readable candidate');
+        item.y=candidate.y;placed.push(item);
+      }
+    }
   } else if (variant === 'waterfall') {
     if (series.length !== 1 || !Number.isFinite(data.start) || !Number.isFinite(data.end)) throw new Error('WATERFALL_ENDPOINTS_REQUIRED');
     const contributions = series[0].values.map(Number), sum = data.start + contributions.reduce((a, b) => a + b, 0);
@@ -157,7 +175,7 @@ export function chartDisplayModel(data, expression, width, colors) {
     const y = v => 285 - (v - low) / (high - low || 1) * 220, step = width / columns.length;
     columns.forEach((c, i) => {
       rect(i * step + 10, Math.min(y(c.a), y(c.b)), step - 20, Math.max(1, Math.abs(y(c.a) - y(c.b))), c.value < 0 ? colors.mint : colors.orange);
-      text(c.value ?? c.b, i * step + 5, Math.min(y(c.a), y(c.b)) - 30, step - 10);
+      text(c.value ?? c.b, i * step + 5, Math.min(y(c.a), y(c.b)) - 30, step - 10,30,22,'chartValue');
       text(c.label, i * step + 5, 300, step - 10, 55, 20);
     });
     outHeight = 365;

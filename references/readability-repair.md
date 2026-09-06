@@ -1,6 +1,6 @@
 # Readability repair contract (candidate implementation)
 
-## Outline before slides
+## Complete Decision Systems before slides
 
 Outline items define content identity and sequence, not page boundaries. Supply stable module IDs and coherent evidenceGroup names; dependent evidence and its conditions share the same group. Adjacent same-decision content is measured together; independent stories may be separated. Browser measurement chooses standard before compact typography. A strict single-page requirement blocks an over-capacity candidate. More than three capacity continuations requires reporting the measured requirement to the user. Never split a fact, erase a qualifier, move business detail to notes or fabricate filler.
 
@@ -28,7 +28,7 @@ An explicit user approval may be recorded in the task card as `outlinePageApprov
 
 Shared semantic colors distinguish metric text, module headings, risk headings and diagram actors. The same actor retains its color across relation rows; actual/target chart colors follow series meaning rather than input order. Canvas and PPT consume the same theme tokens. Do not apply report-specific color patches.
 
-The candidate compares all feasible standard compositions before considering compact typography. Story bands put the P0 written conclusion first. A primary rail uses naturally stacked support; a primary-above candidate places support in a compact grid below the evidence. Candidate scoring penalizes internal holes without rewarding extension to the page bottom. Tables use measured natural widths as well as natural heights. Relation nodes have measured readable width minima and aligned connector sites. Original outline conclusions remain visible on the first part; subsequent titles name the actual evidence groups.
+The candidate compares bounded standard compositions before compact typography. A validated semantic scene takes precedence over generic story bands. Tables use measured natural widths/heights; relation nodes reserve readable connector lanes. Capacity repair retains the supported claim on continuation pages: it cannot replace it with an unreviewed generated title. Module headings identify the current evidence group. Rewritten titles require renewed claim review.
 
 Page colors must support hierarchy rather than remain uniformly pale green. Use the shared role accents: blue for primary evidence, purple for supporting evidence/decisions, Mint for conclusions/actions, warm brown for comparisons/boundaries, and coral-red for risk. Keep dark readable body text and light page backgrounds. Do not require every page to contain every color. Final PPT text and table cells consume the measured colors; semantic accent bars remain native editable shapes. Test text contrast against both page and paper backgrounds.
 

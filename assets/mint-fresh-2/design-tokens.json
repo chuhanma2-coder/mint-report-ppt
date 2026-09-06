@@ -21,5 +21,12 @@
   },
   "chartTypographyPt": { "axis": 17, "denseAxis": 15, "legend": 16, "dataLabel": 18, "denseDataLabel": 16 },
   "spacing": { "pageX": 88, "pageTop": 58, "pageBottom": 58, "gap": 28, "compactGap": 18 },
+  "defaultDesignPolicy": {
+    "rolePriority": { "managementConclusion": "P0", "decision": "P0", "primaryEvidence": "P1", "risk": "P1", "action": "P1", "boundary": "P1", "context": "P2", "supportingEvidence": "P2" },
+    "statusColors": { "positive": "mintLight", "pending": "orangeLight", "risk": "coralLight", "neutral": "neutralLight" },
+    "milestoneColors": { "completed": "mint", "expected": "orange", "pending": "neutral", "blocked": "coral", "target": "blue" },
+    "rangeColors": { "forecast": "blueLight", "uncertainty": "orangeLight", "execution": "mintLight", "duration": "neutralLight" }
+  },
+  "primitiveStyle": { "paddingX": 12, "paddingY": 10, "nodePadding": 8, "nodeGap": 10, "trackGap": 12, "laneGap": 14, "profileGap": 26, "ruleWidth": 4, "minimumNodeWidth": 180, "minimumProfileWidth": 300 },
   "constraints": { "minimumContentOccupancy": 0.55, "denseMinimumOccupancy": 0.65, "evidenceRichMinimumOccupancy": 0.68, "sparseOccupancy": 0.55, "crowdedOccupancy": 0.92, "maxBandModules": 4, "normalTextContrast": 4.5, "largeTextContrast": 3, "maxNetworkNodes": 10 }
 }

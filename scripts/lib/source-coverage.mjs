@@ -1,3 +1,5 @@
+import {entityProfileFields} from './visual-primitives.mjs';
+
 function sourceUnits(source = {}) {
   return source.sourceUnits || source.evidence || source.units || [];
 }
@@ -25,7 +27,7 @@ export function visibleModulePayload(module = {}) {
   // Only presentation fields, never evidence IDs, hidden JSON, image paths or alt text.
   for (const field of ['headers', 'columns', 'rows', 'values', 'categories']) walk(data[field]);
   for (const series of data.series || []) walk([series.name, series.values, series.displayUnit]);
-  for (const node of data.nodes || []) walk([node.label || node.name,node.timeRange?.label,node.duration,node.status,node.condition,node.text,...(node.metrics || [])]);
+  for (const node of data.nodes || []) walk([node.label || node.name,node.timeRange?.label,node.duration,node.status,node.condition,node.text,...(node.metrics || []),...(node.entity?Object.values(entityProfileFields(node)).flat():[])]);
   for (const edge of data.edges || []) walk([edge.label, edge.condition]);
   for (const lane of data.lanes || []) walk(lane.label);
   if (module.type === 'image' && module.imageTextReview?.status === 'reviewed') walk(module.imageTextReview.regions?.map(region => region.text));
@@ -44,6 +46,11 @@ export function auditVisibleFactContent(source, ir, { renderedModules = null } =
     for (const fact of module.visibleFacts || []) {
       const id = String(fact.sourceUnitId || ""), text = normalizedText(fact.text);
       if (!units.has(id)) issues.push(`VISIBLE_FACT_UNKNOWN_SOURCE: slide ${slide.id} module ${module.id || "(unnamed)"} maps unknown source ${id || "(empty)"}`);
+      else if (fact.binding) {
+        const bindingIssues=structuredFactIssues(units.get(id),fact.binding,payload);
+        if(bindingIssues.length) issues.push(...bindingIssues.map(issue=>`${issue}: ${id}`));
+        else {if(!mapped.has(id)) mapped.set(id,[]);mapped.get(id).push({slideId:slide.id,moduleId:module.id,text:fact.text||Object.values(fact.binding).flat().join(' ')});}
+      }
       else if (!text) issues.push(`VISIBLE_FACT_EMPTY: slide ${slide.id} module ${module.id || "(unnamed)"} maps ${id} without visible text`);
       else if (!payload.includes(text)) issues.push(`VISIBLE_FACT_NOT_RENDERED: slide ${slide.id} module ${module.id || "(unnamed)"} declares ${id} but its text is absent from the rendered module payload`);
       else {
@@ -61,6 +68,10 @@ export function auditVisibleFactContent(source, ir, { renderedModules = null } =
       const module = slide?.modules?.find(item => item.id === destination.moduleId);
       return renderedModules ? normalizedText(renderedModules.find(item => item.slideId === destination.slideId && item.moduleId === destination.moduleId)?.text || '') : visibleModulePayload(module);
     }).join(' ');
+    if(unit.fact && unit.factReview?.status==='reviewed' && unit.factReview.sourceText===unit.text) {
+      const structured=destinations.every(d=>(ir.slides||[]).find(s=>s.id===d.slideId)?.modules.find(m=>m.id===d.moduleId)?.visibleFacts.some(f=>f.sourceUnitId===id&&f.binding));
+      if(structured) continue; // Every field was bound and checked locally above.
+    }
     if (original && visible.includes(original)) continue;
     // Paraphrases require explicitly reviewed components. A short substring cannot
     // stand in for the whole source sentence. Semantic review is not a regex claim.
@@ -74,7 +85,7 @@ export function auditVisibleFactContent(source, ir, { renderedModules = null } =
       if (!alternatives.some(value => value && visible.includes(normalizedText(value)))) issues.push(`SOURCE_COMPONENT_MISSING: ${id} lacks ${typeof component === 'string' ? component : component.role || component.text}`);
     }
     // Regardless of authored components, protect numeric tokens and key qualifiers.
-    for (const token of (unit.text || unit.content || '').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g,'').match(/\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9-]*|人民币|美元|预计|全年|计划|正编|外包|仅|至少|至多/g) || []) {
+    for (const token of (unit.text || unit.content || '').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g,'').match(/\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9-]*|人民币|美元|预计|全年|计划|正编|外包|所有|全部|部分|仅|至少|至多/g) || []) {
       const escaped = normalizedText(token).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const present = /^\d/.test(token) ? new RegExp(`(?<![\\d.])${escaped}(?![\\d.])`).test(visible) : visible.includes(normalizedText(token));
       if (!present) issues.push(`SOURCE_QUALIFIER_MISSING: ${id} lacks ${token}`);
@@ -82,6 +93,32 @@ export function auditVisibleFactContent(source, ir, { renderedModules = null } =
   }
   for (const id of required) if (!mapped.has(id)) issues.push(`VISIBLE_FACT_MISSING: source unit ${id} is required on a body page; an evidenceRef alone is not visible content`);
   return { passed: issues.length === 0, requiredCount: required.size, visibleCount: [...required].filter(id => mapped.has(id)).length, mappings: Object.fromEntries(mapped), issues };
+}
+
+export function structuredFactIssues(unit,binding,payload) {
+  if(!unit?.fact||unit.factReview?.status!=='reviewed'||unit.factReview.sourceText!==unit.text) return ['STRUCTURED_FACT_REVIEW_REQUIRED'];
+  const issues=[],fields=['subjects','attribute','value','unit','scope','condition','time','status','quantifier'];
+  if(!binding || typeof binding!=='object' || Array.isArray(binding)) return ['FACT_BINDING_INVALID'];
+  if(!Array.isArray(unit.fact.subjects)||!unit.fact.subjects.length||!Object.entries(unit.fact).some(([k,v])=>k!=='subjects'&&v!=null&&String(v).trim())) issues.push('STRUCTURED_FACT_EMPTY');
+  for(const key of Object.keys(unit.fact)) if(!fields.includes(key)) issues.push('STRUCTURED_FACT_FIELD_INVALID');
+  for(const key of Object.keys(binding)) if(!fields.includes(key)) issues.push('FACT_BINDING_FIELD_INVALID');
+  for(const field of fields) {
+    const expected=unit.fact[field];if(expected==null) continue;
+    const values=Array.isArray(expected)?expected:[expected],actual=binding[field];
+    if(JSON.stringify(actual)!==JSON.stringify(expected)) {issues.push(`FACT_${field.toUpperCase()}_CHANGED`);continue;}
+    for(const text of values) if(!String(text).trim()||!payload.includes(normalizedText(text))) issues.push(`FACT_${field.toUpperCase()}_NOT_VISIBLE`);
+  }
+  // Reviewed fields do not waive original numbers, qualifiers or an existing
+  // component inventory. The review handles meaning; this guards mechanical loss.
+  for(const token of unit.text.replace(/(?<=\d),(?=\d{3}(?:\D|$))/g,'').match(/\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9-]*|人民币|美元|预计|全年|计划|正编|外包|所有|全部|部分|仅|至少|至多/g)||[]) {
+    const value=normalizedText(token).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    if(!(/^\d/.test(token)?new RegExp(`(?<![\\d.])${value}(?![\\d.])`).test(payload):payload.includes(normalizedText(token)))) issues.push('FACT_SOURCE_QUALIFIER_MISSING');
+  }
+  for(const component of unit.requiredComponents||[]) {
+    const alternatives=typeof component==='string'?[component]:component.alternatives||[component.text];
+    if(!alternatives.some(value=>value&&payload.includes(normalizedText(value)))) issues.push('FACT_SOURCE_COMPONENT_MISSING');
+  }
+  return issues;
 }
 
 export function auditSourceCoverage(source, ir, { allowAppendix = false } = {}) {

@@ -1,3 +1,4 @@
+import {theme} from './config.mjs';
 const purposes = new Set(["primaryProof", "exactLookup", "implication", "boundary", "action", "context"]);
 
 const uniq = values => [...new Set((values || []).map(String).filter(Boolean))];
@@ -39,9 +40,7 @@ function defaultVisualPriority(module) {
   if (["chart", "table", "diagram"].includes(type)) return "P1";
   if (type === "image" && role === "primaryEvidence") return "P0";
   if (type === "metric" && ["primaryEvidence", "progress"].includes(role)) return "P0";
-  if (["managementConclusion", "decision"].includes(role)) return "P0";
-  if (["risk", "action", "boundary", "primaryEvidence"].includes(role)) return "P1";
-  return "P2";
+  return theme.defaultDesignPolicy.rolePriority[role] || 'P2';
 }
 
 export function allocateSlideEvidence(slide) {

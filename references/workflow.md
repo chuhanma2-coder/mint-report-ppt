@@ -12,7 +12,7 @@ Run `node scripts/create-task-card.mjs config.json report.mint-ppt-task.json`. T
 
 An owner with multiple assigned sections selects all of them in task-card order; an explicit section ID restricts scope. Never invent a combined section ID. All required-visible and supporting-visible facts appear in readable body content. No implicit appendix or notes-only facts.
 
-One Planner pass produces source model, Brief, story, IR and Design Requirement Ledger. Read `design-intent.md` for semantic payloads. A page needs a claim and sufficient visible evidence, with no minimum carrier count. Outline identity is not a forced page boundary. Explicit single-page instructions block rather than silently split when capacity fails.
+Before Planner, build a Canonical Source Ledger from the selected raw inputs. One Planner pass then produces source model, Execution Brief, complete Decision Systems, IR and Design Requirement Ledger. Read `rc5-planning.md` for the exact new contract and `design-intent.md` for visual payloads. A page needs a supported claim and sufficient visible evidence, with no minimum carrier count. Outline identity is not a forced page boundary. Explicit single-page instructions block rather than silently split when capacity fails.
 
 ```text
 node scripts/build-section-ppt.mjs source-model.json slide-ir.json report.mint-ppt-task.json section-01 current.pptx

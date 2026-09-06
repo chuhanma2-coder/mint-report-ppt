@@ -1,12 +1,14 @@
 // The measurer is a browser-backed dependency; no estimated point budget is used.
-export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3, pageApprovals = [], designRequirements = [] } = {}) {
+export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3, pageApprovals = [], designRequirements = [], decisionSystems = [] } = {}) {
   const groups = new Map(), output = [], measurements = [];
   for (const slide of slides) {
     // Only adjacent, explicitly shared decisions may cross outline boundaries.
     // Missing decision intent retains the safe legacy outline grouping.
     const previous = [...groups.values()].at(-1)?.at(-1);
-    const sameDecision = slide.decisionUnit && previous?.decisionUnit === slide.decisionUnit && previous?.sectionId === slide.sectionId && previous?.role === 'content' && !slide.independentDecision;
-    const key = slide.role === 'content' ? sameDecision ? [...groups.keys()].at(-1) : `${slide.sectionId || ''}:${slide.outlineItem}${slide.independentDecision ? ':'+slide.id : ''}` : `standalone:${slide.id}`;
+    const sameDecision = slide.decisionUnit && previous?.decisionUnit === slide.decisionUnit && previous?.sectionId === slide.sectionId && previous?.role === 'content';
+    if(decisionSystems.length && slide.role==='content' && !decisionSystems.some(d=>d.id===slide.decisionUnit)) throw new Error(`DECISION_SYSTEM_UNKNOWN: ${slide.id}`);
+    if(sameDecision && slide.independentDecision) throw new Error(`DECISION_SYSTEM_SPLIT_CONFLICT: ${slide.id}`);
+    const key = slide.role === 'content' ? sameDecision ? [...groups.keys()].at(-1) : decisionSystems.length ? `${slide.sectionId}:${slide.decisionUnit}:${groups.size}` : `${slide.sectionId || ''}:${slide.outlineItem}${slide.independentDecision ? ':'+slide.id : ''}` : `standalone:${slide.id}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(slide);
   }
@@ -39,11 +41,15 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       const refs = new Set(modules.flatMap(module => module.evidenceRefs || []));
       for (const field of Object.keys(bundle)) bundle[field] = bundle[field].filter(ref => refs.has(ref));
       const page = { ...first, modules, originSlideIds:[...new Set(chosen.map(b=>b.slide.id))], outlineItems:[...new Set(chosen.flatMap(b=>b.slide.outlineItems || [b.slide.outlineItem]))], sourceEvidence:[...new Map(chosen.flatMap(b=>b.slide.sourceEvidence || []).map(e=>[e.id,e])).values()], designRequirementRefs:[...new Set(chosen.flatMap(b=>b.slide.designRequirementRefs || []))], evidenceRefs: [...refs], evidenceBundle: bundle, outlinePart: undefined, outlineSplit: undefined };
+      page.semanticObligationRefs=[...new Set(chosen.flatMap(b=>b.slide.semanticObligationRefs||[]))];
+      if(page.scenePlan) {
+        const regions=page.scenePlan.regions.map(r=>({...r,moduleIds:r.moduleIds.filter(id=>identities.has(id))})).filter(r=>r.moduleIds.length);
+        page.scenePlan={...page.scenePlan,regions,readingOrder:page.scenePlan.readingOrder.filter(id=>regions.some(r=>r.id===id)),adjacency:(page.scenePlan.adjacency||[]).filter(a=>identities.has(a.object)&&identities.has(a.near))};
+        if(modules.some(m=>!regions.some(r=>r.moduleIds.includes(m.id)))) throw new Error('DECISION_SYSTEM_SCENE_INCOMPLETE: plan the complete decision system before pagination');
+      }
       if (start !== 0) {
-        // Measured continuation titles name the actual evidence groups on this
-        // page. Preserve the chapter-level claim as internal narrative context.
-        const titles = [...new Set(modules.map(m=>m.title).filter(Boolean))];
-        if (titles.length) page.claim = titles.join('、');
+        // Capacity repair cannot invent an unreviewed replacement claim. Keep
+        // the supported decision claim; group headings remain visible in modules.
         page.narrative = {...first.narrative, outlineClaim:first.claim, previous:start ? blocks[start-1].key : null, next:end < blocks.length ? blocks[end].key : null};
       }
       // Do not drop different authored conclusions during consolidation.
@@ -52,12 +58,22 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       }
       let fitted = null;
       let bestScore = -Infinity;
-      const variants = page.compositionClassification?.narrativeAccepted ? ['narrative-flow','primary-above','primary-rail'] : ['story-bands', 'balanced', 'primary-rail', 'primary-above', 'single'];
+      // Safe repairs retain module identities and every unique fact. Containers
+      // and proximity are controlled by the semantic scene, never copied text.
+      page.capacityRepairs=[{step:'deduplicate',status:'checked-exact-title-repeat'},
+        {step:'containers',status:page.scenePlan?'semantic-regions':'candidate-reflow'},
+        {step:'proximity',status:page.scenePlan?.adjacency?.length?'measured-adjacency':'no-authored-adjacency'},
+        {step:'object-internals',status:'natural-profile-and-table'},
+        {step:'region-shares',status:'bounded-candidates'}];
+      page.modules=page.modules.map(m=>m.text&&m.text===m.title?{...m,text:''}:m);
+      const variants = page.scenePlan ? ['scene-plan','content-first'] : page.compositionClassification?.narrativeAccepted ? ['narrative-flow','primary-above','primary-rail'] : ['story-bands', 'balanced', 'primary-rail', 'primary-above', 'single'];
       for (const density of ['standard', 'compact']) {
         for (const variant of variants) {
-        const candidate = { ...page, measuredComposition: variant, measuredDensity: density };
+        const candidate = { ...page, measuredComposition: page.scenePlan?'scene-plan':variant, measuredDensity: density,measuredSceneVariant:variant==='content-first'?'content-first':'authored' };
         const result = await measure(candidate);
-        measurements.push({ outlineItem: outline, start, end, variant, density, passed: result.passed, issues: result.issues || [] });
+        measurements.push({ outlineItem: outline,decisionSystem:page.decisionUnit, start, end, variant, density, passed: result.passed, issues: result.issues || [],
+          failedObjects:result.slides?.flatMap(s=>(s.modules||[]).filter(m=>m.overflow||(m.textObjects||[]).some(t=>t.overflow)).map(m=>({id:m.id,text:m.text})))||[],
+          visualOccupancy:result.slides?.[0]?.visualOccupancy??null,localOverflowOnly:result.issues?.length>0&&result.issues.every(i=>/module|text/i.test(i)),repairSteps:page.capacityRepairs });
         const layout=result.slides?.[0], desired=page.visualNarrative?.readingOrder || [];
         const reading=layout?.modules ? [...layout.modules].sort((a,b)=>Math.abs(a.rect.top-b.rect.top)>8?a.rect.top-b.rect.top:a.rect.left-b.rect.left).map(m=>m.id) : [];
         const rank=desired.filter(id=>reading.includes(id)).map(id=>reading.indexOf(id));
@@ -72,6 +88,7 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       }
       cache.set(key, fitted); return fitted;
     }
+    const fullBlockCount=blocks.length;
     const full = await attempt(0, blocks.length);
     let selected;
     if (full) selected = [full];
@@ -103,7 +120,8 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       page.id = input.length === 1 && selected.length === 1 ? input[0].id : `${input[0].id}-part-${index + 1}`;
       page.outlinePart = index + 1;
       page.capacityProof = { measured: true, fullOutlineFits: !!full, pageApproval:pageApprovals.find(a=>String(a.outlineItem)===outline)||null, attempts: measurements.filter(item => item.outlineItem === outline) };
-      if (index) page.outlineSplit = { reason: 'Full-outline browser measurement failed', naturalBoundary: page.modules[0]?.evidenceGroup || page.claim, continuationOf: selected[index - 1].id };
+      if (index) page.outlineSplit = { reason: 'All complete decision-system candidates failed browser measurement', naturalBoundary: page.modules[0]?.evidenceGroup || page.claim, continuationOf: selected[index - 1].id,
+        decisionSystem:page.decisionUnit,managementQuestion:page.managementQuestion,fullCandidateAttempts:measurements.filter(m=>m.outlineItem===outline&&m.start===0&&m.end===fullBlockCount),remainingSpace: 'See measured visualOccupancy; no free-space claim is inferred from a local overflow' };
       output.push(page);
     });
   }

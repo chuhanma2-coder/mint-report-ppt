@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {createFreshWorkspace,auditFreshRun} from '../scripts/lib/fresh-benchmark.mjs';
+import {createTimingReport} from '../scripts/lib/timing-report.mjs';
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-timing-')),file=path.join(dir,'raw.txt');fs.writeFileSync(file,'原始材料');
+const manifest=createFreshWorkspace([{path:file,role:'raw-source'}]);
+assert.equal(auditFreshRun(manifest,{historyRead:true}).status,'INVALID');
+assert.equal(auditFreshRun(manifest,{}).status,'INVALID');
+let now=1000;const timing=createTimingReport(path.join(dir,'timing-report.json'),()=>now);
+await timing.measure('pptCompile',()=>{now+=20;});await timing.measure('platformWait',()=>{now+=100;});
+const report=timing.write();assert.equal(report.total,.12);assert.equal(report.activeWorkTime,.02);assert.equal(report.platformWaitTime,.1);assert.equal(report.stages.planning,null);assert.equal(report.manualApprovalTime,null);
+const ticking=createTimingReport(path.join(dir,'ticking.json'),()=>now++);
+await ticking.measure('finalAudit',()=>{});
+for(const event of ticking.report().events) assert.equal(event.elapsedSeconds,(event.end-event.start)/1000,'end timestamp and duration use the same clock sample');
+console.log('Fresh contamination/missing evidence rejected; wait and active stage timings separated');

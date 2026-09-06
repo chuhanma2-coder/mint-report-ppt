@@ -6,6 +6,8 @@ import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {regulatoryFixture} from './fixtures/design-intent.mjs';
 import {createTaskCard} from '../scripts/lib/task-card.mjs';
+import {createCanonicalLedger,inventoryCanonicalInput} from '../scripts/lib/canonical-source-ledger.mjs';
+import {CURRENT_SLIDE_IR_VERSION,CURRENT_PLANNING_SCHEMA_VERSION} from '../scripts/lib/ir-version.mjs';
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-build-design-'));
 const ir=regulatoryFixture(),source={sourceUnits:[]};
 for(const [i,m] of ir.slides[0].modules.entries()) {
@@ -20,6 +22,14 @@ ir.slides.push({id:'second-section',sectionId:'section-03',role:'content',outlin
 delete ir.sectionId;ir.sectionIds=['section-01','section-03'];
 ir.slides[1].narrative={transition:'完成监管路径说明后，检查负责人章节身份。'};
 const card=createTaskCard({reportId:ir.reportId,title:'Synthetic design acceptance',sections:[{sectionId:'section-01',title:'Regulatory',owner:'测试负责人',outlineItems:['1']},{sectionId:'section-02',title:'Other owner',owner:'B',outlineItems:['2']},{sectionId:'section-03',title:'Identity',owner:'测试负责人',outlineItems:['3']}]});
+// Synthetic contract fixture: not a real Planner experiment or source-reading proof.
+const rawFile=path.join(dir,'raw.txt');fs.writeFileSync(rawFile,source.sourceUnits.map(u=>u.text).join('\n'));
+const canonical=createCanonicalLedger([await inventoryCanonicalInput({path:rawFile,sourceOrigin:'raw-source'})]);
+source.sourceUnits.forEach((u,i)=>{u.canonicalRefs=[canonical.units[i].id];});
+source.canonicalLedgerFile='canonical.json';fs.writeFileSync(path.join(dir,'canonical.json'),JSON.stringify(canonical));
+Object.assign(ir,{schemaVersion:CURRENT_SLIDE_IR_VERSION,slideIrVersion:CURRENT_SLIDE_IR_VERSION,planningSchemaVersion:CURRENT_PLANNING_SCHEMA_VERSION});
+ir.executionBrief={preflightMode:'auto',canonicalLedgerHash:canonical.sha256,audience:'test',communicationGoal:'test',managementObjective:'validate native binding',managementIntent:'explain',designRequirements:ir.designRequirements,semanticObligations:[],decisionSystems:ir.slides.map(s=>({id:s.decisionUnit,managementQuestion:s.managementQuestion,sourceRefs:canonical.units.map(u=>u.id)})),requirementsReview:{status:'reviewed',promptSha256:'synthetic-fixture'},semanticReview:{status:'reviewed',canonicalLedgerHash:canonical.sha256}};
+for(const s of ir.slides) Object.assign(s,{claimType:'source-supported',claimSupportRefs:canonical.units.map(u=>u.id),claimReview:{status:'reviewed',claim:s.claim,canonicalLedgerHash:canonical.sha256,...Object.fromEntries(['forecast','range','causality','subject','unit','condition','scope'].map(k=>[k,'not-applicable']))}});
 for(const [name,value] of Object.entries({ir,source,card}))fs.writeFileSync(path.join(dir,name+'.json'),JSON.stringify(value));
 const file=path.join(dir,'candidate.pptx');
 const build=spawnSync(process.execPath,['scripts/build-section-ppt.mjs',path.join(dir,'source.json'),path.join(dir,'ir.json'),path.join(dir,'card.json'),'测试负责人',file],{encoding:'utf8',maxBuffer:10_000_000});
