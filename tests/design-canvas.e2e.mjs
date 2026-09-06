@@ -38,20 +38,23 @@ const slides = [
 ];
 slides.push({id:'relations',role:'content',claim:'条件与方向保留',modules:[{
   id:'relation',type:'diagram',semanticRole:'primaryEvidence',expression:{type:'diagram',variant:'role-network'},
-  data:{nodes:[{id:'long',label:'项目主体\n银行甲\n银行乙'},{id:'short',label:'服务商'}],edges:[{from:'long',to:'short',label:'支付服务费',condition:'仅在验收通过后'}]}
+  data:{nodes:[{id:'long',label:'项目主体\n银行甲\n银行乙',text:'共同承担项目交付'},{id:'short',label:'服务商',text:'验收后提供运行支持'},{id:'isolated',label:'独立核验',text:'范围仅限已验收项目'}],edges:[{from:'long',to:'short',label:'支付服务费',condition:'仅在验收通过后'}]}
 }]});
 const ir = { slides }, htmlFile = path.join(folder, "design.html"), designDir = path.join(folder, "design-render"), pptx = path.join(folder, "poc.pptx"), pptDir = path.join(folder, "ppt-render");
+slides[0].modules[0].text='图表独有说明：弹性投入按当前口径保留。';
 slides[2].modules[0].title = '四国策略比较';
 slides[1].modules[0].imageTextReview = {status:'reviewed',regions:[{id:'labels',text:'客户 平台 银行',minimumGlyphHeightPx:40}]};
 writeDesignCanvas(ir, theme, htmlFile);
 const manifest = await extractDesignLayout({ htmlFile, outputDir: designDir, expectedSlides: 4 });
 assert.deepEqual(manifest.issues, []);
+assert(manifest.slides[0].modules[0].textObjects.some(t=>t.text==='图表独有说明：弹性投入按当前口径保留。'));
 const imageLayout=manifest.slides[1].modules, primary=imageLayout[0];
 assert.ok(imageLayout.slice(1).every(m=>m.rect.left > primary.rect.left + primary.rect.width),'all image explanations must occupy the right rail');
 assert.ok(imageLayout[2].rect.top > imageLayout[1].rect.top && imageLayout[3].rect.top > imageLayout[2].rect.top,'the rail stacks vertically');
 assert.ok(new Set(manifest.slides.flatMap(s=>s.modules.flatMap(m=>m.textObjects.filter(t=>t.className==='module-title').map(t=>t.color)))).size >= 3,'semantic headings must not collapse to one green');
 const shortCopy = imageLayout[1].textObjects.find(t=>t.className==='module-copy');
-assert.ok(shortCopy.contentRect.height >= shortCopy.fontSizePx * 2,'single-line prose needs native wrap capacity too');
+assert.ok(shortCopy.contentRect.height >= shortCopy.inkRect.height,'measured prose retains a baseline guard');
+assert.ok(shortCopy.contentRect.height < shortCopy.fontSizePx * 2,'frozen single-line prose must not reserve a second empty line');
 for (const copy of manifest.slides.flatMap(s=>s.modules.flatMap(m=>m.textObjects)).filter(t=>t.className==='module-copy')) {
   assert.equal(copy.renderText.replace(/\s/g,''),copy.text.replace(/\s/g,''),'measured line breaks must preserve every character');
 }
@@ -59,11 +62,15 @@ const countryCells = manifest.slides[2].modules[0].table.rows.slice(1).map(row=>
 assert.ok(countryCells.every(cell=>cell.contentRect.width >= cell.fontSizePx * 4),'country names must not be forced into one-character columns');
 assert.ok(manifest.slides[2].modules[0].table.rect.width < 1000, 'short qualitative table must use natural width');
 const relation = manifest.slides[3].modules[0].diagramRelations[0];
+for(const text of ['共同承担项目交付','验收后提供运行支持','范围仅限已验收项目']) assert(manifest.slides[3].modules[0].text.includes(text),'Sparse graphs must render node summaries, not just names');
 assert.ok(Math.abs(relation.nodes[0].rect.height - relation.nodes[1].rect.height) < 1,'connector sites must be aligned');
 assert.ok(relation.label.rect.top + relation.label.rect.height < relation.nodes[0].rect.top + relation.nodes[0].rect.height / 2,'the relation label must clear the connector lane');
 const laid = applyDomLayout(ir, manifest), { presentation } = await renderPresentation(laid, theme); await exportPresentation(presentation, pptx);
 const pkg = await inspectPptxPackage(pptx); assert.equal(pkg.slides.length, 4); assert.ok(pkg.nativeTables >= 1); assert.ok(pkg.charts.length >= 0); assert.ok(pkg.media.length >= 1); assert.equal(pkg.fullSlideImages.length, 0);
 const relationXml = await pkg.zip.file('ppt/slides/slide4.xml').async('string');
+assert((await pkg.zip.file('ppt/slides/slide1.xml').async('string')).includes('图表独有说明'),'Chart display copy must survive native compilation');
+for(const text of ['共同承担项目交付','验收后提供运行支持','范围仅限已验收项目']) assert(relationXml.includes(text),'Native sparse graph summaries survive compilation');
+for(const id of ['long','short','isolated']) assert(relationXml.includes('fact-target:'+id),'Sparse and connected native nodes preserve exact fact scope');
 assert.match(relationXml, /<p:cxnSp>/, 'relations must be real connected shapes');
 assert.match(relationXml, /<a:tailEnd[^>]*type="triangle"/, 'the exported arrow must have its actual direction marker');
 const require = createRequire(path.join(process.env.RUNTIME_NODE_MODULES, "package.json")), { FileBlob, PresentationFile } = await import(pathToFileURL(require.resolve("@oai/artifact-tool")).href), imported = await PresentationFile.importPptx(await FileBlob.load(pptx)); fs.mkdirSync(pptDir);

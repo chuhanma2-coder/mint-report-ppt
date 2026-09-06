@@ -3,7 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chartDisplayModel } from "./chart-display-model.mjs";
 import {projectPresentationCopy} from './presentation-copy.mjs';
-import { primitiveMarkup, primitiveCss, visualModuleMarkup, repairPrimitiveLayout } from './visual-primitives.mjs';
+import { primitiveMarkup, primitiveCss, visualModuleMarkup, repairPrimitiveLayout,layoutPrimitiveEdges,entityProfileFields,metricText } from './visual-primitives.mjs';
 import {sceneMarkup,directorMarkup,sceneCss,directorCss,sceneRepairCss,sceneAlternativeCss,sceneAttachmentCss,layoutAttachments,networkOrder,layoutNetworks} from './scene-plan.mjs';
 
 const esc = value => String(value ?? "").replace(/[&<>\"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
@@ -28,21 +28,22 @@ const attrs = `style="${placement}" data-mint-object="module" data-mint-index="$
   if (type === "metric") return `<section class="module metric" ${attrs}>${title}<div class="metric-value" data-mint-object="text">${esc(module.value ?? module.data?.value ?? "")}${esc(module.unit || "")}</div>${module.text ? `<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>` : ""}</section>`;
   if (type === "image") {
     const source = module.imagePath || module.data?.imagePath || "", imageUrl = source && !/^(?:data:|https?:|file:)/i.test(source) ? pathToFileURL(path.resolve(source)).href : source;
-    return `<section class="module image" ${attrs}>${title}<img src="${esc(imageUrl)}" alt="${esc(module.alt || module.title || "")}" /></section>`;
+    return `<section class="module image" ${attrs}>${title}<img src="${esc(imageUrl)}" alt="${esc(module.alt || module.title || "")}" />${module.text?`<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>`:''}</section>`;
   }
   if (type === "table") {
     const data = module.data || {}, headers = data.headers || data.columns || [], rows = data.rows || [];
     return `<section class="module table" ${attrs}>${title}<div class="table-content ${rows.length<=4&&module.text?'table-with-note':''}"><div class="table-body"><table><thead><tr>${headers.map(cell => `<th>${esc(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr>${(Array.isArray(row) ? row : headers.map(key => row[key])).map(cell => `<td>${esc(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>${module.text ? `<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>` : ""}</div></section>`;
   }
-  if (type === "chart") return `<section class="module chart" ${attrs}>${title}<div class="chart-preview"></div></section>`;
+  if (type === "chart") return `<section class="module chart" ${attrs}>${title}<div class="chart-preview"></div>${module.text?`<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>`:''}</section>`;
   if (type === "diagram") {
     const nodes = module.data?.nodes || [], edges = module.data?.edges || [];
+    const nodeCopy=node=>[node.label||node.name||node.id,node.text,...(node.metrics||[]).map(metricText),...Object.values(entityProfileFields(node)).flat(),node.timeRange?.label|| (node.timeRange?[node.timeRange.start,node.timeRange.end].join(' – '):null),node.condition,node.status,node.duration].filter(Boolean).join('\n');
     if(edges.length>1 || module.measuredTopology==='network') {
       const order=networkOrder(nodes,edges),columns=Math.max(0,...order.map(n=>n.level))+1;
       if(nodes.length>10&&!nodes.every(n=>n.group)) throw new Error('NETWORK_GROUPING_REQUIRED: '+module.id);
       const graph=order.map(({id,level})=>{
         const node=nodes.find(n=>String(n.id)===id);
-        const text=[node.label||node.name||id,node.text,node.timeRange?[node.timeRange.start,node.timeRange.end].join(' – '):null,node.condition,node.status,node.duration,...(node.metrics||[])].filter(Boolean).join('\n');
+        const text=nodeCopy(node);
         return `<div class="diagram-node" data-node-id="${esc(id)}" data-actor-slot="${nodes.indexOf(node)%3}" style="grid-column:${level+1}">${esc(text)}</div>`;
       }).join('');
       return `<section class="module diagram" ${attrs}>${title}<div class="diagram-network" data-network-edges="${json(edges)}"><div class="network-nodes" style="grid-template-columns:repeat(${columns},fit-content(360px))">${graph}</div></div>${module.text?`<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>`:''}</section>`;
@@ -55,9 +56,9 @@ const attrs = `style="${placement}" data-mint-object="module" data-mint-index="$
       if (!from || !to) throw new Error('DIAGRAM_ENDPOINT_MISSING: ' + module.id);
       used.add(String(from.id)); used.add(String(to.id));
       const label = [edge.label, edge.condition].filter(Boolean).join(' · ');
-      return `<div class="diagram-rel" data-edge-index="${edgeIndex}"><div class="diagram-node" data-actor-slot="${actorSlot(from.id)}" data-node-id="${esc(from.id)}">${esc(from.label || from.name || from.id)}</div><div class="diagram-edge"><div class="edge-label" data-mint-object="text">${esc(label)}</div><div class="edge-arrow">→</div></div><div class="diagram-node" data-actor-slot="${actorSlot(to.id)}" data-node-id="${esc(to.id)}">${esc(to.label || to.name || to.id)}</div></div>`;
+      return `<div class="diagram-rel" data-edge-index="${edgeIndex}"><div class="diagram-node" data-actor-slot="${actorSlot(from.id)}" data-node-id="${esc(from.id)}">${esc(nodeCopy(from))}</div><div class="diagram-edge"><div class="edge-label" data-mint-object="text">${esc(label)}</div><div class="edge-arrow">→</div></div><div class="diagram-node" data-actor-slot="${actorSlot(to.id)}" data-node-id="${esc(to.id)}">${esc(nodeCopy(to))}</div></div>`;
     }).join('');
-    const isolated = nodes.filter(node => !used.has(String(node.id))).map(node => `<div class="diagram-node" data-node-id="${esc(node.id)}">${esc(node.label || node.name || node.id)}</div>`).join('');
+    const isolated = nodes.filter(node => !used.has(String(node.id))).map(node => `<div class="diagram-node" data-node-id="${esc(node.id)}">${esc(nodeCopy(node))}</div>`).join('');
     return `<section class="module diagram" ${attrs}>${title}<div class="diagram-preview">${relationships}${isolated}</div>${module.text ? `<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>` : ''}</section>`;
   }
   return `<section class="module narrative" ${attrs}>${title}<div class="module-copy" data-mint-object="text">${esc(module.text || "")}</div></section>`;
@@ -135,10 +136,12 @@ ${Object.entries(theme.semanticColors.roleAccents || {}).map(([role,color]) => `
 .module-copy{font-size:${fontPx('body')}px;line-height:1.3;white-space:pre-wrap}
 .module[data-mint-priority="P0"]{position:relative;z-index:2}.module[data-mint-priority="P0"] .module-title{font-size:${fontPx('contentTitle',1)}px;font-weight:800}.module[data-mint-priority="P1"]{z-index:1}.module[data-mint-priority="P2"]{opacity:.84}
 .module[data-director-treatment="hero-metric"] .metric-value,.module[data-mint-priority="P0"] .metric-value{font-size:${fontPx('heroMetric')}px;font-weight:800}
+.module[data-director-treatment="inline-callout"]{padding:10px 14px;background:transparent;border-left:3px solid var(--role-accent,${p.mint})}
+.module[data-director-treatment="context-note"]{padding:6px 0;background:transparent;border:0}.module[data-director-treatment="context-note"] .module-copy{font-size:${fontPx('supportBody')}px}
 .module[data-semantic-color-role="risk"]{--role-accent:${p.coral};background:${p.coralLight}}.module[data-semantic-color-role="progress"]{--role-accent:${p.mint};background:${p.mintLight}}.module[data-semantic-color-role="target"]{--role-accent:${p.blue};background:${p.blueLight}}.module[data-semantic-color-role="highlight"]{--role-accent:${p.orange};background:${p.orangeLight}}
 .narrative[data-mint-priority="P0"] .module-copy{font-size:${fontPx('body',1)}px;font-weight:600}
-.metric-value{font-size:${fontPx('heroMetric',1)}px;font-weight:800;color:${theme.semanticColors.metricText};line-height:1.3}
-.metric-cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px}.metric-cells .metric-value{font-size:${fontPx('heroMetric')}px}
+.metric-value{font-size:${fontPx('contentTitle')}px;font-weight:700;color:${theme.semanticColors.metricText};line-height:1.3}
+.metric-cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px}.module[data-mint-priority="P2"] .metric-value{font-size:${fontPx('body',1)}px;color:${p.ink}}
 .image img{display:block;width:100%;height:auto;max-height:620px;object-fit:contain}
 .table table{font-size:${fontPx('table',1)}px;table-layout:auto;width:100%;border-collapse:collapse}
 .table th,.table td{padding:8px 10px;vertical-align:top;border:1px solid ${p.line};text-align:left}
@@ -184,7 +187,8 @@ const chartDisplayModel = ${chartDisplayModel.toString()};
 const layoutNetworks = ${layoutNetworks.toString()};
 const layoutAttachments = ${layoutAttachments.toString()};
 const repairPrimitiveLayout = ${repairPrimitiveLayout.toString()};
-window.mintRelayoutAttachments=layoutAttachments;
+const layoutPrimitiveEdges = ${layoutPrimitiveEdges.toString()};
+window.mintRelayoutAttachments=()=>{layoutAttachments();layoutPrimitiveEdges();};
 function renderCharts() {
   for (const module of document.querySelectorAll('.module.table')) {
     const semantic = JSON.parse(module.dataset.mintSemantic), focus = semantic.expression?.focusRows || [];
@@ -265,6 +269,8 @@ function renderCharts() {
           element.textContent = primitive.text; element.dataset.mintObject = 'text';
           element.className = primitive.role || 'chartLabel';
           element.style.fontSize = primitive.fontSize + 'px'; element.style.lineHeight = '1.2'; element.style.color = primitive.color;
+          if(primitive.bold) element.style.fontWeight='700';
+          if(primitive.metricBindingId){element.dataset.metricBindingId=primitive.metricBindingId;element.dataset.metricPriority=primitive.metricPriority;}
         } else if (primitive.kind === 'sector') {
           const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), arc = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           svg.setAttribute('width', primitive.width); svg.setAttribute('height', primitive.height);
@@ -279,7 +285,7 @@ function renderCharts() {
   }
   layoutAttachments();
 }
-Promise.all([document.fonts.ready,...[...document.images].map(i=>i.decode())]).then(()=>{try{repairPrimitiveLayout();renderCharts();document.documentElement.dataset.renderReady='true'}catch(error){document.documentElement.dataset.renderError=error.message;document.documentElement.dataset.renderReady='true'}});
+Promise.all([document.fonts.ready,...[...document.images].map(i=>i.decode())]).then(()=>{try{repairPrimitiveLayout();renderCharts();layoutPrimitiveEdges();document.documentElement.dataset.renderReady='true'}catch(error){document.documentElement.dataset.renderError=error.message;document.documentElement.dataset.renderReady='true'}});
 })();
 </script></body></html>`;
 }

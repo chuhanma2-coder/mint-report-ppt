@@ -15,6 +15,7 @@ const table={id:'costs',type:'table',data:{headers:['科目','值'],rows:[['总�
 const natural=await planOutlinePages([{...slide('summary','1'),modules:[{id:'policy',type:'text',text:'启动原则',evidenceGroup:'policy'},table]}],async p=>({passed:p.modules.reduce((sum,m)=>sum+(m.data?.rows?.length||1),0)<=2,issues:['capacity']}));
 assert.equal(natural.slides.length,2);
 assert.deepEqual(natural.slides[0].modules.map(m=>m.id),['policy','costs-group-1']);
+assert.equal(natural.slides[0].modules[1].originModuleId,'costs');
 assert.deepEqual(natural.slides.flatMap(s=>s.modules.flatMap(m=>m.data?.rows||[])),table.data.rows);
 console.log('outline-planner: 5 assertions passed');
 const scored=await planOutlinePages([{...slide('rank','1'),modules:[{id:'one'},{id:'two'}]}],async p=>({passed:true,slides:[{compositionScore:p.measuredComposition==='primary-rail'?5:0}]}));

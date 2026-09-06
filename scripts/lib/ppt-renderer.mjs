@@ -252,19 +252,25 @@ function addTable(slide, module, frame, theme, font, index, measured = null) {
 }
 
 function addVisualPrimitives(slide, measured, theme, font, index) {
+  const nodes=new Map();
+  for(const p of measured.primitives.filter(p=>['milestone','entity-profile'].includes(p.primitive))) {
+    const node=slide.shapes.add({geometry:'rect',name:`mint|primitive:${p.primitive}|binding:${encodeURIComponent(p.bindingId)}`,position:p.rect,fill:p.backgroundColor||'none',line:noLine});
+    nodes.set(p.nodeId,node);
+  }
   for (const p of measured.primitives) {
     const name=`mint|primitive:${p.primitive}|binding:${encodeURIComponent(p.bindingId)}`;
     // Compile browser-measured surfaces and rules, not estimated card frames.
-    slide.shapes.add({geometry:'rect',name,position:p.rect,fill:p.backgroundColor || 'none',line:noLine});
+    if(!['milestone','entity-profile'].includes(p.primitive)) slide.shapes.add({geometry:'rect',name,position:p.rect,fill:p.backgroundColor || 'none',line:noLine});
+    if(p.primitive==='dependency-edge') {
+      if(!nodes.has(p.from)||!nodes.has(p.to)||!p.connection) throw new Error(`NATIVE_DEPENDENCY_ENDPOINT_REQUIRED: ${p.bindingId}`);
+      const connector=slide.shapes.connect(nodes.get(p.from),nodes.get(p.to),{kind:'straight',fromSide:'right',toSide:'left',line:{fill:p.borderColor,width:2},tail:{type:'triangle',width:'med',length:'med'}});
+      connector.name=name+'|rule';
+    }
     if(p.borderLeftWidth) slide.shapes.add({geometry:'rect',name:name+'|accent',position:{...p.rect,width:p.borderLeftWidth},fill:p.borderLeftColor,line:noLine});
     if(p.borderRightWidth) slide.shapes.add({geometry:'rect',name:name+'|right',position:{...p.rect,left:p.rect.left+p.rect.width-p.borderRightWidth,width:p.borderRightWidth},fill:p.borderRightColor,line:noLine});
     if(p.borderTopWidth) slide.shapes.add({geometry:'rect',name:name+'|top',position:{...p.rect,height:p.borderTopWidth},fill:p.borderTopColor,line:noLine});
     if(p.borderBottomWidth) {
-      if(p.primitive==='dependency-edge') {
-        const anchor=x=>slide.shapes.add({geometry:'rect',name:name+'|anchor',position:{left:x,top:p.rect.top+p.rect.height-1,width:1,height:1},fill:'none',line:noLine});
-        const connector=slide.shapes.connect(anchor(p.rect.left),anchor(p.rect.left+p.rect.width),{kind:'straight',fromSide:'right',toSide:'left',line:{fill:p.borderColor,width:p.borderBottomWidth},tail:{type:'triangle',width:'med',length:'med'}});
-        connector.name=name+'|rule';
-      } else slide.shapes.add({geometry:'line',name:name+'|rule',position:{left:p.rect.left,top:p.rect.top+p.rect.height-1,width:p.rect.width,height:0},line:{fill:p.borderColor,width:p.borderBottomWidth}});
+      if(p.primitive!=='dependency-edge') slide.shapes.add({geometry:'line',name:name+'|rule',position:{left:p.rect.left,top:p.rect.top+p.rect.height-1,width:p.rect.width,height:0},line:{fill:p.borderColor,width:p.borderBottomWidth}});
     }
   }
   // Canvas reserves a small right-hand wrap guard, then freezes its lines. The
@@ -275,17 +281,20 @@ function addVisualPrimitives(slide, measured, theme, font, index) {
 
 function addDiagram(slide, module, frame, theme, font, index, measured = null) {
   if(measured?.network) {
+    const nativeNodes=new Map();
     for(const node of measured.network.nodes) {
       const name=`mint|diagram-node|${index}|binding:${encodeURIComponent(node.nodeId)}`;
-      slide.shapes.add({geometry:'rect',name:name+'|bg',position:node.rect,fill:node.backgroundColor,line:{fill:node.borderLeftColor,width:2}});
+      nativeNodes.set(node.nodeId,slide.shapes.add({geometry:'rect',name:name+'|bg',position:node.rect,fill:node.backgroundColor,line:{fill:node.borderLeftColor,width:2}}));
       addText(slide,node.renderText||node.text,node.contentRect,{typeface:font,fontSizePt:node.fontSizePx*72/96,bold:true,color:node.color},name+'|text-role:diagramNode|fact-target:'+encodeURIComponent(node.nodeId));
     }
     for(const edge of measured.network.edges) {
       const name=`mint|diagram-edge|${index}|binding:${encodeURIComponent(edge.id)}|from:${encodeURIComponent(edge.from)}|to:${encodeURIComponent(edge.to)}`;
       const points=edge.points.filter((p,i,a)=>i===0||p[0]!==a[i-1][0]||p[1]!==a[i-1][1]);
+      const nodes=points.map(([left,top],i)=>i===0?nativeNodes.get(edge.from):i===points.length-1?nativeNodes.get(edge.to):slide.shapes.add({geometry:'rect',name:name+'|waypoint:'+i,position:{left:left-.05,top:top-.05,width:.1,height:.1},fill:'none',line:noLine}));
+      if(nodes.some(n=>!n)) throw new Error(`NATIVE_NETWORK_ENDPOINT_REQUIRED: ${edge.id}`);
       for(let i=1;i<points.length;i++) {
-        const anchor=([left,top])=>slide.shapes.add({geometry:'rect',name:name+'|anchor',position:{left,top,width:0.1,height:0.1},fill:'none',line:noLine});
-        const line=slide.shapes.connect(anchor(points[i-1]),anchor(points[i]),{kind:'straight',line:{fill:theme.palette.mint,width:2},...(i===points.length-1?{tail:{type:'triangle',width:'med',length:'med'}}:{})});line.name=name+'|segment:'+i;
+        const fromSide=points[1][0]>=points[0][0]?'right':'left',toSide=points.at(-1)[0]>=points.at(-2)[0]?'left':'right';
+        const line=slide.shapes.connect(nodes[i-1],nodes[i],{kind:'straight',...(i===1?{fromSide}:{}),...(i===points.length-1?{toSide,tail:{type:'triangle',width:'med',length:'med'}}:{}),line:{fill:theme.palette.mint,width:2}});line.name=name+'|segment:'+i;
       }
       if(edge.label.text) addText(slide,edge.label.text,edge.label.contentRect,{typeface:font,fontSizePt:edge.label.fontSizePx*72/96,color:edge.label.color},name+'|edge-label|text-role:diagramEdge');
     }
@@ -299,7 +308,7 @@ function addDiagram(slide, module, frame, theme, font, index, measured = null) {
         const actorIndex=(module.data.nodes||[]).findIndex(n=>String(n.id)===node.nodeId), slot=Math.max(0,actorIndex)%3;
         const backgrounds=[theme.palette.blueLight,theme.palette.mintLight,theme.palette.orangeLight], borders=[theme.palette.blue,theme.palette.mint,theme.palette.orange];
         shapes.push(slide.shapes.add({ geometry: 'rect', name: `mint|diagram-node-bg|${index}-${i}-${j}`, position: node.rect, fill: solid(backgrounds[slot]), line: { fill: borders[slot], width: 2 } }));
-        addText(slide, node.renderText || node.text, node.contentRect, { typeface: font, fontSizePt: node.fontSizePx * 72 / 96, bold: true, color: theme.palette.ink }, `mint|diagram-node|${index}-${i}-${j}`);
+        addText(slide, node.renderText || node.text, node.contentRect, { typeface: font, fontSizePt: node.fontSizePx * 72 / 96, bold: true, color: theme.palette.ink }, `mint|diagram-node|${index}-${i}-${j}|fact-target:${encodeURIComponent(node.nodeId)}`);
       }
       addText(slide, relation.label.text, relation.label.contentRect, { typeface: font, fontSizePt: relation.label.fontSizePx * 72 / 96, color: theme.palette.ink }, `mint|diagram-edge-label|${index}-${i}`);
       const connector = slide.shapes.connect(shapes[0], shapes[1], {
@@ -312,7 +321,7 @@ function addDiagram(slide, module, frame, theme, font, index, measured = null) {
     const connected = measured.diagramRelations.flatMap(relation => relation.nodes);
     for (const [i, node] of measured.textObjects.filter(item => item.className === 'diagram-node' && !connected.some(other => other.rect.left === item.rect.left && other.rect.top === item.rect.top)).entries()) {
       slide.shapes.add({ geometry: 'rect', name: `mint|diagram-isolated-bg|${index}-${i}`, position: node.rect, fill: solid(theme.palette.mintLight), line: { fill: theme.palette.mint, width: 2 } });
-      addText(slide, node.text, node.contentRect, { typeface: font, fontSizePt: node.fontSizePx * 72 / 96, bold: true, color: theme.palette.ink }, `mint|diagram-isolated-node|${index}-${i}`);
+      addText(slide, node.renderText || node.text, node.contentRect, { typeface: font, fontSizePt: node.fontSizePx * 72 / 96, bold: true, color: theme.palette.ink }, `mint|diagram-isolated-node|${index}-${i}|fact-target:${encodeURIComponent(node.nodeId)}`);
     }
     for (const text of measured.textObjects.filter(item => item.className === 'module-title')) addText(slide, text.text, text.contentRect, { typeface: font, fontSizePt: text.fontSizePx * 72 / 96, bold: true, color: text.color || theme.palette.ink }, `mint|diagram-title|${index}`);
     for (const text of measured.textObjects.filter(item => item.className === 'module-copy')) addText(slide, text.renderText || text.text, text.contentRect, { typeface: font, fontSizePt: text.fontSizePx * 72 / 96, color: theme.palette.ink }, `mint|diagram-note|${index}`);
@@ -359,7 +368,7 @@ function addMeasuredChart(slide, measured, theme, font, index) {
   const { rect: origin, model } = measured.chart;
   for (const [i, primitive] of model.primitives.entries()) {
     const frame = { left: origin.left + primitive.x, top: origin.top + primitive.y, width: primitive.width, height: primitive.height };
-    if (primitive.kind === 'text') addText(slide, primitive.text, frame, { typeface: font, fontSizePt: primitive.fontSize * 72 / 96, color: primitive.color }, `mint|chart-label|${index}-${i}|text-role:${primitive.role || 'chartLabel'}`);
+    if (primitive.kind === 'text') addText(slide, primitive.text, frame, { typeface: font, fontSizePt: primitive.fontSize * 72 / 96, color: primitive.color,bold:primitive.bold }, `mint|chart-label|${index}-${i}|text-role:${primitive.role || 'chartLabel'}${primitive.metricBindingId?'|design-target:'+encodeURIComponent(primitive.metricBindingId)+'|metric-part:value':''}`);
     else if (primitive.kind === 'line') {
       const dx = primitive.x2 - primitive.x, dy = primitive.y2 - primitive.y, length = Math.hypot(dx, dy);
       // Rotation around the line centre preserves both rising and falling
@@ -396,9 +405,9 @@ export async function renderPresentation(ir, theme) {
         for (const [j, text] of measured.textObjects.entries()) addText(slide, text.renderText || text.text, text.contentRect, { typeface: font, fontSizePt: text.fontSizePx * 72 / 96, bold: text.bold, color: text.color || theme.palette.ink }, `mint|measured-text|${index}-${j}`);
       }
       else if (type === "metric") addMetric(slide, module, frame, theme, font, index);
-      else if (type === "chart" && measured?.chart && (nativeChartCompatibilityIssue(module.data, variant) || !["line", "column", "variance-bar", "doughnut", "percent-stacked", "scatter"].includes(variant))) {
+      else if (type === "chart" && measured?.chart && (module.expression.metricEmphasis?.length || nativeChartCompatibilityIssue(module.data, variant) || !["line", "column", "variance-bar", "doughnut", "percent-stacked", "scatter"].includes(variant))) {
         addMeasuredChart(slide, measured, theme, font, index);
-        const reason = nativeChartCompatibilityIssue(module.data, variant);
+        const reason = module.expression.metricEmphasis?.length?'point-specific-design-emphasis':nativeChartCompatibilityIssue(module.data, variant);
         if (reason) diagnostics.push({slideId:spec.id,moduleId:module.id,implementation:'editable-shapes',expression:variant,reason});
       }
       else if (type === "chart") {
@@ -412,6 +421,7 @@ export async function renderPresentation(ir, theme) {
         for (const text of measured?.textObjects || []) addText(slide, text.text, text.contentRect, { typeface: font, fontSizePt: text.fontSizePx * 72 / 96, bold: text.bold, color: text.color || theme.palette.ink }, `mint|image-text|${index}`);
       }
       else addNarrative(slide, module, frame, theme, font, index, spec.typography?.modules?.[index]);
+      if(type==='chart') for(const [j,text] of (measured?.textObjects||[]).filter(t=>t.className==='module-copy').entries()) addText(slide,text.renderText||text.text,text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,color:text.color||theme.palette.ink},`mint|chart-note|${index}-${j}`);
       for (const object of collections.flatMap(collection => collection.items)) if (!existing.has(object)) object.name = `${object.name || 'mint|object'}|role:${module.semanticRole || 'primaryEvidence'}|module:${encodeURIComponent(module.id)}`;
     }
     slide.speakerNotes.textFrame.setText(JSON.stringify({ slideId: spec.id, sectionId: spec.sectionId || ir.sectionId, outlineItems:spec.outlineItems || [spec.outlineItem], outlineItem:spec.outlineItem, evidenceRefs: spec.evidenceRefs, sourceEvidence: spec.sourceEvidence || [], moduleEvidence: spec.modules.map(module => module.evidenceRefs || []) }));

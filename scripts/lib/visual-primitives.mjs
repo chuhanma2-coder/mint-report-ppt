@@ -1,8 +1,10 @@
 import { visualPrimitives } from './design-intent.mjs';
 import {theme} from './config.mjs';
 const esc = value => String(value ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+// Keep the source quantity together; never substitute a shorter value or unit.
+const quantityCopy=value=>esc(value).replace(/\d[\d,]*(?:\.\d+)?(?:万亿|千万|百万|亿|万|千|%|％|个月|美元|元|人)/g,token=>`<span class="quantity-token">${token}</span>`);
 
-function metricText(metric) {
+export function metricText(metric) {
   if(typeof metric==='string'||typeof metric==='number') return String(metric);
   if(!metric||metric.value==null) throw new Error('PROFILE_METRIC_VALUE_REQUIRED');
   return [metric.scope,metric.label,metric.value,metric.unit].filter(v=>v!==undefined&&v!=='').join(' ');
@@ -16,13 +18,13 @@ export function entityProfileFields(node) {
 export function primitiveMarkup(kind, text, binding, extra = {}) {
   if (!visualPrimitives.includes(kind)) throw new Error(`UNSUPPORTED_PRIMITIVE: ${kind}`);
   const fields = Object.entries({...extra,bindingId:binding}).map(([key,value])=>`data-vp-${key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase())}="${esc(value)}"`).join(' ');
-  return `<div class="vp vp-${kind}" data-visual-primitive="${kind}" ${fields}><div class="vp-text" data-mint-object="text">${esc(text)}</div></div>`;
+  return `<div class="vp vp-${kind}" data-visual-primitive="${kind}" ${fields}><div class="vp-text" data-mint-object="text">${quantityCopy(text)}</div></div>`;
 }
 
 function metricMarkup(value,binding,extra,priority='P1') {
   if(!['P0','P1','P2'].includes(priority)) throw new Error('METRIC_PRIORITY_INVALID');
   const wrapper=primitiveMarkup('metric-badge','',binding,{...extra,priority});
-  if(value==null||typeof value!=='object') return wrapper.replace('></div></div>',`>${esc(value)}</div></div>`);
+  if(value==null||typeof value!=='object') return wrapper.replace('></div></div>',`>${quantityCopy(value)}</div></div>`);
   if(value.value==null||Object.keys(value).some(k=>!['scope','label','value','unit'].includes(k))) throw new Error('METRIC_PARTS_INVALID');
   const part=(key,text)=>`<div class="vp-text metric-${key}" data-mint-object="text">${esc(text)}</div>`;
   const caption=[value.scope,value.label].filter(Boolean).join(' ');
@@ -57,9 +59,9 @@ export function visualModuleMarkup(module) {
     if (node.status) parts.push(primitiveMarkup('status-chip',node.status,binding(`${node.id}/status`),{...extra,state:node.statusType||'neutral'}));
     if (node.condition) parts.push(primitiveMarkup('risk-strip',node.condition,binding(`${node.id}/condition`),extra));
     if (node.text&&!node.entity) parts.push(`<div class="module-copy" data-mint-object="text">${esc(node.text)}</div>`);
-    return `<div class="vp-node" data-vp-node="${esc(node.id)}">${parts.join('')}</div>`;
+    return `<div class="vp-node${node.entity?' vp-entity':''}" data-vp-node="${esc(node.id)}">${parts.join('')}</div>`;
   };
-  if (kind === 'entity-comparison') return `<div class="vp-profiles">${nodes.map(nodeMarkup).join('')}</div>`;
+  if (kind === 'entity-comparison') return `<div class="vp-profiles${module.internalVariant==='content-first'?' vp-profile-rows':''}">${nodes.map(nodeMarkup).join('')}</div>`;
   const lanes = data.lanes?.length ? data.lanes : [{id:'main',nodeIds:nodes.map(n=>n.id)}];
   const assigned = lanes.flatMap(l=>l.nodeIds || []);
   if (new Set(assigned).size !== nodes.length || assigned.length !== nodes.length || assigned.some(id=>!nodes.some(n=>n.id===id))) throw new Error(`NARRATIVE_LANE_COVERAGE: ${module.id}`);
@@ -99,22 +101,49 @@ export function primitiveCss(tokens=theme) {
   ${Object.entries(policy.statusColors).map(([state,color])=>`.vp-status-chip[data-vp-state="${state}"]{background:${p[color]}}`).join('')}
   ${Object.entries(policy.milestoneColors).map(([state,color])=>`.vp-milestone[data-vp-state="${state}"]{border-bottom-color:${p[color]}}`).join('')}
   ${Object.entries(policy.rangeColors).map(([state,color])=>`.vp-time-range[data-vp-state="${state}"]{background:${p[color]}}`).join('')}
-  .metric-number{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px}.vp-metric-badge[data-vp-priority="P0"] .vp-text{font-size:${px(t.heroMetric[0])}px;color:${p.ink}}.vp-metric-badge[data-vp-priority="P2"] .vp-text{font-size:${px(t.diagramNode[1])}px;font-weight:400;color:${p.muted}}.vp-metric-badge[data-vp-priority] .metric-label,.vp-metric-badge[data-vp-priority] .metric-unit{font-size:${px(t.diagramNode[1])}px;font-weight:400;color:${p.muted}}
+  .quantity-token{white-space:nowrap}.metric-number{display:flex;align-items:baseline;flex-wrap:nowrap;gap:6px}.vp-metric-badge[data-vp-priority="P0"] .vp-text{font-size:${px(t.heroMetric[0])}px;color:${p.ink}}.vp-metric-badge[data-vp-priority="P1"] .vp-text{font-size:${px(t.body[1])}px;color:${p.ink}}.vp-metric-badge[data-vp-priority="P2"] .vp-text{font-size:${px(t.diagramNode[1])}px;font-weight:400;color:${p.muted}}.vp-metric-badge[data-vp-priority] .metric-label,.vp-metric-badge[data-vp-priority] .metric-unit{font-size:${px(t.diagramNode[1])}px;font-weight:400;color:${p.muted}}
+  .vp-profile-rows{grid-template-columns:minmax(0,1fr)}.vp-profile-rows .profile-row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,2fr);align-items:start;gap:18px;border-bottom:1px solid ${p.line};padding:10px 0}.profile-row-heading,.profile-row-metrics,.profile-row-copy{min-width:0;display:grid;gap:8px}.vp-profile-rows .vp-entity-profile{border-top:0;border-left:${s.ruleWidth}px solid ${p.blue}}.profile-row .vp,.profile-row .module-copy{padding-top:4px;padding-bottom:4px}
+  .vp-dependency-edge[data-vp-connection]:after{display:none}
   .vp-time-range{border-left-width:${s.ruleWidth}px;border-right:${s.ruleWidth}px solid ${p.orange}}`;
+}
+
+// The browser measures the actual source/target surfaces. Native compilation
+// consumes these same endpoints instead of inventing invisible endpoint boxes.
+export function layoutPrimitiveEdges() {
+  for(const track of document.querySelectorAll('.vp-track')) {
+    track.style.position='relative';
+    for(const old of track.querySelectorAll('.vp-edge-line')) old.remove();
+    const origin=track.getBoundingClientRect(),slide=track.closest('.mint-ppt-slide').getBoundingClientRect();
+    for(const edge of track.querySelectorAll(':scope > .vp-dependency-edge')) {
+      const surface=id=>[...track.querySelectorAll('.vp-milestone,.vp-entity-profile')].find(n=>n.dataset.vpNodeId===id);
+      const a=surface(edge.dataset.vpFrom)?.getBoundingClientRect(),b=surface(edge.dataset.vpTo)?.getBoundingClientRect();
+      if(!a||!b) throw new Error('NARRATIVE_EDGE_ENDPOINT_MISSING');
+      const points=[[a.right,a.top+a.height/2],[b.left,b.top+b.height/2]];
+      edge.dataset.vpConnection=JSON.stringify(points.map(([x,y])=>[x-slide.left,y-slide.top]));
+      const line=document.createElement('div'),dx=points[1][0]-points[0][0],dy=points[1][1]-points[0][1];
+      line.className='vp-edge-line';
+      const color=getComputedStyle(edge).borderBottomColor;
+      line.style.cssText=`position:absolute;left:${points[0][0]-origin.left}px;top:${points[0][1]-origin.top}px;width:${Math.hypot(dx,dy)}px;border-top:2px solid ${color};transform-origin:0 0;transform:rotate(${Math.atan2(dy,dx)}rad);pointer-events:none;color:${color}`;
+      const arrow=document.createElement('span');arrow.textContent='▶';arrow.style.cssText='position:absolute;right:-2px;top:-12px;font-size:18px';line.appendChild(arrow);track.appendChild(line);
+      edge.style.borderBottomWidth='0';edge.style.padding='0 0 8px';edge.style.alignSelf='start';
+      const height=edge.getBoundingClientRect().height;
+      edge.style.marginTop=Math.max(0,Math.min(a.height,b.height)/2-height-8)+'px';
+    }
+  }
 }
 
 // Bounded, browser-measured repair of existing primitives. No text, font,
 // relationship or source binding changes. Width goes to the actual wrapping
 // bottleneck, not equally to every node and arrow.
 export function repairPrimitiveLayout() {
-  for(const scene of document.querySelectorAll('.scene-content-first')) {
+  for(const scene of document.querySelectorAll('.scene-content-first,.scene-director-content-first')) {
     const slide=scene.closest('.mint-ppt-slide'),operations=[];
     for(const lane of scene.querySelectorAll('.vp-lane')) {
       const before=lane.getBoundingClientRect().height;
       lane.style.margin='6px 0';lane.style.gap='6px';
       operations.push({step:'containers',beforeHeight:before,afterHeight:lane.getBoundingClientRect().height,status:'applied',operation:'reduce lane wrappers without changing text or font'});
     }
-    for(const track of scene.querySelectorAll('.vp-track,.vp-profiles')) {
+    for(const track of scene.querySelectorAll('.vp-track,.vp-profiles:not(.vp-profile-rows)')) {
       const parts=[...track.children],before=track.getBoundingClientRect().height;
       if(!parts.length) continue;
       for(const node of parts.filter(p=>p.classList.contains('vp-node'))) {
@@ -146,6 +175,19 @@ export function repairPrimitiveLayout() {
       operations.push({step:'object-internals',moduleId:track.closest('[data-mint-id]')?.dataset.mintId,
         beforeHeight:before,afterHeight:track.getBoundingClientRect().height,widths,transfers,
         status:Math.abs(before-track.getBoundingClientRect().height)>.5?'applied':'no-effect'});
+    }
+    for(const profiles of scene.querySelectorAll('.vp-profile-rows')) {
+      const before=profiles.getBoundingClientRect().height;
+      for(const node of profiles.children) {
+        const children=[...node.children];
+        const heading=document.createElement('div'),metrics=document.createElement('div'),copy=document.createElement('div');
+        heading.className='profile-row-heading';metrics.className='profile-row-metrics';copy.className='profile-row-copy';
+        for(const child of children) (child.matches('.vp-entity-profile,.profile-identity')?heading:child.matches('.vp-metric-badge')?metrics:copy).appendChild(child);
+        node.append(heading);if(metrics.childElementCount) node.append(metrics);
+        else copy.style.gridColumn='2 / -1';
+        node.append(copy);node.classList.add('profile-row');
+      }
+      operations.push({step:'object-internals',moduleId:profiles.closest('[data-mint-id]')?.dataset.mintId,beforeHeight:before,afterHeight:profiles.getBoundingClientRect().height,status:'applied',operation:'profiles: identity/metrics/detail rows; all facts retained'});
     }
     slide.dataset.capacityOperations=JSON.stringify(operations);
   }

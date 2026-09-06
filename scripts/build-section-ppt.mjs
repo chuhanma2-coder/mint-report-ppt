@@ -5,6 +5,7 @@ import path from "node:path";
 import { skillVersion, skillRoot, theme as defaultTheme } from "./lib/config.mjs";
 import {applyStylePrior} from './lib/style-prior.mjs';
 import { runtimeFingerprint } from './lib/runtime-fingerprint.mjs';
+import {sealReviewEvidence} from './lib/review-evidence.mjs';
 import { auditSourceInventory } from './lib/source-inventory.mjs';
 import { financialConsistencyIssues } from './lib/financial-consistency.mjs';
 import { readTaskCard, resolveWorkPackage } from "./lib/task-card.mjs";
@@ -27,7 +28,7 @@ import { compareRenderedSlides } from "./lib/visual-parity.mjs";
 import { outlineIntegrityIssues } from "./lib/outline-integrity.mjs";
 import { auditFinalFacts } from './lib/final-facts.mjs';
 import {verifyCanonicalLedger,canonicalCoverage} from './lib/canonical-source-ledger.mjs';
-import {validateExecutionBrief,preflightPreview,claimSupportIssues,semanticObligationIssues,designBriefIssues,designBriefPreview,applyDesignBriefs,designExecutionIssues,designExecutionReport} from './lib/execution-brief.mjs';
+import {validateExecutionBrief,preflightPreview,claimSupportIssues,semanticObligationIssues,designBriefIssues,designBriefPreview,applyDesignBriefs,designExecutionIssues,designExecutionReport,preflightBriefHash} from './lib/execution-brief.mjs';
 import {createTimingReport} from './lib/timing-report.mjs';
 
 const [sourceArg, irArg, taskArg, sectionId, outputArg] = process.argv.slice(2);
@@ -86,6 +87,11 @@ try {
   const sourceText = fs.readFileSync(sourceFile, "utf8"), irText = fs.readFileSync(irFile, "utf8"), task = readTaskCard(taskFile), source = JSON.parse(sourceText), authored = upgradeSlideIr(JSON.parse(irText)), work = resolveWorkPackage(task,sectionId), section = work.sections[0];
   if(!source.canonicalLedgerFile) throw new Error('CANONICAL_LEDGER_REQUIRED: run create-canonical-ledger before Planner; old source summaries are not raw input');
   const canonical=await timing.measure('canonicalLedger',()=>verifyCanonicalLedger(JSON.parse(fs.readFileSync(path.resolve(path.dirname(sourceFile),source.canonicalLedgerFile),'utf8'))));
+  const preflightArg=process.argv.find(a=>a.startsWith('--preflight='));
+  const receiptFile=preflightArg?.slice('--preflight='.length)||path.join(path.dirname(irFile),'execution-brief.json.preflight.json');
+  if(!fs.existsSync(receiptFile)) throw new Error('DESIGN_PREFLIGHT_REQUIRED: validate execution-brief.json before authoring; pass its receipt with --preflight=...');
+  const receipt=JSON.parse(fs.readFileSync(receiptFile,'utf8'));
+  if(!receipt.passed||receipt.briefSha256!==preflightBriefHash(authored.executionBrief)||receipt.canonicalLedgerHash!==canonical.sha256||receipt.runtime?.sha256!==runtime.sha256) throw new Error('DESIGN_PREFLIGHT_STALE: rerun preflight for the current source, brief and runtime');
   const briefIssues=await timing.measure('executionBrief',()=>validateExecutionBrief(authored.executionBrief,canonical,authored.slides));
   if(briefIssues.length) throw new Error(briefIssues.join('; '));
   const expectedRequirements=authored.executionBrief.designRequirements||[];
@@ -125,14 +131,17 @@ try {
   const copyIssues=validatePresentationCopy(authored,canonical);
   if(copyIssues.length) throw new Error(copyIssues.join('; '));
   const grounded = projectPresentationCopy({...authored,slides:authored.slides.map(slide => ({ ...slide, sourceEvidence: evidenceForSlide(source, slide), modules:slide.modules.map(m=>({...m,data:m.data ?? datasets[m.dataRef] ?? {}})) }))}).slides;
-  const designIssues=designBriefIssues(authored.executionBrief,canonical,grounded);
-  if(designIssues.length) throw new Error(designIssues.join('; '));
   const directorPreview=designBriefPreview(authored.executionBrief);
   fs.writeFileSync(`${output}.design-brief.md`,directorPreview);
   fs.writeFileSync(`${output}.director-preview.md`,directorPreview);
   const groundedSlides=applyDesignBriefs(grounded,authored.executionBrief);
   const classified = classifyChapterCompositions(groundedSlides);
-  const plannedSlides = await timing.measure('expressionRouting',()=>classified.slides.map(slide => allocateSlideEvidence(resolveSlideExpressions(materializeCompositeEvidence(slide), datasets))));
+  const routedSlides = await timing.measure('expressionRouting',()=>classified.slides.map(slide => allocateSlideEvidence(resolveSlideExpressions(materializeCompositeEvidence(slide), datasets))));
+  // Cached expressions are intentionally cleared by upgrade. Validate actual
+  // carriers only after current routing, then bind measured design emphasis.
+  const designIssues=designBriefIssues(authored.executionBrief,canonical,routedSlides);
+  if(designIssues.length) throw new Error(designIssues.join('; '));
+  const plannedSlides=applyDesignBriefs(routedSlides,authored.executionBrief);
   const obligationIssues=await timing.measure('semanticObligations',()=>semanticObligationIssues(authored.executionBrief,plannedSlides));
   if(obligationIssues.length) throw new Error(obligationIssues.join('; '));
   const allocatedCoverageFile = `${output}.allocated-source-coverage.json`, allocatedCoverage = auditSourceCoverage(source, { ...authored, slides: plannedSlides }, { allowAppendix: task.allowAppendix === true });
@@ -158,6 +167,7 @@ try {
   const designInput = { ...authored, slides: plannedSlides, compositionDiagnostics: classified.diagnostics };
   const designFile = `${output}.design.html`, designDir = `${output}.design-render`;
   const measured = await timing.measure('candidateLayout',()=>planAndMeasureOutline(designInput, theme, designFile, designDir, {pageApprovals:task.outlinePageApprovals||[]}));
+  fs.writeFileSync(`${output}.outline-measurements.json`, JSON.stringify(measured.measurements, null, 2));
   const domManifest = measured.manifest;
   const executionIssues=designExecutionIssues(measured.ir,domManifest);
   if(executionIssues.length) throw new Error(executionIssues.join('; '));
@@ -169,7 +179,6 @@ try {
   if(!designGate.passed) throw new Error(designGate.issues.join('; '));
   const measuredOutlineIssues = outlineIntegrityIssues(measured.ir.slides);
   if (measuredOutlineIssues.length) throw new Error(measuredOutlineIssues.join('; '));
-  fs.writeFileSync(`${output}.outline-measurements.json`, JSON.stringify(measured.measurements, null, 2));
   if (!domManifest.passed) throw new Error(`DOM design gate failed: ${domManifest.issues.join("; ")}`);
   const renderedModules = domManifest.slides.flatMap(slide => slide.modules.map(module => ({ slideId: slide.slideId, moduleId: module.id, text: module.text,targets:Object.fromEntries([...new Set(module.textObjects.map(t=>t.factTargetId).filter(Boolean))].map(id=>[id,module.textObjects.filter(t=>t.factTargetId===id).map(t=>t.text).join(' ')])) })));
   const renderedCoverage = auditVisibleFactContent(source, measured.ir, { renderedModules });
@@ -184,7 +193,7 @@ try {
     MintSectionOwner: section.owner, MintThemeVersion: task.themeVersion, MintPptMasterVersion: task.pptMasterVersion,
     MintSkillVersion: skillVersion, MintTaskCardHash: task.taskCardHash, MintSourceHash: sha(sourceText), MintSlideIrHash: sha(irText),
     MintRuntimeFingerprint: runtime.sha256, MintRuntimeStatus: runtime.status,
-    MintGeneratedAt: new Date().toISOString(), MintAuthority: "section-pptx"
+    MintGeneratedAt: new Date().toISOString(), MintAuthority: "section-pptx", MintReviewRequired: 'true'
   });
   const resolvedFile = `${output}.resolved-ir.json`;
   fs.writeFileSync(resolvedFile, `${JSON.stringify(resolved, null, 2)}\n`);
@@ -212,13 +221,16 @@ try {
   if(!nativeDesignGate.passed) throw new Error(nativeDesignGate.issues.join('; '));
   const executiveIssues=executiveReviewIssues(null,resolved.slides.map(s=>s.id),authored.executionBrief.decisionSystems);
   const humanCopyForm={...Object.fromEntries(humanCopyChecks.map(k=>[k,null])),evidence:null};
-  const reviewInput={contextPolicy:'independent-review; generator explanations are intentionally excluded',sourceFacts:source.sourceUnits.map(u=>({id:u.id,text:u.text,visibility:u.visibility})),slides:resolved.slides.map((s,i)=>({slideId:s.id,claim:s.claim,directorPlan:s.directorPlan,renderedImage:path.join(auditRenderDir,`slide-${String(i+1).padStart(2,'0')}.png`)})),chapterThumbnailDirectory:auditRenderDir,hardCriteria:['first actual focus matches the decision priority','body proves title','source relationships are preserved','no meaningless concentrated whitespace','no table defaulting','no large graphic with tiny labels','management-report quality','adjacent pages are not needlessly split','no repeated template rhythm'],goldenDesignDimensions};
+  const reviewDir=fs.mkdtempSync(path.join(path.dirname(output),'.review-snapshot-'));
+  const reviewImages=resolved.slides.map((s,i)=>{const name=`slide-${String(i+1).padStart(2,'0')}.png`,file=path.join(reviewDir,name);fs.copyFileSync(path.join(auditRenderDir,name),file);return file;});
+  const reviewInput={contextPolicy:'independent-review; generator explanations are intentionally excluded',sourceFacts:source.sourceUnits.map(u=>({id:u.id,text:u.text,visibility:u.visibility})),slides:resolved.slides.map((s,i)=>({slideId:s.id,claim:s.claim,directorPlan:s.directorPlan,renderedImage:reviewImages[i]})),chapterThumbnailDirectory:reviewDir,hardCriteria:['first actual focus matches the decision priority','body proves title','source relationships are preserved','no meaningless concentrated whitespace','no table defaulting','no large graphic with tiny labels','management-report quality','adjacent pages are not needlessly split','no repeated template rhythm'],goldenDesignDimensions};
   fs.writeFileSync(`${output}.executive-review-input.json`,JSON.stringify(reviewInput,null,2));
   fs.writeFileSync(`${output}.executive-review.json`,JSON.stringify({designBriefs:authored.executionBrief.designBriefs.map(d=>({id:d.id,status:'pending',firstFocusObserved:null,visualPurposeObserved:null,compositionObserved:null})),status:'pending',reviewContext:null,generatorExplanationUsed:null,pptxSha256:sha(fs.readFileSync(output)),issues:executiveIssues,chapter:{slideIds:resolved.slides.map(s=>s.id),titleChain:null,crossDecisionEvidence:null,goldenAverage:null,adjacentPages:resolved.slides.slice(1).map((s,i)=>({before:resolved.slides[i].id,after:s.id,reason:null,evidence:null,capacityAttemptIds:[]}))},decisionSystems:authored.executionBrief.decisionSystems.map(d=>({id:d.id,storyConcentration:null,riskResponseProximity:null,supportingEvidenceRole:null,mergeNecessity:null,titleChain:null,paginationJustification:null,pathEvidenceBalance:null,evidence:null})),slides:resolved.slides.map(s=>({slideId:s.id,actualFirstFocus:null,firstFocus:null,bodyProvesTitle:null,relationships:null,space:null,carrierSuitability:null,hierarchy:null,readingOrder:null,relationshipFidelity:null,semanticProximity:null,goldenScores:Object.fromEntries(Object.keys(goldenDesignDimensions).map(k=>[k,null])),goldenScore:null,humanPresentationCopy:structuredClone(humanCopyForm),evidence:null}))},null,2));
   const parity = await compareRenderedSlides({ referenceDir: designDir, candidateDir: auditRenderDir, slideCount: resolved.slides.length, outputFile: parityFile });
   if (!parity.passed) throw new Error(`Visual parity gate failed: ${parity.issues.join("; ")}`);
   timing.write();
   fs.writeFileSync(`${output}.build.json`, `${JSON.stringify({ passed: true, status: 'technical-candidate-awaiting-visual-review', releaseReady: false, deliveryApproved:false, buildElapsedSeconds:(Date.now()-buildStartedAt)/1000, pptxSha256:sha(fs.readFileSync(output)), runtime, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, visibleFactFile, designFile, domManifest: path.join(designDir, "dom-layout.json"), parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, diagnostics, warnings: executiveIssues, skillVersion, themeVersion: theme.themeVersion }, null, 2)}\n`);
+  sealReviewEvidence({pptx:output,inputFiles:[sourceFile,irFile,taskFile,path.resolve(path.dirname(sourceFile),source.canonicalLedgerFile),...canonical.inputs.map(input=>input.path)],images:reviewImages,runtime,generatorId:process.env.CODEX_THREAD_ID});
   console.log(JSON.stringify({ passed: true, status: 'technical-candidate-awaiting-visual-review', releaseReady: false, deliveryApproved:false, buildElapsedSeconds:(Date.now()-buildStartedAt)/1000, pptxSha256:sha(fs.readFileSync(output)), runtime, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, visibleFactFile, designFile, parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, warnings: executiveIssues, authority: "pptx", skillVersion, themeVersion: theme.themeVersion }, null, 2));
 } catch (error) {
   if(error.capacityAttempts) fs.writeFileSync(`${output}.outline-measurements.json`,JSON.stringify(error.capacityAttempts,null,2));

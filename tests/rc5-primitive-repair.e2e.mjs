@@ -9,6 +9,9 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-primitive-repair-'));
 const data={nodes:[{id:'a',label:'准备'},{id:'b',label:'对完整业务资料进行复核后才可正式批准',condition:'只有全部必要材料齐备后才进入下一环节'},{id:'c',label:'完成'}],edges:[{id:'ab',from:'a',to:'b',label:'材料齐备后',relationship:'dependency'},{id:'bc',from:'b',to:'c',label:'复核通过',relationship:'dependency'}]};
 const base={id:'normal',claim:'复核完成后交付',modules:[{id:'path',type:'diagram',expression:{type:'diagram',variant:'time-window-dependency'},data}],scenePlan:{flow:'vertical',regions:[{id:'r',role:'primary',weight:'natural',relation:'stack',moduleIds:['path']}],readingOrder:['r']}};
 const ir={slides:[base,{...structuredClone(base),id:'repaired',measuredSceneVariant:'content-first'}]};
+ir.slides.push({id:'profiles',claim:'对象资料以自然行组织',measuredSceneVariant:'director-content-first',modules:[{id:'profiles',type:'diagram',internalVariant:'content-first',expression:{type:'diagram',variant:'entity-comparison'},data:{nodes:[{id:'one',label:'对象甲',entity:true,metrics:['100万元'],text:'甲的辅助说明'},{id:'two',label:'对象乙',entity:true,text:'乙只有定性业务事实，不制造空指标列'}]}}]});
+ir.slides[2].scenePlan={flow:'vertical',regions:[{id:'profiles-region',role:'primary',weight:'natural',relation:'stack',moduleIds:['profiles']}],readingOrder:['profiles-region']};
+ir.slides.push({id:'metric-priority',claim:'主指标应比辅助数字突出',modules:[{id:'primary',type:'metric',visualPriority:'P0',value:'3.4',unit:'万美元'},{id:'support',type:'metric',visualPriority:'P1',value:'27.4',unit:'万人'}]});
 const html=path.join(dir,'canvas.html');writeDesignCanvas(ir,theme,html);
 const manifest=await extractDesignLayout({htmlFile:html,outputDir:path.join(dir,'render')});
 assert.deepEqual(manifest.issues,[]);
@@ -16,8 +19,12 @@ const operation=manifest.slides[1].repairOperations.find(o=>o.step==='object-int
 assert.ok(operation.widths.length===5);
 assert.ok(operation.afterHeight<=operation.beforeHeight);
 assert.ok(new Set(operation.widths.filter((_,i)=>i%2===0)).size>1,'wrapping bottleneck receives non-equal node widths');
-for(const page of manifest.slides) {
+for(const page of manifest.slides.slice(0,2)) {
   const text=page.modules[0].text;
   for(const value of ['准备','对完整业务资料进行复核后才可正式批准','只有全部必要材料齐备后才进入下一环节','完成','材料齐备后','复核通过']) assert.ok(text.replace(/\s/g,'').includes(value));
 }
+const profileTexts=manifest.slides[2].modules[0].textObjects;
+assert(profileTexts.find(t=>t.text.includes('乙只有')).rect.left<profileTexts.find(t=>t.text==='甲的辅助说明').rect.left,'Missing metrics release their column to real prose');
+const sizes=manifest.slides[3].modules.map(m=>m.textObjects.find(t=>t.className==='metric-value').fontSizePx);
+assert(sizes[0]>sizes[1],'Scalar P1 must not inherit a larger hero default than P0');
 console.log(JSON.stringify({dir,operation,scope:'measured primitive internals; not Fresh Planner evidence'}));

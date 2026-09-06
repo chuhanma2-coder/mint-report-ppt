@@ -62,9 +62,13 @@ export function routeExpression({ managementQuestion = "", claim = "", semanticI
     const variants = { process: "flow", hierarchy: "tree", "causal-chain": "causal-chain", "role-relationship": "role-network", "system-architecture": "architecture", timeline: "timeline", swimlane: "swimlane", network: "network" };
     return result("diagram", variants[intent] || "flow", "The evidence encodes nodes, direction, roles, or hierarchy", ["text-outline"]);
   }
-  const explicitLookupQuestion = /核对|明细|查数|逐项|完整参数|原始数据/i.test(question);
+  const explicitLookupQuestion = /核对|查数|逐项校验|reconcile|lookup/i.test(managementQuestion);
   if (intent === "matrix") return result("table", "decision-matrix", "Several dimensions must be compared together", ["heatmap-table", "small-multiples"]);
   if (intent === 'lookup' || (!intent && explicitLookupQuestion)) return result("table", "highlighted", "Exact lookup is the management purpose", ["heatmap-table"]);
+  if(['progression','conversion','funnel'].includes(intent)) {
+    if(data.samePopulation!==true) throw new Error('STAGE_POPULATION_REVIEW_REQUIRED: establish a shared cohort before plotting conversion; otherwise use a source-grounded process diagram');
+    return result('chart','stage-bars','Ordered stages with exact counts and conversion rates, not a lookup table',['funnel']);
+  }
   if (intent === "composition") {
     if (!shape.partToWhole) return result("chart", "sorted-bar", "The values do not form a verified whole, so part-to-whole charts are forbidden", ["table"]);
     return result("chart", shape.categoryCount <= 5 ? "doughnut" : "percent-stacked", "The values form a verified whole", ["sorted-bar"]);
@@ -111,14 +115,18 @@ export function resolveSlideExpressions(slide, datasets = {}) {
       const candidate = {...module,data,dataShape,expression:preferred};
       if (preferred.type === routed.type && variants.has(preferred.variant) && !expressionSuitability({...slide,semanticIntent:'',modules:[candidate]}).length) routed = {...routed,...preferred,reason:'Validated Planner preference',alternatives:[routed.variant,...(routed.alternatives || [])].filter(v=>v!==preferred.variant)};
     }
-    const resolvedData = routed.type === "chart" && (Array.isArray(data.values) || Array.isArray(data.rows)) ? tableToChartData(data, `${slide.managementQuestion} ${slide.claim}`) : data;
+    const chartData = routed.type === "chart" && (Array.isArray(data.values) || Array.isArray(data.rows)) ? tableToChartData(data, `${slide.managementQuestion} ${slide.claim}`) : data;
+    const resolvedData = chartData.series ? {...chartData,series:chartData.series.map(s=>{
+      if(s.displayUnit&&s.unit&&s.displayUnit!==s.unit) throw new Error('CHART_UNIT_CONFLICT: explicit unit conversion must be resolved before routing');
+      return {...s,displayUnit:s.displayUnit||s.unit||chartData.unit||module.unit||''};
+    })} : chartData;
     const statement = `${slide.claim || ""} ${slide.managementQuestion || ""} ${(slide.designIntent?.focusObjects || []).join(' ')} ${(slide.designIntent?.focusMetrics || []).join(' ')}`;
     const focusCategories = (resolvedData.categories || []).filter(category => statement.includes(String(category)));
     const focusSeries = (resolvedData.series || []).map(series => series.name).filter(name => statement.includes(String(name)));
     const focusRows = tableParts(resolvedData).body.map(row => String(row?.[0] ?? "")).filter(label => label && statement.includes(label));
     const expression = { ...routed, focusCategories, focusSeries, focusRows, comparisonDirection: /最高|最大|领先|主要/.test(statement) ? "high" : /最低|最小|落后|风险/.test(statement) ? "low" : null, annotationIntent: routed.variant === "sorted-bar" ? "rank" : routed.variant?.includes("variance") ? "gap" : routed.variant === "waterfall" ? "contribution" : null };
     const tableRole = expression.type === "table" ? module.tableRole || (module.semanticRole === "primaryEvidence" ? "primary" : "supporting") : module.tableRole;
-    return { ...module, tableRole, data: resolvedData, sourceTable: resolvedData === data ? undefined : data, dataShape: inferDataShape(resolvedData), expression };
+    return { ...module, tableRole, data: resolvedData, sourceTable: chartData === data ? undefined : data, dataShape: inferDataShape(resolvedData), expression };
   });
   return { ...slide, modules };
 }
@@ -164,6 +172,7 @@ export function expressionSuitability(slide) {
     if ((variant === "doughnut" || variant === "percent-stacked") && !shape.partToWhole) issues.push(`${module.id || module.title || "module"}: part-to-whole expression lacks a verified whole`);
     if (variant === "waterfall" && !shape.additiveBridge) issues.push(`${module.id || module.title || "module"}: waterfall lacks additiveBridge`);
     if (variant === "scatter" && shape.observationCount < 8) issues.push(`${module.id || module.title || "module"}: scatter has fewer than eight observations`);
+    if(['stage-bars','funnel'].includes(variant)&&(module.data?.samePopulation!==true||module.data?.series?.length!==1||module.data.series[0].values.some((v,i,a)=>v<0||i&&v>a[i-1]))) issues.push(`${module.id}: conversion requires a verified shared population with nonincreasing stage counts`);
     if (module.type === "diagram" && module.expression?.type === "chart") issues.push(`${module.id || module.title || "module"}: relationship content was routed as a chart`);
     if (variant === "network" && shape.nodeCount > 10) issues.push(`${module.id || module.title || "module"}: network exceeds ten nodes without grouping`);
   }

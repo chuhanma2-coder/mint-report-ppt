@@ -17,6 +17,8 @@ const scene={flow:'vertical',regions:modules.map(m=>({id:m.id,role:'primary',rel
 const metricEmphasis=[{moduleId:'profiles',nodeId:'entity',field:'metric-0',priority:'P0'}];
 const brief={decisionSystems:[{id:'D'}],designBriefs:[{id:'story',decisionIds:['D'],compositionPolicy:'flexible',scenePlan:scene,carriers:[{moduleId:'profiles',priority:'P0'},{moduleId:'details',priority:'P1'}],metricEmphasis,directorPlan:{fiveSecondMessage:'预计规模与配套计划在同页核对',visualThesis:'核心规模与配套明细共同证明计划完整性',expectedFirstFocus:{objectRef:'profiles/entity/metric-0',reason:'规模是管理层第一判断'},completeComposition:{flow:'banded',bands:[{id:'evidence',share:[75,88],columns:[2,3],moduleRefs:['profiles','details']}]},alternativeCompositions:[{flow:'banded',bands:[{id:'focus',share:[28,36],columns:[1],moduleRefs:['profiles']},{id:'detail',share:[52,64],columns:[1],moduleRefs:['details']}]}],carrierBindings:[{moduleId:'profiles',expression:'entity-comparison',regionId:'evidence',priority:'P0',visualTreatment:'hero-metric',copyBudget:{maxLines:5}},{moduleId:'details',expression:'table',regionId:'evidence',priority:'P1',visualTreatment:'natural-table',copyBudget:{maxLines:3}}],metricEmphasis,semanticColors:[{targetId:'profiles',role:'highlight'}],bodyProof:[{moduleRefs:['profiles','details'],reason:'核心规模与逐项计划共同支撑标题'}],whitespaceIntent:{intentional:false,reason:null}}}]};
 const slides=applyDesignBriefs([{id:'test',role:'content',sectionId:'s',outlineItem:'1',decisionUnit:'D',claim:'预计规模与配套计划在同页核对',modules}],brief);
+await assert.rejects(()=>planAndMeasureOutline({slides,executionBrief:brief},theme,path.join(dir,'blocked.html'),path.join(dir,'blocked-render')),/UNINTENTIONAL_WHITESPACE/,'Reject the sparse specimen before choosing its layout, not only after compilation');
+brief.designBriefs[0].directorPlan.whitespaceIntent={intentional:true,reason:'Isolated type-size and native-binding specimen; empty space exposes measured glyphs. This is not an executive-acceptance sample.'};
 const measured=await planAndMeasureOutline({slides,executionBrief:brief},theme,path.join(dir,'canvas.html'),path.join(dir,'render'));
 fs.writeFileSync(path.join(dir,'capacity.json'),JSON.stringify(measured.measurements,null,2));
 assert.equal(measured.ir.slides.length,1,dir);assert.deepEqual(measured.manifest.issues,[]);
@@ -26,7 +28,10 @@ assert.ok(main&&unit&&secondary);assert.ok(main.fontSizePx>unit.fontSizePx&&main
 const resolved=applyDomLayout(measured.ir,measured.manifest),{presentation}=await renderPresentation(resolved,theme),file=path.join(dir,'native.pptx');await exportPresentation(presentation,file);
 const pkg=await inspectPptxPackage(file),xml=await pkg.zip.file(pkg.slides[0]).async('string');
 const native=nativeDesignPages([xml],['test']);
-assert.deepEqual(designExecutionIssues(resolved,measured.manifest,native),[]);
+const executionIssues=designExecutionIssues(resolved,measured.manifest,native);
+assert.deepEqual(executionIssues,[]);
+const unapprovedWhitespace=structuredClone(resolved);unapprovedWhitespace.executionBrief.designBriefs[0].directorPlan.whitespaceIntent.intentional=false;
+assert.ok(designExecutionIssues(unapprovedWhitespace,measured.manifest,native).some(i=>i.startsWith('UNINTENTIONAL_WHITESPACE')),'This sparse specimen cannot silently become an executive-acceptance sample');
 const profileManifest=measured.manifest.slides[0].modules.find(m=>m.id==='profiles');
 assert.equal(profileManifest.directorTreatment,'hero-metric');
 assert.equal(profileManifest.semanticColorRole,'highlight');

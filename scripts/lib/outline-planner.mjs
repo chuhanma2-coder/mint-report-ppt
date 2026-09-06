@@ -1,4 +1,5 @@
 import {sceneLayoutCandidates,sceneTopology,directorTopology} from './scene-plan.mjs';
+import {measuredPageDesignIssues} from './execution-brief.mjs';
 // The measurer is a browser-backed dependency; no estimated point budget is used.
 export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3, pageApprovals = [], designRequirements = [], decisionSystems = [], designBriefs = [], requireMeasuredProof=false } = {}) {
   const groups = new Map(), output = [], measurements = [];
@@ -57,7 +58,10 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
         };
         page.scenePlan=subset(page.scenePlan);
         page.designAlternatives=(page.designAlternatives||[]).map(subset);
-        const subsetDirector=composition=>({...composition,bands:composition.bands.map(b=>({...b,moduleRefs:b.moduleRefs.flatMap(id=>identities.has(id)?[id]:chosen.filter(x=>x.originalModuleId===id).flatMap(x=>x.modules.map(m=>m.id)))})).filter(b=>b.moduleRefs.length)});
+        const subsetDirector=composition=>({...composition,bands:composition.bands.map(b=>{
+          const entries=b.moduleRefs.flatMap((id,i)=>(identities.has(id)?[id]:chosen.filter(x=>x.originalModuleId===id).flatMap(x=>x.modules.map(m=>m.id))).map(id=>({id,width:b.columns[i]})));
+          return {...b,moduleRefs:entries.map(e=>e.id),columns:entries.map(e=>e.width)};
+        }).filter(b=>b.moduleRefs.length)});
         if(page.directorComposition) page.directorComposition=subsetDirector(page.directorComposition);
         page.directorAlternatives=(page.directorAlternatives||[]).map(subsetDirector);
         if(modules.some(m=>!page.scenePlan.regions.some(r=>r.moduleIds.includes(m.id)))) throw new Error('DECISION_SYSTEM_SCENE_INCOMPLETE: plan the complete decision system before pagination');
@@ -88,15 +92,20 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
         for (const choice of variants) {
         const variant=choice.variant;
         const chosenComposition=choice.directorComposition;
-        const candidate = { ...page,...(choice.scenePlan?{scenePlan:choice.scenePlan}:{}),...(chosenComposition?{directorComposition:chosenComposition,modules:page.modules.map(m=>({...m,directorRegionId:chosenComposition.bands.find(b=>b.moduleRefs.includes(m.id))?.id||m.directorRegionId}))}:{}), measuredComposition: page.directorComposition?'director-plan':page.scenePlan?'scene-plan':variant, measuredDensity: density,measuredSceneVariant:page.scenePlan?variant:'authored' };
+        const candidate = { ...page,...(choice.scenePlan?{scenePlan:choice.scenePlan}:{}),...(chosenComposition?{directorComposition:chosenComposition,modules:page.modules.map(m=>({...m,internalVariant:choice.internalVariant||'authored',directorRegionId:chosenComposition.bands.find(b=>b.moduleRefs.includes(m.id))?.id||m.directorRegionId}))}:{}), measuredComposition: page.directorComposition?'director-plan':page.scenePlan?'scene-plan':variant, measuredDensity: density,measuredSceneVariant:page.scenePlan?variant:'authored' };
         let result;
         try {result=await measure(candidate);} catch(error) {result={passed:false,issues:[error.message],slides:[]};}
+        if(requireMeasuredProof) {
+          const designIssues=measuredPageDesignIssues(candidate.directorPlan,result.slides?.[0]);
+          if(designIssues.length) result={...result,passed:false,issues:[...(result.issues||[]),...designIssues]};
+        }
+        if((start!==0||end!==blocks.length)&&modules.every(m=>['context','boundary'].includes(m.semanticRole))&&groupDesign?.compositionPolicy!=='user-fixed') result={...result,passed:false,issues:[...(result.issues||[]),'CONTEXT_ONLY_STANDALONE: keep scope/background with its management story']};
         const evidence=capacityEvidence(result.slides?.[0]);
         if(requireMeasuredProof && evidence.failedObjects.length) result={...result,passed:false,issues:[...(result.issues||[]),...evidence.failedObjects.map(o=>`CAPACITY_OBJECT_FAILURE: ${o.id||o.kind}; ${o.reason||o.kind}`)]};
         const layoutSignature=JSON.stringify([evidence.moduleBounds,evidence.objectSizes]);
         const duplicate=measurements.find(m=>m.outlineItem===outline&&m.start===start&&m.end===end&&m.layoutSignature===layoutSignature);
         measurements.push({ attemptId:`capacity-${measurements.length+1}`,phase,outlineItem: outline,decisionSystem:page.decisionUnit, start, end, variant, density, passed: result.passed, issues: result.issues || [],
-          layoutSignature,topologySignature:candidate.directorComposition?directorTopology(candidate.directorComposition):candidate.scenePlan?sceneTopology(candidate.scenePlan,variant):variant,equivalentTo:duplicate?.attemptId || null,effectiveRepair:evidence.measured&&!duplicate,
+          layoutSignature,topologySignature:candidate.directorComposition?directorTopology(candidate.directorComposition,choice.internalVariant):candidate.scenePlan?sceneTopology(candidate.scenePlan,variant):variant,equivalentTo:duplicate?.attemptId || null,effectiveRepair:evidence.measured&&!duplicate,
           objectRepairs:result.slides?.[0]?.repairOperations || [],
           candidate:structuredClone(candidate),evidenceGroups:chosen.map(b=>b.key),
           ...evidence,visualOccupancy:result.slides?.[0]?.visualOccupancy??null,localOverflowOnly:result.issues?.length>0&&result.issues.every(i=>/module|text/i.test(i)),
@@ -124,7 +133,8 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
     else {
       const fullAttempts=measurements.filter(m=>m.outlineItem===outline&&m.phase==='complete');
       if(requireMeasuredProof&&fullAttempts.some(a=>!a.measured)) fail(`CAPACITY_MEASUREMENT_MISSING: ${outline}; cannot justify splitting without complete browser candidates`);
-      if(groupDesign?.compositionPolicy!=='user-fixed'&&new Set(fullAttempts.map(a=>a.topologySignature)).size<2) fail(`CAPACITY_CANDIDATE_DIVERSITY_REQUIRED: ${outline}; splitting requires at least two materially different complete compositions`);
+      const completeTopologies=fullAttempts.map(a=>a.candidate.directorComposition?directorTopology(a.candidate.directorComposition):a.topologySignature);
+      if((groupDesign?.compositionPolicy||input[0].designCompositionPolicy)!=='user-fixed'&&new Set(completeTopologies).size<2) fail(`CAPACITY_CANDIDATE_DIVERSITY_REQUIRED: ${outline}; splitting requires at least two materially different complete compositions, not only internal padding repairs`);
       if (designRequirements.some(r=>r.strength==='hard'&&r.type==='single-page'&&(r.scope==='report'||input.some(s=>s.id===r.slideId)))) fail(`HARD_SINGLE_PAGE_CAPACITY: ${outline}; cannot split, drop facts, or shrink below floors`);
       // Expand only explicit business row groups, and only after the original
       // complete outline fails. Preserve every row, qualifier and source map.
@@ -146,6 +156,16 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       }
       selected = best[blocks.length]?.pages;
       if (!selected) fail(`OUTLINE_CAPACITY_BLOCKED: ${outline}; an atomic evidence group cannot fit. ${measurements.filter(item => item.outlineItem === outline).at(-1)?.issues.join('; ')}. Name a smaller natural source boundary; do not shrink or delete facts`);
+      // Explicitly remeasure each final neighboring boundary. The record is
+      // separate from tentative DP partitions, so a split has inspectable proof.
+      const ranges=best[blocks.length].ends.map((end,i,a)=>({start:i?a[i-1]:0,end}));
+      phase='merge-recheck';
+      for(let i=0;i<selected.length-1;) {
+        const start=ranges[i].start,end=ranges[i+1].end;cache.delete(`${start}:${end}`);
+        const merged=await attempt(start,end);
+        if(merged) {selected.splice(i,2,merged);ranges.splice(i,2,{start,end});if(i)i--;}
+        else i++;
+      }
       const approval=pageApprovals.find(a=>String(a.outlineItem)===String(input[0].outlineItem) && a.approved===true && a.reason?.trim());
       if (selected.length > Math.max(maxAutomaticParts,Number(approval?.maxParts)||0)) fail(`OUTLINE_PAGE_APPROVAL_REQUIRED: ${outline} requires ${selected.length} measured readable pages`);
     }
@@ -220,7 +240,7 @@ function splitTableBlock(block) {
     const reconciliationNotes=(module.reconciliationNotes||[]).filter(n=>n.row>=group.start&&n.row<group.end).map(n=>({...n,row:n.row-group.start}));
     let remainder=module.text||'';for(const n of module.reconciliationNotes||[]) remainder=remainder.replace(n.text,'');
     const text=[...reconciliationNotes.map(n=>n.text),...(i===groups.length-1?[remainder.trim()]:[])].filter(Boolean).join('\n');
-    const part={...module,id:`${module.id}-group-${i+1}`,evidenceGroup:group.label,title:group.label,text,evidenceRefs,visibleFacts:(module.visibleFacts||[]).filter(f=>evidenceRefs.includes(f.sourceUnitId)),reconciliationNotes,data:{...module.data,rows:module.data.rows.slice(group.start,group.end),rowGroups:undefined,rowEvidenceRefs:undefined}};
+    const part={...module,id:`${module.id}-group-${i+1}`,originModuleId:module.id,evidenceGroup:group.label,title:group.label,text,evidenceRefs,visibleFacts:(module.visibleFacts||[]).filter(f=>evidenceRefs.includes(f.sourceUnitId)),reconciliationNotes,data:{...module.data,rows:module.data.rows.slice(group.start,group.end),rowGroups:undefined,rowEvidenceRefs:undefined}};
     if(part.displayCopy) part.displayCopy={...part.displayCopy,title:part.title,text:part.text};
     return {key:group.label,slide:block.slide,modules:[part],originalModuleId:module.id};
   });

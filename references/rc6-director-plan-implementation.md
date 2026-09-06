@@ -1,4 +1,6 @@
-# rc.6 Director Plan implementation status
+# rc.6 Director Plan implementation status (historical dev.2 snapshot)
+
+Current implementation and acceptance evidence: [rc6-director-verification.md](rc6-director-verification.md). The entries below record the earlier checkpoint, not the status of the current release.
 
 Development version: `0.4.0-rc.6-design-dev.2`
 

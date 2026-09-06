@@ -2,7 +2,9 @@
 
 Source-grounded editable PowerPoint collaboration, followed by optional publication of the actual final PPT as offline read-only HTML.
 
-**Current candidate: v0.4.0-rc.6. Not a fully visually accepted or Windows-certified release.**
+**Current repair release: 0.4.0-rc.6-design-dev.9 (prerelease). The existing v0.4.0-rc.6 tag is preserved. Not a fully visually accepted or Windows-certified release.**
+
+The Director execution repair keeps the existing pipeline, fixes measured treatment/metric/connector execution, native fact binding, chart copy and complete merge evidence, and rejects self-declared or stale visual approval. See the [current verification record](references/rc6-director-verification.md). Install the exact current tag; the older rc.6 tag does not include these repairs.
 
 rc.6 adds explicit, source-reviewed Presentation Copy and a blocking Human Presentation Copy gate. Design hints and raw field strings are not automatic visible-text fallbacks. See [contract](references/presentation-copy.md) and [acceptance record](references/rc6-copy-acceptance.md).
 

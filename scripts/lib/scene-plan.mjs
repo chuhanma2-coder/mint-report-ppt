@@ -106,10 +106,9 @@ export function directorMarkup(slide,render) {
   if(!composition?.bands?.length) throw new Error('DIRECTOR_COMPOSITION_REQUIRED');
   const modules=slide.modules||[],known=new Set(modules.map(m=>m.id)),assigned=composition.bands.flatMap(b=>b.moduleRefs||[]);
   if(assigned.length!==known.size||new Set(assigned).size!==known.size||assigned.some(id=>!known.has(id))) throw new Error('DIRECTOR_COMPOSITION_COVERAGE');
-  const total=composition.bands.reduce((sum,b)=>sum+(b.share[0]+b.share[1])/2,0)||100;
-  return `<div class="director-scene">${composition.bands.map(b=>{
-    const share=(b.share[0]+b.share[1])/2/total*100,columns=b.columns.map(n=>`minmax(0,${n}fr)`).join(' ');
-    return `<section class="director-band" data-director-region="${b.id}" style="grid-row:span ${Math.max(1,Math.round(share))};grid-template-columns:${columns}">${b.moduleRefs.map(id=>{const m=modules.find(m=>m.id===id);return render(m,modules.indexOf(m));}).join('')}</section>`;
+  return `<div class="director-scene scene-${slide.measuredSceneVariant||'director-primary'}">${composition.bands.map(b=>{
+    const columns=b.columns.map(n=>`minmax(0,${n}fr)`).join(' ');
+    return `<section class="director-band" data-director-region="${b.id}" data-preferred-share="${b.share.join(',')}" style="grid-template-columns:${columns}">${b.moduleRefs.map(id=>{const m=modules.find(m=>m.id===id);return render(m,modules.indexOf(m));}).join('')}</section>`;
   }).join('')}</div>`;
 }
 
@@ -143,7 +142,9 @@ export function measuredSceneIssues(slide,layout) {
 }
 
 export const sceneCss=`.semantic-scene{display:flex;gap:24px;align-items:start;min-width:0}.scene-vertical{flex-direction:column}.scene-horizontal{flex-direction:row}.scene-region{min-width:0;display:grid;gap:20px;align-items:start;width:100%}.scene-horizontal>.weight-major{flex:2}.scene-horizontal>.weight-supporting{flex:1}.scene-comparison,.scene-parallel,.scene-split,.scene-grid,.scene-matrix{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}.scene-sequence{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}.scene-stack,.scene-dominant,.scene-supporting,.scene-adjacent-to{grid-template-columns:minmax(0,1fr)}.scene-plan>main{display:block}.compact .semantic-scene{gap:18px}.compact .scene-region{gap:14px}`;
-export const directorCss=`.director-plan main{display:block;height:100%}.director-scene{display:grid;height:100%;min-height:0;grid-template-rows:repeat(100,minmax(0,1fr));gap:0}.director-band{display:grid;gap:20px;min-width:0;min-height:0;align-items:start;align-content:start;padding-bottom:18px}.director-band:last-child{padding-bottom:0}.director-band>.module{width:100%;max-height:100%}.compact .director-band{gap:14px;padding-bottom:14px}`;
+// Band shares are preferred allocations, not fixed-height containers. Natural
+// text/table height wins. Unused height in one band is available to the next.
+export const directorCss=`.director-plan main{display:block;height:100%}.director-scene{display:grid;min-height:0;gap:20px;align-content:start}.director-band{display:grid;gap:20px;min-width:0;align-items:start}.director-band>.module{width:100%}.compact .director-scene,.compact .director-band{gap:14px}`;
 export const sceneRepairCss=`.scene-cluster{display:grid;gap:14px;min-width:0;align-content:start}.scene-content-first .module{padding:8px 12px}.scene-content-first .scene-cluster .narrative{background:transparent}.scene-content-first .scene-region{align-content:start}`;
 
 // Change actual topology, not just padding. Keep every relationship region
@@ -151,8 +152,10 @@ export const sceneRepairCss=`.scene-cluster{display:grid;gap:14px;min-width:0;al
 export function sceneLayoutCandidates(page) {
   if(page.directorComposition) {
     const candidates=[{directorComposition:page.directorComposition,scenePlan:page.scenePlan,variant:'director-primary'}];
+    const hasInternals=(page.modules||[]).some(m=>['entity-comparison','time-window-dependency','primary-with-parallel-options','critical-path-with-parallel-options'].includes(m.expression?.variant));
+    if(hasInternals) candidates.push({directorComposition:page.directorComposition,scenePlan:page.scenePlan,variant:'director-content-first',internalVariant:'content-first'});
     if(page.designCompositionPolicy!=='user-fixed') for(const alternative of page.directorAlternatives||[]) candidates.push({directorComposition:alternative,scenePlan:page.scenePlan,variant:'director-alternative'});
-    const seen=new Set();return candidates.filter(c=>{const key=directorTopology(c.directorComposition);if(seen.has(key))return false;seen.add(key);return true;});
+    const seen=new Set();return candidates.filter(c=>{const key=directorTopology(c.directorComposition,c.internalVariant);if(seen.has(key))return false;seen.add(key);return true;});
   }
   const scene=page.scenePlan;
   const candidates=[{scenePlan:scene,variant:'authored'},{scenePlan:scene,variant:'content-first'}];
@@ -165,8 +168,8 @@ export function sceneLayoutCandidates(page) {
   const seen=new Set();
   return candidates.filter(c=>{const key=JSON.stringify(c);if(seen.has(key))return false;seen.add(key);return true;});
 }
-export function directorTopology(composition) {
-  return JSON.stringify((composition?.bands||[]).map(b=>[b.moduleRefs,b.columns.map(v=>v===Math.max(...b.columns)?'major':'minor')]));
+export function directorTopology(composition,internalVariant='authored') {
+  return JSON.stringify({bands:(composition?.bands||[]).map(b=>[b.moduleRefs,b.columns.map(v=>v===Math.max(...b.columns)?'major':'minor')]),internalVariant});
 }
 export function sceneTopology(scene,variant) {
   return JSON.stringify({flow:variant==='paired-regions'?'paired-regions':scene.flow,regions:scene.regions.map(r=>[r.id,r.relation,r.moduleIds,r.targetId,r.side]),order:scene.readingOrder});

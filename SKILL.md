@@ -65,7 +65,7 @@ Read `references/readability-repair.md` before generation or upgrading an old so
 - Clean pages: 16:9, no visible task IDs, hashes, outline numbers, source-unit IDs, headers, footers, or page numbers.
 - Images must be embedded. Charts preserve categories, series, units, signs, targets, and axis meaning.
 - QA issues return only to their owner layer: content → source/planner; expression → router; composition/layout → Design Canvas; artifact → renderer/publisher.
-- Hard design requirements and every Director binding must be proven in measured Canvas and final native objects. Executive Visual QA uses a separate input containing source facts, claims, Director Plans and final renders but no generator self-explanation. Every page needs a Golden Design score of at least 85 and the chapter average at least 90. Technical candidate pass does not authorize delivery; final audit rejects missing or stale design-delivery approval.
+- Hard design requirements and every Director binding must be proven in measured Canvas and final native objects, not echoed attributes. The design-stage preflight receipt is mandatory. Executive Visual QA uses a separate input containing source facts, claims, Director Plans and final renders but no generator self-explanation, with host-recorded independent identity and actual image-result evidence. Every page needs a Golden Design score of at least 85 and the chapter average at least 90. Technical candidate pass does not authorize delivery; final audit rejects missing or stale design-delivery approval. See `references/design-intent.md` for the receipt commands.
 - Visual QA may request `expression-review-required`; it may not directly replace one chart type with another.
 
 ## Authority lifecycle

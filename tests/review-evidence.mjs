@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {skillRoot} from '../scripts/lib/config.mjs';
+import {runtimeFingerprint} from '../scripts/lib/runtime-fingerprint.mjs';
+import {sealReviewEvidence,reviewEvidenceIssues,hostReviewTranscript,reviewReceiptIssues,deliverySidecars,digest} from '../scripts/lib/review-evidence.mjs';
+import {contentSpaceDiagnostics} from '../scripts/lib/dom-layout-extractor.mjs';
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-review-evidence-')),pptx=path.join(dir,'candidate.pptx'),image=path.join(dir,'page.png'),source=path.join(dir,'raw.txt');
+for(const file of [pptx,image,source,...deliverySidecars.map(s=>pptx+s)]) fs.writeFileSync(file,'original');
+sealReviewEvidence({pptx,inputFiles:[source],images:[image],runtime:runtimeFingerprint(skillRoot),generatorId:'generator'});
+assert.deepEqual(reviewEvidenceIssues(pptx,skillRoot),[]);
+for(const file of [image,source,pptx+'.resolved-ir.json',pptx+'.audit.json',pptx+'.executive-review-input.json']) {
+  fs.writeFileSync(file,'changed');assert.ok(reviewEvidenceIssues(pptx,skillRoot).some(i=>i.includes(file)),file);fs.writeFileSync(file,'original');
+}
+assert.ok(reviewReceiptIssues({pptx,root:skillRoot,reviewFile:path.join(dir,'review.json'),receiptFile:path.join(dir,'missing.json')}).includes('EXECUTIVE_HOST_RECEIPT_REQUIRED'));
+const transcript=path.join(dir,'session.jsonl'),meta={type:'session_meta',payload:{id:'reviewer',source:{subagent:{thread_spawn:{parent_thread_id:'generator'}}}}};
+fs.writeFileSync(transcript,JSON.stringify(meta)+'\n');
+const beforeImages=fs.statSync(transcript).size;
+assert.throws(()=>hostReviewTranscript(transcript,'reviewer',[image],{sessionRoot:dir}),/REVIEW_IMAGE_NOT_OBSERVED/);
+fs.appendFileSync(transcript,JSON.stringify({type:'response_item',payload:{type:'custom_tool_call',call_id:'fake',name:'exec',input:`text({marker:'view_image ${image}'})`}})+'\n');
+fs.appendFileSync(transcript,JSON.stringify({type:'response_item',payload:{type:'custom_tool_call_output',call_id:'fake',output:[{type:'input_text',text:`view_image ${image}`}]}})+'\n');
+assert.throws(()=>hostReviewTranscript(transcript,'reviewer',[image],{sessionRoot:dir}),/REVIEW_IMAGE_NOT_OBSERVED/,'mentioning a path is not viewing it');
+fs.appendFileSync(transcript,JSON.stringify({type:'response_item',payload:{type:'function_call',call_id:'view',name:'view_image',arguments:JSON.stringify({path:image,detail:'original'})}})+'\n');
+assert.throws(()=>hostReviewTranscript(transcript,'reviewer',[image],{sessionRoot:dir}),/REVIEW_IMAGE_NOT_OBSERVED/,'a pending call is not a completed image observation');
+fs.appendFileSync(transcript,JSON.stringify({type:'response_item',payload:{type:'function_call_output',call_id:'view',output:[{type:'input_image',image_url:'data:image/png;base64,'+fs.readFileSync(image).toString('base64')}]}})+'\n');
+const host=hostReviewTranscript(transcript,'reviewer',[image],{sessionRoot:dir});assert.equal(host.parentThreadId,'generator');
+assert.throws(()=>hostReviewTranscript(transcript,'reviewer',[image],{sessionRoot:dir,prefixBytes:beforeImages}),/REVIEW_IMAGE_NOT_OBSERVED/,'images added after the sealed receipt cannot retroactively approve it');
+assert.equal(host.prefixSha256,digest(fs.readFileSync(transcript)));
+assert.throws(()=>hostReviewTranscript(transcript,'generator',[image],{sessionRoot:dir}),/REVIEW_HOST_ID_MISMATCH/);
+assert.throws(()=>hostReviewTranscript(transcript,'reviewer',[image]),/REVIEW_TRANSCRIPT_NOT_HOST_OWNED/);
+const bounds={left:0,top:0,width:1920,height:1080},empty=contentSpaceDiagnostics(bounds,[{left:0,top:0,width:1000,height:400}]);
+assert.ok(empty.largestDeadZone.height>=600,'Detect lower empty half without counting its background card');
+assert.equal(contentSpaceDiagnostics(bounds,[bounds]).largestDeadZone.cells,0);
+console.log('Review evidence: source/image/IR/QA tampering, absent host receipt and unobserved images rejected; ink-only dead zones detected');

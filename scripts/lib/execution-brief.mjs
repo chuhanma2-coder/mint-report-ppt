@@ -1,8 +1,16 @@
 import crypto from 'node:crypto';
 import {scenePlanIssues} from './scene-plan.mjs';
+import {treatmentIssues,measuredTreatmentIssues} from './director-treatments.mjs';
 // Design and authoring share this contract, never authority over source facts.
 export const managementIntents=['status','diagnose','explain','compare','decide','plan','recommend','reconcile'];
 export const semanticRelations=['sequence','dependency','parallel','hierarchy','comparison','contribution','composition','correlation','containment','handoff','temporal-range','uncertainty','duration','entity-comparison'];
+
+// The authoring-stage copy review is added after the design checkpoint. It is
+// validated separately against the actual IR; every design/source field remains sealed.
+export function preflightBriefHash(brief) {
+  const {presentationCopyReview,...design}=brief||{};
+  return crypto.createHash('sha256').update(JSON.stringify(design)).digest('hex');
+}
 
 export function validateExecutionBrief(brief,ledger,slides=[]) {
   const issues=[],known=new Set(ledger.units.map(u=>u.id));
@@ -60,14 +68,20 @@ export function designBriefHash(brief) {
 
 const genericDirector=/^(突出重点|突出核心|高级|专业|克制|清晰|合理布局|配色高级|管理层风格|让页面更好看|视觉重点)$/;
 const expressionAliases={
-  'timeline-window':['timeline-window','timeline','time-range','milestone'],
+  'timeline-window':['timeline-window','timeline','time-range','milestone','time-window-dependency','critical-path-with-parallel-options'],
   funnel:['funnel','stage-bars','conversion-path'],
-  'parallel-path':['parallel-path','parallel','network'],
+  'parallel-path':['parallel-path','parallel','network','primary-with-parallel-options','critical-path-with-parallel-options'],
   'entity-comparison':['entity-comparison','comparison','bar','dot-plot'],
-  'natural-table':['table','decision-matrix','highlighted-table']
+  'natural-table':['table','decision-matrix','highlighted','heatmap-table','table-with-highlight','highlighted-table']
 };
 const actualExpression=m=>m?.expression?.variant||m?.expression?.type||m?.type||'';
-const expressionCompatible=(planned,module)=>planned===actualExpression(module)||(expressionAliases[planned]||[]).includes(actualExpression(module));
+const expressionCompatible=(planned,module)=>planned===actualExpression(module)||planned===module?.expression?.type||(expressionAliases[planned]||[]).includes(actualExpression(module));
+const metricValue=(module,focus)=>{
+  const [kind,index]=String(focus.field).split('-');
+  if(kind==='series') return module?.data?.series?.[index]?.values?.[module.data.categories.indexOf(focus.nodeId)];
+  const node=module?.data?.nodes?.find(n=>n.id===focus.nodeId);
+  return kind==='duration'?node?.duration:kind==='metric'?node?.metrics?.[index]:kind==='secondary'?node?.secondaryMetrics?.[index]:kind==='primary'&&index==='0'?node?.primaryMetric:undefined;
+};
 
 export function directorCompositionTopology(composition) {
   return JSON.stringify((composition?.bands||[]).map(b=>({modules:b.moduleRefs,columns:b.columns.map(v=>v===Math.max(...b.columns)?'major':'minor')})));
@@ -80,6 +94,7 @@ export function directorPlanIssues(d,modules=[]) {
   for(const [index,composition] of compositions.entries()) {
     const bands=composition?.bands||[],bandIds=bands.map(b=>b.id),minimum=bands.reduce((sum,b)=>sum+(b.share?.[0]||0),0),maximum=bands.reduce((sum,b)=>sum+(b.share?.[1]||0),0);
     if(new Set(bandIds).size!==bandIds.length||bands.some(b=>!Array.isArray(b.share)||b.share.length!==2||b.share[0]>b.share[1])||minimum>100||maximum<80) issues.push(`DIRECTOR_COMPOSITION_SHARE: ${d.id}/${index}`);
+    if(bands.some(b=>b.columns?.length!==b.moduleRefs?.length||b.columns?.some(n=>!Number.isFinite(n)||n<=0))) issues.push(`DIRECTOR_COMPOSITION_COLUMNS: ${d.id}/${index}`);
   }
   const ids=new Set(modules.map(m=>m.id)),bindings=plan.carrierBindings||[],bindingIds=bindings.map(b=>b.moduleId),regions=new Set((plan.completeComposition?.bands||[]).map(b=>b.id));
   if([plan.fiveSecondMessage,plan.visualThesis,plan.expectedFirstFocus?.reason].some(v=>!v?.trim()||genericDirector.test(v.trim()))) issues.push(`GENERIC_DIRECTOR_PLAN: ${d.id}`);
@@ -89,15 +104,18 @@ export function directorPlanIssues(d,modules=[]) {
   if(compositionIds.length!==modules.length||new Set(compositionIds).size!==modules.length||compositionIds.some(id=>!ids.has(id))) issues.push(`DIRECTOR_COMPOSITION_COVERAGE: ${d.id}`);
   for(const b of bindings) {
     const module=modules.find(m=>m.id===b.moduleId);
+    issues.push(...treatmentIssues(b,module||{}));
     if(!regions.has(b.regionId)) issues.push(`DIRECTOR_REGION_UNKNOWN: ${d.id}/${b.moduleId}`);
+    if(d.carriers?.find(c=>c.moduleId===b.moduleId)?.priority!==b.priority) issues.push(`DIRECTOR_PRIORITY_CONFLICT: ${d.id}/${b.moduleId}`);
     if(module&&!expressionCompatible(b.expression,module)) issues.push(`EXPRESSION_BINDING_MISMATCH: ${d.id}/${b.moduleId}; planned ${b.expression}, actual ${actualExpression(module)}`);
   }
   const p0=bindings.filter(b=>b.priority==='P0'),p1=bindings.filter(b=>b.priority==='P1');
+  for(const color of plan.semanticColors||[]) if(!ids.has(color.targetId)) issues.push(`DIRECTOR_COLOR_TARGET_UNKNOWN: ${d.id}/${color.targetId}; bind a module; node states use statusType, milestoneState or timeRange.variant`);
   if(!p0.length) issues.push(`NO_VISUAL_FOCUS: ${d.id}`);
   if(modules.length>1&&(!p1.length||bindings.every(b=>b.priority===bindings[0]?.priority))) issues.push(`FLAT_HIERARCHY: ${d.id}`);
   const numeric=modules.some(m=>m.type==='metric'||m.value!=null||m.data?.nodes?.some(n=>n.duration||n.primaryMetric||n.metrics?.length)||m.data?.series?.some(s=>s.values?.some(Number.isFinite)));
   if(numeric&&!(plan.metricEmphasis||[]).length&&!p0.some(b=>modules.find(m=>m.id===b.moduleId)?.type==='metric')) issues.push(`NO_VISUAL_FOCUS: ${d.id}; decision metric is not emphasized`);
-  for(const b of p0) if(modules.find(m=>m.id===b.moduleId)?.type==='table'&&!/(查数|核对|明细|矩阵|reconcile|lookup)/i.test(`${d.objective} ${d.visualPurpose} ${plan.visualThesis}`)) issues.push(`TABLE_DEFAULTING: ${d.id}/${b.moduleId}`);
+  for(const b of p0) if(modules.find(m=>m.id===b.moduleId)?.type==='table'&&!/(查数|核对|reconcile|lookup)/i.test(`${d.objective} ${d.visualPurpose} ${plan.visualThesis}`)) issues.push(`TABLE_DEFAULTING: ${d.id}/${b.moduleId}`);
   const complex=modules.length>=3||(d.scenePlan?.regions||[]).some(r=>r.relationshipRefs?.length||['parallel','network','sequence'].includes(r.relation));
   if(complex&&!(plan.alternativeCompositions||[]).length) issues.push(`EQUIVALENT_ALTERNATIVES: ${d.id}; a materially different complete composition is required`);
   const signatures=compositions.map(directorCompositionTopology);
@@ -131,6 +149,12 @@ export function designBriefIssues(brief,ledger,slides=[]) {
     if(!['flexible','user-fixed'].includes(d.compositionPolicy)) issues.push(`DESIGN_BRIEF_COMPOSITION_POLICY: ${d.id}`);
     const selected=slides.filter(s=>s.role==='content'&&d.decisionIds?.includes(s.decisionUnit));
     if(slides.length&&!selected.length) issues.push(`DESIGN_BRIEF_UNUSED: ${d.id}`);
+    if(!selected.length&&!slides.length) {
+      // Pre-IR checks use proposed carriers; data support is checked again once
+      // the real modules exist. Missing/generic/unimplemented plans fail here.
+      const proposed=(d.directorPlan?.carrierBindings||d.carriers||[]).map(c=>({id:c.moduleId,type:['highlighted','heatmap-table','table-with-highlight','highlighted-table','natural-table'].includes(c.expression)?'table':c.expression,expression:{variant:c.expression}}));
+      issues.push(...directorPlanIssues(d,proposed));
+    }
     if(selected.length) {
       if(d.takeaway!==selected[0].claim) issues.push(`DESIGN_TAKEAWAY_UNBOUND: ${d.id}; bind the reviewed leading claim, do not invent a new title during layout`);
       if(new Set(selected.map(s=>s.sectionId)).size>1) issues.push(`DESIGN_BRIEF_CROSS_SECTION: ${d.id}`);
@@ -138,9 +162,7 @@ export function designBriefIssues(brief,ledger,slides=[]) {
       if(new Set(moduleIds).size!==moduleIds.length||d.carriers?.length!==moduleIds.length||new Set(d.carriers?.map(c=>c.moduleId)).size!==moduleIds.length||d.carriers?.some(c=>!moduleIds.includes(c.moduleId))) issues.push(`DESIGN_BRIEF_MODULE_COVERAGE: ${d.id}`);
       for(const scene of [d.scenePlan,...(d.alternatives||[])]) issues.push(...scenePlanIssues({modules,scenePlan:scene}).map(i=>`${d.id}: ${i}`));
       for(const focus of d.directorPlan?.metricEmphasis||d.metricEmphasis||[]) {
-        const m=modules.find(m=>m.id===focus.moduleId),node=m?.data?.nodes?.find(n=>n.id===focus.nodeId);
-        const [kind,index]=String(focus.field).split('-');
-        const value=kind==='duration'?node?.duration:kind==='metric'?node?.metrics?.[index]:kind==='secondary'?node?.secondaryMetrics?.[index]:kind==='primary'&&index==='0'?node?.primaryMetric:undefined;
+        const value=metricValue(modules.find(m=>m.id===focus.moduleId),focus);
         if(value==null||!['P0','P1','P2'].includes(focus.priority)) issues.push(`DESIGN_METRIC_TARGET: ${d.id}`);
       }
       issues.push(...directorPlanIssues(d,modules));
@@ -174,8 +196,17 @@ export function applyDesignBriefs(slides,brief) {
     const plan=d.directorPlan,binding=id=>plan?.carrierBindings?.find(c=>c.moduleId===id),color=id=>plan?.semanticColors?.find(c=>c.targetId===id)?.role;
     return {...s,designBriefId:d.id,directorPlan:plan,directorComposition:plan?.completeComposition,directorAlternatives:plan?.alternativeCompositions||[],whitespaceIntent:plan?.whitespaceIntent,modules:s.modules.map(m=>({...m,visualPriority:binding(m.id)?.priority||d.carriers.find(c=>c.moduleId===m.id).priority,
       directorRegionId:binding(m.id)?.regionId,directorTreatment:binding(m.id)?.visualTreatment,copyBudget:binding(m.id)?.copyBudget,semanticColorRole:color(m.id),
+      ...(m.expression?.type?{expression:{...m.expression,metricEmphasis:(plan?.metricEmphasis||[]).filter(e=>e.moduleId===m.id&&e.field.startsWith('series-'))}}:{}),
       data:{...m.data,...(m.data?.nodes?{nodes:m.data.nodes.map(n=>({...n,metricPriorities:Object.fromEntries((plan?.metricEmphasis||d.metricEmphasis||[]).filter(e=>e.moduleId===m.id&&e.nodeId===n.id).map(e=>[e.field,e.priority]))}))}:{})}}))};
   });
+}
+
+export function measuredPageDesignIssues(plan,page) {
+  if(!plan||!page) return [];
+  const issues=[],priorities=new Set((page.modules||[]).map(m=>m.priority));
+  if(!plan.whitespaceIntent?.intentional&&page.whitespaceReview===true) issues.push('UNINTENTIONAL_WHITESPACE');
+  if(priorities.has('P1')&&(!priorities.has('P0')||Object.values(page.directorHierarchySignals||{}).filter(Boolean).length<2)) issues.push('FLAT_HIERARCHY: each measured continuation needs a supported local focus');
+  return issues;
 }
 
 export function designExecutionReport(ir,manifest,nativePages=null) {
@@ -191,20 +222,25 @@ export function designExecutionReport(ir,manifest,nativePages=null) {
       if(actual&&actual.priority!==b.priority) {record.status='FAIL';issues.push(`DESIGN_CARRIER_PRIORITY_CHANGED: ${d.id}/${b.moduleId}`);}
       if(actual&&actual.directorRegionId!==plannedRegion) {record.status='FAIL';issues.push(`DESIGN_REGION_UNIMPLEMENTED: ${d.id}/${b.moduleId}`);}
       if(actual&&actual.directorTreatment!==b.visualTreatment) {record.status='FAIL';issues.push(`DESIGN_TREATMENT_UNIMPLEMENTED: ${d.id}/${b.moduleId}`);}
+      const treatmentEvidence=measuredTreatmentIssues(b,actual);
+      if(treatmentEvidence.length) {record.status='FAIL';issues.push(...treatmentEvidence);}
+      record.measuredEvidence={primitiveCount:actual?.primitives?.length||0,textCount:texts.length,tableRows:actual?.table?.rows?.length||0,issues:treatmentEvidence};
       if(actual&&plannedColor&&actual.semanticColorRole!==plannedColor) {record.status='FAIL';issues.push(`DESIGN_COLOR_ROLE_UNIMPLEMENTED: ${d.id}/${b.moduleId}`);}
       bindings.push(record);
     }
-    if(plan&&!plan.whitespaceIntent.intentional&&pages.some(p=>p.whitespaceReview===true)) issues.push(`UNINTENTIONAL_WHITESPACE: ${d.id}`);
-    if(plan) {
-      const p0=bindings.filter(b=>b.designBriefId===d.id&&b.plannedPriority==='P0'),p1=bindings.filter(b=>b.designBriefId===d.id&&b.plannedPriority==='P1');
-      if(p0.length&&p1.length&&pages.some(p=>Object.values(p.directorHierarchySignals||{}).filter(Boolean).length<2)) issues.push(`FLAT_HIERARCHY: ${d.id}; P0 must dominate P1 through at least two visual signals`);
-    }
+    for(const page of pages) issues.push(...measuredPageDesignIssues(plan,page).map(issue=>`${issue}: ${d.id}/${page.slideId}`));
   }
   return {passed:!issues.length,issues,bindings};
 }
 
 export function designExecutionIssues(ir,manifest,nativePages=null) {
   const issues=[...designExecutionReport(ir,manifest,nativePages).issues];
+  if(nativePages) for(const page of manifest.slides||[]) for(const module of page.modules||[]) for(const edge of module.network?.edges||[]) {
+    const objects=nativePages.find(p=>p.slideId===page.slideId)?.objects||[],prefix=`mint|diagram-edge|${module.index}|binding:${encodeURIComponent(edge.id)}|from:${encodeURIComponent(edge.from)}|to:${encodeURIComponent(edge.to)}|segment:`;
+    const segments=objects.filter(o=>o.name.startsWith(prefix)).sort((a,b)=>Number(a.name.slice(prefix.length))-Number(b.name.slice(prefix.length)));
+    const nodeName=id=>`mint|diagram-node|${module.index}|binding:${encodeURIComponent(id)}|bg`;
+    if(!segments.length||segments[0].fromName!==nodeName(edge.from)||segments.at(-1).toName!==nodeName(edge.to)||segments.some((s,i)=>!s.connected||i&&segments[i-1].toId!==s.fromId)) issues.push(`NATIVE_NETWORK_PATH_DISCONNECTED: ${module.id}/${edge.id}`);
+  }
   for(const d of ir.executionBrief?.designBriefs||[]) {
     const slides=ir.slides.filter(s=>s.designBriefId===d.id),pages=slides.map(s=>manifest.slides.find(p=>p.slideId===s.id)).filter(Boolean);
     const modules=pages.flatMap(p=>p.modules||[]);
@@ -246,6 +282,10 @@ export function designAcceptanceIssues(review,ir,attempts) {
     if(!cited.length||cited.some(a=>!a||a.phase!=='complete'||a.passed||!a.measured||a.equivalentTo||![...needed].every(id=>a.candidate.modules.some(m=>m.id===id)))) issues.push(`CAPACITY_CITATION_INVALID: ${p.before}/${p.after}`);
     const full=attempts.filter(a=>a.phase==='complete'&&a.candidate?.designBriefId===before.designBriefId&&before.designBriefId);
     if(full.some(a=>a.passed)) issues.push(`DESIGN_READABLE_MERGE_IGNORED: ${p.before}/${p.after}`);
+    const fragments=[...before.modules,...after.modules].map(m=>m.id);
+    const merge=attempts.filter(a=>a.phase==='merge-recheck'&&a.measured===true&&a.candidate?.designBriefId===before.designBriefId&&fragments.every(id=>a.candidate.modules.some(m=>m.id===id)));
+    if(before.designBriefId&&!merge.length) issues.push(`CAPACITY_FINAL_MERGE_RECHECK_REQUIRED: ${p.before}/${p.after}`);
+    if(merge.some(a=>a.passed)) issues.push(`DESIGN_READABLE_MERGE_IGNORED: ${p.before}/${p.after}`);
   }
   return issues;
 }
@@ -259,7 +299,10 @@ export function semanticObligationIssues(brief,slides) {
     if(['dependency','sequence','handoff','hierarchy','containment'].includes(o.type)) expressed=edges.some(e=>e.relationship===o.type&&e.from===o.from&&e.to===o.to);
     else if(o.type==='parallel') expressed=lanes.some(l=>l.relationship==='parallel'&&l.id===o.laneId&&l.parallelTo===o.parallelTo);
     else if(['temporal-range','uncertainty','duration'].includes(o.type)) expressed=nodes.some(n=>n.id===o.targetId&&(o.type==='duration'?n.duration===o.expectedText:n.timeRange?.start===o.start&&n.timeRange?.end===o.end));
-    else expressed=modules.some(m=>m.id===o.moduleId&&m.expression?.type===o.expressionType&&m.expression?.variant===o.variant);
+    else {
+      const carriers=modules.filter(m=>m.id===o.moduleId||m.originModuleId===o.moduleId);
+      expressed=carriers.length>0&&carriers.every(m=>m.expression?.type===o.expressionType&&m.expression?.variant===o.variant);
+    }
     if(!expressed) issues.push(`SEMANTIC_OBLIGATION_UNEXPRESSED: ${o.id}`);
   }
   return issues;

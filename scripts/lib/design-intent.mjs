@@ -77,7 +77,13 @@ export function auditDesignRequirements(ir, manifest, { nativePages = null } = {
     else passed = false;
     if (passed && nativePages && ['temporal-window','dependency','parallel-options'].includes(r.type)) {
       const kind = {'temporal-window':'time-range',dependency:'dependency-edge','parallel-options':'parallel-lane'}[r.type];
-      passed = pages.some(page=>page.modules.some(m=>(m.primitives || []).some(p=>target.includes(p) && p.primitive===kind && nativePages.find(n=>n.slideId===page.slideId)?.objects.some(o=>o.name===`mint|primitive:${kind}|binding:${encodeURIComponent(p.bindingId)}${kind==='dependency-edge'?'|rule':''}` && (kind!=='dependency-edge' || (o.kind==='connector' && o.forwardArrow && o.connected && o.width>0))))));
+      passed = pages.some(page=>page.modules.some(m=>(m.primitives || []).some(p=>target.includes(p) && p.primitive===kind && nativePages.find(n=>n.slideId===page.slideId)?.objects.some(o=>{
+        if(o.name!==`mint|primitive:${kind}|binding:${encodeURIComponent(p.bindingId)}${kind==='dependency-edge'?'|rule':''}`) return false;
+        if(kind!=='dependency-edge') return true;
+        const prefix=m.id;
+        const endpoint=(name,id)=>['milestone','entity-profile'].some(k=>name===`mint|primitive:${k}|binding:${encodeURIComponent(prefix+'/'+id)}`);
+        return o.kind==='connector'&&o.forwardArrow&&o.connected&&o.width>0&&endpoint(o.fromName,p.from)&&endpoint(o.toName,p.to);
+      }))));
     }
     results.push({id:r.id,status:passed?'PASS':'FAIL',stage:nativePages?'native':'canvas'});
     if (!passed) issues.push(`DESIGN_REQUIREMENT_UNMET: ${r.id} ${r.requirement}`);
@@ -127,8 +133,15 @@ export function executiveReviewIssues(review, slideIds, decisionSystems=null) {
 
 // Read actual OOXML object types per page; a named background is not an arrow.
 export function nativeDesignPages(xmlPages, slideIds) {
-  return xmlPages.map((xml,i)=>({slideId:slideIds[i],objects:[...xml.matchAll(/<p:(sp|cxnSp)\b[^>]*>[\s\S]*?<\/p:\1>/g)].map(match=>{
+  return xmlPages.map((xml,i)=>{
+    const objects=[...xml.matchAll(/<p:(sp|cxnSp)\b[^>]*>[\s\S]*?<\/p:\1>/g)].map(match=>{
     const body=match[0],name=(body.match(/<p:cNvPr\b[^>]*name="([^"]+)"/)?.[1] || '').split('|role:')[0];
-    return {name,kind:match[1]==='cxnSp'?'connector':'shape',fontSizesPx:[...body.matchAll(/<a:(?:rPr|defRPr)\b[^>]*\bsz="(\d+)"/g)].map(m=>Number(m[1])/100*96/72),forwardArrow:/<a:tailEnd\b[^>]*type="triangle"/.test(body)&&!/<a:xfrm\b[^>]*flipH="1"/.test(body),connected:/<a:stCxn\b/.test(body)&&/<a:endCxn\b/.test(body),width:Number(body.match(/<a:ext\b[^>]*cx="(\d+)"/)?.[1] || 0)};
-  })}));
+    return {name,nativeId:body.match(/<p:cNvPr\b[^>]*\bid="([^"]+)"/)?.[1],fromId:body.match(/<a:stCxn\b[^>]*\bid="([^"]+)"/)?.[1],toId:body.match(/<a:endCxn\b[^>]*\bid="([^"]+)"/)?.[1],kind:match[1]==='cxnSp'?'connector':'shape',fontSizesPx:[...body.matchAll(/<a:(?:rPr|defRPr)\b[^>]*\bsz="(\d+)"/g)].map(m=>Number(m[1])/100*96/72),forwardArrow:/<a:tailEnd\b[^>]*type="triangle"/.test(body)&&!/<a:xfrm\b[^>]*flipH="1"/.test(body),width:Number(body.match(/<a:ext\b[^>]*cx="(\d+)"/)?.[1] || 0)};
+    });
+    for(const object of objects) {
+      const from=objects.find(n=>object.fromId&&n.nativeId===object.fromId),to=objects.find(n=>object.toId&&n.nativeId===object.toId);
+      object.connected=!!from&&!!to;object.fromName=from?.name;object.toName=to?.name;
+    }
+    return {slideId:slideIds[i],objects};
+  });
 }

@@ -1,5 +1,20 @@
 import assert from "node:assert/strict";
 import { inferDataShape, routeExpression, resolveSlideExpressions, expressionSuitability, tableToChartData } from "../scripts/lib/expression-router.mjs";
+import {chartDisplayModel} from '../scripts/lib/chart-display-model.mjs';
+import {theme} from '../scripts/lib/config.mjs';
+
+const unitInput={claim:'甲乙比较',semanticIntent:'comparison',modules:[{id:'m',type:'chart',data:{categories:['甲','乙'],unit:'k',series:[{name:'安装',values:[493.9,304.9]},{name:'使用',unit:'k',values:[219.4,131.5]}]}}]};
+const withUnits=resolveSlideExpressions(unitInput).modules[0];
+assert.deepEqual(withUnits.data.series.map(s=>s.displayUnit),['k','k']);
+assert.deepEqual(withUnits.data.series.map(s=>s.values),unitInput.modules[0].data.series.map(s=>s.values));
+const conflict=structuredClone(unitInput);conflict.modules[0].data.series[1].displayUnit='万人';
+assert.throws(()=>resolveSlideExpressions(conflict),/CHART_UNIT_CONFLICT/);
+const dots=chartDisplayModel(withUnits.data,withUnits.expression,1129,theme.palette);
+assert.equal(new Set(dots.primitives.filter(p=>p.kind==='circle').map(p=>p.color)).size,2,'Emphasis cannot erase series identity');
+const points=dots.primitives.filter(p=>p.kind==='circle'),labels=dots.primitives.filter(p=>p.role==='chartValue');
+labels.forEach((label,i)=>{assert.match(label.text,/k$/);assert(Math.abs(label.x-points[i].x)<20,'Dot labels stay near the point');assert(label.x+label.width<=dots.width);});
+const longUnits=chartDisplayModel({categories:['成本','收入'],series:[{name:'月度口径',displayUnit:'万美元 / 月',values:[16.38,53.4]}]},{variant:'variance-bar'},1000,theme.palette);
+assert(longUnits.primitives.filter(p=>p.role==='chartValue').every(p=>p.width>125&&p.x+p.width<=1000),'Long units reserve label space without shrinking or stripping units');
 
 const twoPeriods = { categories: ["Y1", "Y2"], series: [{ name: "收入", values: [80, 92] }] };
 assert.equal(inferDataShape(twoPeriods).hasTime, true);
@@ -36,3 +51,7 @@ const fourPairs={categories:['A','B','C','D'],series:[{values:[1,2,3,4]},{values
 assert.equal(inferDataShape(fourPairs).observationCount,4);
 assert.equal(routeExpression({semanticIntent:'correlation',data:fourPairs}).type,'table');
 assert.equal(routeExpression({semanticIntent:'process',type:'text',data:{nodes:[{id:'a'},{id:'b'}],edges:[{from:'a',to:'b'}]}}).type,'diagram');
+const stages={categories:['触达','申请','放款'],series:[{name:'人数',values:[1000,400,100]}],samePopulation:true};
+assert.equal(routeExpression({managementQuestion:'哪些环节流失最多？',semanticIntent:'conversion',type:'table',data:stages}).variant,'stage-bars');
+assert.throws(()=>routeExpression({semanticIntent:'conversion',data:{...stages,samePopulation:false}}),/STAGE_POPULATION_REVIEW_REQUIRED/);
+assert.equal(routeExpression({managementQuestion:'成本明细中谁压降最多？',semanticIntent:'ranking',type:'table',data:costTable}).type,'chart','明细不是查数的同义词');

@@ -13,7 +13,13 @@ function visibilityClass(unit) {
 }
 
 function normalizedText(value) {
-  return String(value ?? "").normalize("NFKC").replaceAll('−','-').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g,'').replace(/(\d)\s+(?=[+-]?\d)/g,'$1|').replace(/\s+/g, "").replace(/[，。；：、,!！？：;()（）\[\]【】]/g, "").toLowerCase();
+  return String(value ?? "").normalize("NFKC").replaceAll('−','-').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g,'').replace(/(?<=\d),(?=\d)/g,'|').replace(/[()（）]/g,' ').replace(/(\d)\s+(?=[+-]?\d)/g,'$1|').replace(/\s+/g, "").replace(/[，。；：、,!！？：;\[\]【】]/g, "").toLowerCase();
+}
+
+// Numeric chart cells may legitimately serialize 10.0 as 10. Compare complete
+// numeric tokens, never substrings (12 must not be covered by 12.3 or 112).
+function numericTokenPresent(payload,token) {
+  return [...payload.matchAll(/(?<![\d.])\d+(?:\.\d+)?(?!\d|\.\d)/g)].some(match=>Number(match[0])===Number(token));
 }
 
 export function visibleModulePayload(module = {}) {
@@ -94,8 +100,7 @@ export function auditVisibleFactContent(source, ir, { renderedModules = null } =
       // Reviewed language equivalents may replace English terminology, never
       // numbers, currency or Chinese forecast/condition qualifiers.
       if(/^[A-Za-z]/.test(token)&&(unit.componentReview?.terminology||[]).some(t=>['translation','name-normalization'].includes(t.reason)&&typeof t.source==='string'&&typeof t.display==='string'&&normalizedText(unit.text).includes(normalizedText(t.source))&&t.source.split(/[^A-Za-z0-9-]+/).some(word=>word.toLowerCase()===token.toLowerCase())&&visible.includes(normalizedText(t.display)))) continue;
-      const escaped = normalizedText(token).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const present = /^\d/.test(token) ? new RegExp(`(?<![\\d.])${escaped}(?![\\d.])`).test(visible) : visible.includes(normalizedText(token));
+      const present = /^\d/.test(token) ? numericTokenPresent(visible,token) : visible.includes(normalizedText(token));
       if (!present) issues.push(`SOURCE_QUALIFIER_MISSING: ${id} lacks ${token}`);
     }
   }
@@ -119,8 +124,7 @@ export function structuredFactIssues(unit,binding,payload) {
   // Reviewed fields do not waive original numbers, qualifiers or an existing
   // component inventory. The review handles meaning; this guards mechanical loss.
   for(const token of unit.text.replace(/^\s*\d+[）)、]\s*/,'').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g,'').match(/\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9-]*|人民币|美元|预计|全年|计划|正编|外包|所有|全部|部分|仅|至少|至多/g)||[]) {
-    const value=normalizedText(token).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-    if(!(/^\d/.test(token)?new RegExp(`(?<![\\d.])${value}(?![\\d.])`).test(payload):payload.includes(normalizedText(token)))) issues.push('FACT_SOURCE_QUALIFIER_MISSING');
+    if(!(/^\d/.test(token)?numericTokenPresent(payload,token):payload.includes(normalizedText(token)))) issues.push('FACT_SOURCE_QUALIFIER_MISSING');
   }
   for(const component of unit.requiredComponents||[]) {
     const alternatives=typeof component==='string'?[component]:component.alternatives||[component.text];

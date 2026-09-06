@@ -8,6 +8,7 @@ import { renderPresentation, exportPresentation } from '../scripts/lib/ppt-rende
 import { theme } from '../scripts/lib/config.mjs';
 import { inspectPptxPackage } from '../scripts/lib/pptx-metadata.mjs';
 import { auditNativeChart, auditFinalFacts, auditShapeChartLabels } from '../scripts/lib/final-facts.mjs';
+import {chartDisplayModel} from '../scripts/lib/chart-display-model.mjs';
 const variants = ['line', 'column', 'variance-bar', 'doughnut', 'percent-stacked', 'scatter'];
 const slides = variants.map((variant,i) => ({ id:variant, role:'content', outlineItem:String(i), claim:`原生图表专项：${variant}`, modules:[{id:variant, type:'chart', title:'分类、单位与精确值必须可见', expression:{type:'chart',variant}, data: variant === 'scatter'
   ? {categories:['A','B','C','D','E','F','G','H'], series:[{name:'规模',displayUnit:'万人',values:[2,4,6,8,10,12,14,16]},{name:'质量',displayUnit:'%',values:[30,65,15,80,40,95,55,10]}]}
@@ -18,6 +19,11 @@ for (const [variant, label] of [['line','close-line'],['variance-bar','negative-
   slide.modules[0].data.series[0].values = [-20,40,65];
   slides.push(slide); variants.push(label);
 }
+const stageData={categories:['触达','申请','放款'],samePopulation:true,series:[{name:'人数',displayUnit:'人',values:[1000,400,100]}]};
+slides.push({id:'stages',role:'content',outlineItem:'stages',claim:'申请至放款转化为25%',modules:[{id:'stage',type:'chart',expression:{type:'chart',variant:'stage-bars',metricEmphasis:[{moduleId:'stage',nodeId:'放款',field:'series-0',priority:'P0'}]},data:stageData}]});variants.push('stage-bars');
+const zeroStage=chartDisplayModel({...stageData,series:[{name:'人数',values:[1000,0,0]}]},{variant:'stage-bars'},1000,theme.palette);
+assert.ok(!JSON.stringify(zeroStage).includes('NaN'));
+assert.throws(()=>chartDisplayModel({...stageData,samePopulation:false},{variant:'stage-bars'},1000,theme.palette),/STAGE_POPULATION_INVALID/);
 const folder = fs.mkdtempSync(path.join(os.tmpdir(),'mint-native-charts-'));
 const measured = await planAndMeasureOutline({slides},theme,path.join(folder,'design.html'),path.join(folder,'design'));
 assert.equal(measured.manifest.passed,true, measured.manifest.issues.join(';'));
@@ -27,7 +33,7 @@ assert.equal(coordinateLabels.length,8);
 assert.ok(coordinateLabels.every(p=>p.y+p.height <= 300),'coordinate labels must stay above axis captions without shrinking');
 const ir = applyDomLayout(measured.ir,measured.manifest);
 const {presentation,diagnostics} = await renderPresentation(ir,theme);
-assert.equal(diagnostics.filter(d=>d.implementation==='editable-shapes').length,2,'known native-label failures must use measured editable geometry');
+assert.equal(diagnostics.filter(d=>d.implementation==='editable-shapes').length,3,'compatibility and point-emphasis use the same measured editable geometry');
 const output = path.join(folder,'native-charts.pptx'); await exportPresentation(presentation,output);
 const pkg = await inspectPptxPackage(output);
 assert.equal(pkg.charts.length,6);
@@ -63,6 +69,11 @@ const finalFacts=await auditFinalFacts({file:output,source,ir,layouts});
 fs.writeFileSync(path.join(folder,'final-facts.json'),JSON.stringify(finalFacts,null,2));
 assert.deepEqual(finalFacts.issues,[]);
 const changedShape = structuredClone(layouts[6].elements);
+const stageLabels=layouts[8].elements.filter(e=>e.name?.startsWith('mint|chart-label|'));
+assert.ok(stageLabels.some(e=>e.text==='100人'),'exact emphasized value survives native compilation');
+assert.ok(stageLabels.some(e=>e.text==='上一步转化 25.00%'));
+const stageXml=await pkg.zip.file(pkg.slides[8]).async('string');
+assert.ok(stageXml.includes(encodeURIComponent('stage/放款/series-0')),'metric binding survives in native object name');
 const valueLabels = changedShape.filter(e=>e.name?.startsWith('mint|chart-label|') && /65|70/.test(e.text));
 assert.ok(valueLabels.length >= 2);
 [valueLabels[0].text,valueLabels[1].text] = [valueLabels[1].text,valueLabels[0].text];

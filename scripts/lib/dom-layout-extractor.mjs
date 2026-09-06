@@ -35,6 +35,27 @@ function unionArea(rects) {
   return area;
 }
 
+// Coarse empty-rectangle diagnostic from actual ink/image/chart regions. A
+// background or an allocated module frame cannot turn empty space into ink.
+export function contentSpaceDiagnostics(bounds,rects) {
+  const cols=24,rows=16,cw=bounds.width/cols,ch=bounds.height/rows;
+  const occupied=Array.from({length:rows},(_,y)=>Array.from({length:cols},(_,x)=>rects.some(r=>r.left<bounds.left+(x+1)*cw&&r.left+r.width>bounds.left+x*cw&&r.top<bounds.top+(y+1)*ch&&r.top+r.height>bounds.top+y*ch)));
+  let best={cells:0,left:bounds.left,top:bounds.top,width:0,height:0};
+  for(let top=0;top<rows;top++) {
+    const free=Array(cols).fill(true);
+    for(let bottom=top;bottom<rows;bottom++) {
+      for(let x=0;x<cols;x++) free[x]&&=!occupied[bottom][x];
+      let start=0;
+      for(let x=0;x<=cols;x++) if(x===cols||!free[x]) {
+        const cells=(x-start)*(bottom-top+1);
+        if(cells>best.cells) best={cells,left:bounds.left+start*cw,top:bounds.top+top*ch,width:(x-start)*cw,height:(bottom-top+1)*ch};
+        start=x+1;
+      }
+    }
+  }
+  return {largestDeadZone:best,emptyFraction:1-occupied.flat().filter(Boolean).length/(cols*rows),basis:'24x16 conservative ink occupancy; background frames excluded; diagnostic, not a fill target'};
+}
+
 export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides = null, existingPage = null, htmlMarkup = null, capture = true }) {
   const imported = await playwrightModule(), chromium = imported.chromium || imported.default?.chromium;
   if (!chromium) throw new Error("Playwright Chromium API is unavailable");
@@ -48,15 +69,13 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
     await page.waitForFunction(() => document.documentElement.dataset.renderReady === "true", null, { timeout: 15000 });
     const renderError = await page.evaluate(() => document.documentElement.dataset.renderError);
     if (renderError) return { passed: false, issues: [renderError], slides: [] };
-    // Browser and PowerPoint differ at CJK/Latin wrap boundaries. Reserve one
-    // line for prose in the measured flow, not just in the exported
-    // textbox; following modules and page-capacity decisions see it too.
+    // Lines are frozen below. Reserve a small baseline guard, not an extra
+    // empty line for EVERY paragraph (which caused artificial overflow/splits).
     await page.evaluate(() => {
       for (const element of document.querySelectorAll('.module-copy')) {
         const lineHeight = parseFloat(getComputedStyle(element).lineHeight);
         const height = element.getBoundingClientRect().height;
-        // A browser single-line paragraph can wrap to two lines in PowerPoint too.
-        element.style.minHeight = `${height + lineHeight}px`;
+        element.style.minHeight = `${height + Math.min(6,lineHeight*.15)}px`;
       }
       window.mintRelayoutAttachments?.();
     });
@@ -95,9 +114,10 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
           id: element.dataset.mintId || null, nodeId: element.dataset.nodeId || null, kind: element.dataset.mintKind || element.dataset.mintObject || null,
           primitive: element.dataset.visualPrimitive || null, primitiveParent:element.closest('[data-visual-primitive]')?.dataset.visualPrimitive || null,
           bindingId:element.dataset.vpBindingId,edgeId:element.dataset.vpEdgeId,laneId:element.dataset.vpLaneId,parallelTo:element.dataset.vpParallelTo,from:element.dataset.vpFrom,to:element.dataset.vpTo,
+          connection:element.dataset.vpConnection?JSON.parse(element.dataset.vpConnection):null,
           primitiveNodeId:element.dataset.vpNodeId,
-          metricBindingId:element.closest('.vp-metric-badge')?.dataset.vpBindingId || null,
-          metricPriority:element.closest('.vp-metric-badge')?.dataset.vpPriority || null,
+          metricBindingId:element.dataset.metricBindingId||element.closest('.vp-metric-badge')?.dataset.vpBindingId || null,
+          metricPriority:element.dataset.metricPriority||element.closest('.vp-metric-badge')?.dataset.vpPriority || null,
           metricPart:element.classList.contains('metric-label')||element.classList.contains('metric-unit')?'annotation':'value',
           factTargetId:element.closest('[data-vp-node]')?.dataset.vpNode || element.closest('[data-node-id]')?.dataset.nodeId || null,
           borderColor:hex(style.borderBottomColor),borderBottomWidth:parseFloat(style.borderBottomWidth),borderTopWidth:parseFloat(style.borderTopWidth),borderTopColor:hex(style.borderTopColor),borderLeftColor:hex(style.borderLeftColor),borderRightWidth:parseFloat(style.borderRightWidth),borderRightColor:hex(style.borderRightColor),
@@ -145,7 +165,8 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
       }
       for (const element of slide.querySelectorAll('img, [data-chart-primitive="rect"], [data-chart-primitive="circle"]')) painted.push(rel(element.getBoundingClientRect()));
       const attachments=[...slide.querySelectorAll('[data-scene-target]')].map(e=>({relation:e.classList.contains('scene-overlay')?'overlay':'anchor',targetId:e.dataset.sceneTarget,side:['before','after','start','end'].find(s=>e.classList.contains('side-'+s)),rect:rel(e.getBoundingClientRect()),target:rel(e.querySelector('.scene-target').getBoundingClientRect()),annotation:rel(e.querySelector('.scene-annotation').getBoundingClientRect())}));
-      return { slideIndex, slideId: slide.dataset.slideId, composition: slide.dataset.composition, bandCount: Number(slide.querySelector('main').dataset.bandCount), width: slideRect.width, height: slideRect.height, mainBounds:rel(slide.querySelector('main').getBoundingClientRect()), title, question, modules, painted,attachments,repairOperations:JSON.parse(slide.dataset.capacityOperations || '[]') };
+      const directorBands=[...slide.querySelectorAll('.director-band')].map(b=>({id:b.dataset.directorRegion,preferredShare:JSON.parse('['+b.dataset.preferredShare+']'),rect:rel(b.getBoundingClientRect()),allocation:'browser-natural-height'}));
+      return { slideIndex, slideId: slide.dataset.slideId, composition: slide.dataset.composition, bandCount: Number(slide.querySelector('main').dataset.bandCount), width: slideRect.width, height: slideRect.height, mainBounds:rel(slide.querySelector('main').getBoundingClientRect()), title, question, modules, painted,attachments,directorBands,repairOperations:JSON.parse(slide.dataset.capacityOperations || '[]') };
     }));
     if (expectedSlides != null && slides.length !== expectedSlides) throw new Error(`Design canvas has ${slides.length} slides; expected ${expectedSlides}`);
     if (capture) fs.mkdirSync(outputDir, { recursive: true });
@@ -179,6 +200,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         if (width > 2 && height > 2) issues.push(`DOM_TEXT_COLLISION: ${slide.slideId} ${leaves[i].text.slice(0, 20)} / ${leaves[j].text.slice(0, 20)}`);
       }
       slide.visualOccupancy = unionArea(slide.painted) / (1920 * 1080);
+      slide.contentSpace=contentSpaceDiagnostics(slide.mainBounds,slide.painted);
       // Compact reading regions outrank a tall sidebar beside an empty region.
       // Extending content to the page bottom is not a design achievement.
       const bottom = Math.max(slide.title.rect.top + slide.title.rect.height, ...slide.modules.map(m => m.rect.top + m.rect.height));
@@ -207,6 +229,9 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         + (image && slide.modules.length > 1 ? (image.rect.width > supportWidth ? 2 : -2) : 0);
       const moduleBottom=Math.max(...slide.modules.map(m=>m.rect.top+m.rect.height)),unusedBottom=Math.max(0,slide.mainBounds.top+slide.mainBounds.height-moduleBottom);
       slide.whitespaceReview = slide.visualOccupancy < 0.55 && unusedBottom > slide.mainBounds.height*.34; // concentrated unused space, not a fill target
+      const dead=slide.contentSpace.largestDeadZone;
+      slide.whitespaceReview ||= dead.width>slide.mainBounds.width*.30&&dead.height>slide.mainBounds.height*.45;
+      slide.compositionScore-=dead.cells/(24*16)*6;
       const locator = page.locator(".mint-ppt-slide").nth(slide.slideIndex);
       if (capture) await locator.screenshot({ path: path.join(outputDir, `slide-${String(slide.slideIndex + 1).padStart(2, "0")}.png`) });
       delete slide.painted;

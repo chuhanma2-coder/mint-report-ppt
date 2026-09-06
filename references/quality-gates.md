@@ -66,7 +66,7 @@ Additional deterministic blockers:
 - `LAYOUT_PATTERN_OVERUSE`: four consecutive content pages use the same geometry variant without necessity.
 - `OUTLINE_FRAGMENTATION` / `OUTLINE_ADJACENT_PAGES_CAN_MERGE`: an outline item was split into more pages than readable capacity requires.
 - `OUTLINE_SPLIT_UNJUSTIFIED`: a continuation page lacks a natural evidence/business boundary.
-- `CHART_DOMINANCE_FORBIDDEN`: a chart was assigned P0 or allowed to replace the page's written claim/evidence/meaning chain.
+- A chart may carry P0 evidence when the claim genuinely depends on that visual relation. It cannot replace the claim/evidence/meaning chain or receive a large empty frame merely to fill area. There is no minimum non-chart carrier count.
 
 Every content slide must provide a Page Evidence Bundle, and every bundle item must appear in a visible module. Primary bundle evidence must be rendered through a `primaryEvidence` module. A slide cannot pass merely because its evidence IDs exist in notes.
 
@@ -91,5 +91,7 @@ Report TECHNICAL, CONTENT, UNDERSTANDING, DESIGN and TARGET PLATFORM separately.
 Validate the Design Requirement Ledger before generation; verify hard requirements on measured Canvas and exported native objects. Require 100% hard recall. Unknown hard requirements block instead of disappearing. Native shape names are implementation bindings, not business visibility proof; final fact checks and rendered review remain mandatory. Verify interval bounds, dependency direction, parallel lanes and explicit page/image/focus/table requirements.
 
 Executive Visual QA checks firstFocus, bodyProvesTitle, relationships, space, carrierSuitability, hierarchy and readingOrder for every rendered page. It must use the generated clean review input in an independent context, declare that generator explanations were not used, and record issues with their responsible layer. Pending, self-context, or stale review is not a pass. The delivery audit binds review to the current PPT hash; changes invalidate that review. No visual model may alter numbers, delete facts, change chart semantics or manufacture coordinates.
+
+The current delivery gate also rehashes the frozen sources, runtime, IR, audit sidecars and page snapshots. A separate reviewer records a host receipt after actual full-resolution image results appear in its transcript; generated declarations and path mentions cannot substitute. Checks use the receipt's fixed transcript prefix, not later appended observations. Any source/runtime/render/QA mutation invalidates design approval. Review-required metadata inside a generated PPT prevents sidecar deletion from turning it into an approved final. After an explicit human-edit handoff, `audit-final-ppt --human-edited-final` audits the actual final file without restoring old IR; that technical audit never claims the old design approval still applies.
 
 Composition fallback does not override a supported Planner narrative. Hard requirements survive fallback. Visual rhythm is assessed over the chapter, not through mandatory template rotation. Record low-content whitespace for review instead of stretching empty frames to satisfy area thresholds.

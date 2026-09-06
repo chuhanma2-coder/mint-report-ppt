@@ -30,13 +30,20 @@ export function chartDisplayModel(data, expression, width, colors) {
   }
   const p = [], height = Math.max(230, categories.length * (series.length * 30 + 26) + 84);
   const text = (value, x, y, w, h = 30, size = 22, role = 'chartLabel') => p.push({ kind: 'text', text: String(value), x, y, width: w, height: h, fontSize: size, color: colors.ink,role });
+  const valueText=(value,categoryIndex,seriesIndex,x,y,w,h=32)=>{
+    const focus=expression.metricEmphasis?.find(e=>e.nodeId===categories[categoryIndex]&&e.field===`series-${seriesIndex}`);
+    text(value,x,y,w,h,focus?.priority==='P0'?28:22,'chartValue');
+    if(focus) Object.assign(p.at(-1),{bold:focus.priority!=='P2',color:focus.priority==='P0'?colors.orange:colors.ink,metricPriority:focus.priority,metricBindingId:`${focus.moduleId}/${focus.nodeId}/${focus.field}`});
+  };
   const line = (x, y, x2, y2, color = colors.line) => p.push({ kind: 'line', x, y, x2, y2, color });
   const rect = (x, y, w, h, color) => p.push({ kind: 'rect', x, y, width: w, height: h, color });
   const peers = [colors.blue, colors.orange, colors.mint, colors.purple, colors.gold];
   const palette = series.map((s, i) => /实际|当前|actual|current/i.test(s.name || '') ? colors.mint : /预算|目标|budget|target/i.test(s.name || '') ? colors.muted : peers[i % peers.length]);
-  const color = (s, label) => expression.focusCategories?.includes(label) ? colors.orange : palette[s % palette.length];
+  const color = (s, label) => series.length===1&&expression.focusCategories?.includes(label) ? colors.orange : palette[s % palette.length];
   const labelWidth = Math.min(width * .32, Math.max(100, ...categories.map(v => v.length * 22)));
-  const left = labelWidth + 12, right = width - 140, plotWidth = right - left;
+  const horizontal=['sorted-bar','variance-bar','diverging-variance-bar','dot-plot','stage-bars','funnel'].includes(variant);
+  const valueWidth=horizontal?Math.max(125,...series.flatMap(s=>s.values.map(v=>[...`${v}${s.displayUnit||''}`].reduce((w,c)=>w+(/[\u2e80-\uffef]/u.test(c)?28:18),0)+12))):125;
+  const left = labelWidth + 12, right = width - valueWidth - 15, plotWidth = right - left;
   if (plotWidth < 100) throw new Error('CHART_LABEL_CAPACITY');
   const min = Math.min(0, ...values.map(Number)), max = Math.max(0, ...values.map(Number));
   const scale = value => left + (value - min) / (max - min || 1) * plotWidth;
@@ -53,8 +60,19 @@ export function chartDisplayModel(data, expression, width, colors) {
         const value = Number(s.values[i]), a = scale(0), b = scale(value), barY = y + k * 30;
         if (variant === 'dot-plot') p.push({ kind: 'circle', x: b - 4, y: barY + 4, width: 8, height: 8, color: color(k, categories[i]) });
         else rect(Math.min(a, b), barY + 5, Math.max(1, Math.abs(b - a)), 18, color(k, categories[i]));
-        text(`${value}${s.displayUnit || ''}`, right + 12, barY, 125, 28, 22,'chartValue');
+        valueText(`${value}${s.displayUnit || ''}`,i,k,(variant==='dot-plot'?b:right) + 12,barY,valueWidth);
       });
+    });
+  } else if (['stage-bars','funnel'].includes(variant)) {
+    if(data.samePopulation!==true||series.length!==1||values.some((v,i,a)=>v<0||i&&v>a[i-1])) throw new Error('STAGE_POPULATION_INVALID');
+    const base=Number(values[0]);if(!(base>0)) throw new Error('STAGE_BASE_REQUIRED');
+    outHeight=64+categories.length*88;
+    categories.forEach((label,i)=>{
+      const y=52+i*88,w=Number(values[i])/base*plotWidth;
+      text(label,0,y,labelWidth,32);
+      rect(variant==='funnel'?left+(plotWidth-w)/2:left,y+4,Math.max(1,w),24,color(0,label));
+      valueText(`${values[i]}${series[0].displayUnit||''}`,i,0,right+12,y,valueWidth);
+      if(i) text(Number(values[i-1])>0?`上一步转化 ${(Number(values[i])/Number(values[i-1])*100).toFixed(2)}%`:'上一步为0，转化率不适用',left,y+38,plotWidth,30,22,'chartValue');
     });
   } else if (variant === 'bullet') {
     if (categories.length !== 1 || series.length !== 2) throw new Error('BULLET_ACTUAL_TARGET_REQUIRED');
@@ -180,6 +198,7 @@ export function chartDisplayModel(data, expression, width, colors) {
     });
     outHeight = 365;
   } else throw new Error(`CHART_PREVIEW_UNSUPPORTED: ${variant}`);
+  for(const focus of expression.metricEmphasis||[]) if(!p.some(t=>t.metricBindingId===`${focus.moduleId}/${focus.nodeId}/${focus.field}`)) throw new Error(`CHART_METRIC_TREATMENT_UNSUPPORTED: ${variant}/${focus.nodeId}; choose a supported measured expression, never silently ignore emphasis`);
   const names = variant === 'dumbbell' || variant === 'slope' ? [] : series.map((s, i) => `${s.name || `系列${i + 1}`}${s.displayUnit ? `（${s.displayUnit}）` : ''}`);
   names.forEach((name, i) => { rect(i * width / series.length, 5, 14, 14, palette[i % palette.length]); text(name, i * width / series.length + 22, 0, width / series.length - 22); });
   return { width, height: outHeight, primitives: p, variant, categories, series };

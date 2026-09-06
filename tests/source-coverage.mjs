@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { auditSourceCoverage, auditVisibleFactContent } from "../scripts/lib/source-coverage.mjs";
+import { auditSourceCoverage, auditVisibleFactContent, structuredFactIssues } from "../scripts/lib/source-coverage.mjs";
 
 const source = { sourceUnits: [{ id: "S1", text: "一", visibility: "required-visible" }, { id: "S2", text: "二", visibility: "traceability" }, { id: "S3", text: "三", visibility: "supporting-visible" }] };
 const missing = auditSourceCoverage(source, { slides: [{ id: "P1", evidenceRefs: ["S1", "S2"], modules: [{ id: "M1", evidenceRefs: ["S3"] }] }] });
@@ -36,3 +36,20 @@ assert.equal(auditVisibleFactContent(scopedSource,scopedIr).passed,true);
 assert.equal(auditVisibleFactContent(scopedSource,scopedIr,{renderedModules:[{slideId:'p',moduleId:'profiles',text:'项目甲 200万元 项目乙 100万元',targets:{a:'项目甲 200万元',b:'项目乙 100万元'}}]}).passed,false);
 assert.equal(auditVisibleFactContent(scopedSource,scopedIr,{renderedModules:[{slideId:'p',moduleId:'profiles',text:'项目甲 100万元 项目乙 200万元',targets:{a:'项目甲 100万元',b:'项目乙 200万元'}}]}).passed,true);
 console.log('Node-local fact bindings reject swapped entity numbers');
+// A file extension is not a decimal continuation; numeric prefixes still fail.
+const fileFact={id:'file',text:'请参见定价测算对比_260825.xlsx',requiredComponents:['定价测算对比_260825.xlsx'],componentReview:{status:'reviewed',sourceText:'请参见定价测算对比_260825.xlsx'}};
+const fileIr={slides:[{id:'p',modules:[{id:'copy',text:'测算依据：定价测算对比_260825.xlsx',visibleFacts:[{sourceUnitId:'file',text:'定价测算对比_260825.xlsx'}]}]}]};
+assert.equal(auditVisibleFactContent({sourceUnits:[fileFact]},fileIr).passed,true);
+const numericFact={text:'项目甲 12',fact:{subjects:['项目甲'],value:'12'},factReview:{status:'reviewed',sourceText:'项目甲 12'}};
+assert.deepEqual(structuredFactIssues(numericFact,numericFact.fact,'项目甲12.'),[]);
+for(const text of ['项目甲123','项目甲12.3','项目甲1.12']) assert(structuredFactIssues(numericFact,numericFact.fact,text).includes('FACT_SOURCE_QUALIFIER_MISSING'));
+console.log('File-extension punctuation does not hide numeric qualifiers');
+for(const [sourceText,module,components] of [
+  ['地区甲M36贡献10.0万',{title:'地区甲M36贡献',data:{categories:['地区甲'],series:[{name:'M36贡献',values:[10],displayUnit:'万'}]}},['地区甲','M36','万']],
+  ['列示636；原文6,36万美元',{title:'列示636',text:'原文6,36万美元（待核）'},['636','6,36','美元']],
+  ['指标Y1：(0.9)；Y2：0.1',{title:'指标',data:{headers:['Y1','Y2'],rows:[['(0.9)','0.1']]}},['Y1','Y2','0.9','0.1']]
+]) {
+  const unit={id:'u',text:sourceText,requiredComponents:components,componentReview:{status:'reviewed',sourceText}};
+  const result=auditVisibleFactContent({sourceUnits:[unit]},{slides:[{id:'p',modules:[{...module,id:'m',visibleFacts:[{sourceUnitId:'u',text:module.title}]}]}]});
+  assert.deepEqual(result.issues,[]);
+}
