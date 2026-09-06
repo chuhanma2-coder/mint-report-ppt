@@ -19,6 +19,17 @@ export function primitiveMarkup(kind, text, binding, extra = {}) {
   return `<div class="vp vp-${kind}" data-visual-primitive="${kind}" ${fields}><div class="vp-text" data-mint-object="text">${esc(text)}</div></div>`;
 }
 
+function metricMarkup(value,binding,extra,priority='P1') {
+  if(!['P0','P1','P2'].includes(priority)) throw new Error('METRIC_PRIORITY_INVALID');
+  const wrapper=primitiveMarkup('metric-badge','',binding,{...extra,priority});
+  if(value==null||typeof value!=='object') return wrapper.replace('></div></div>',`>${esc(value)}</div></div>`);
+  if(value.value==null||Object.keys(value).some(k=>!['scope','label','value','unit'].includes(k))) throw new Error('METRIC_PARTS_INVALID');
+  const part=(key,text)=>`<div class="vp-text metric-${key}" data-mint-object="text">${esc(text)}</div>`;
+  const caption=[value.scope,value.label].filter(Boolean).join(' ');
+  const body=`${caption?part('label',caption):''}<div class="metric-number">${part('value',value.value)}${value.unit?part('unit',value.unit):''}</div>`;
+  return wrapper.replace('<div class="vp-text" data-mint-object="text"></div>',body);
+}
+
 export function visualModuleMarkup(module) {
   const data = module.data || {}, nodes = data.nodes || [], edges = data.edges || [];
   const kind = module.expression?.variant;
@@ -32,16 +43,17 @@ export function visualModuleMarkup(module) {
     // Every field is a visible business fact; do not reduce an entity to its name.
     const parts = [primitiveMarkup(node.entity ? 'entity-profile' : 'milestone',node.label || node.name || node.id,binding(node.id),extra)];
     if (node.timeRange) parts.push(primitiveMarkup('time-range',node.timeRange.label,binding(`${node.id}/range`),{...extra,start:node.timeRange.start,end:node.timeRange.end,state:node.timeRange.variant||'uncertainty'}));
-    if (node.duration) parts.push(primitiveMarkup('metric-badge',node.duration,binding(`${node.id}/duration`),extra));
+    const metric=(value,key)=>metricMarkup(value,binding(`${node.id}/${key}`),extra,node.metricPriorities?.[key]||'P1');
+    if (node.duration) parts.push(metric(node.duration,'duration'));
     if(node.entity) {
       const profile=entityProfileFields(node);
       for(const [i,text] of profile.identity.entries()) parts.push(`<div class="profile-identity" data-mint-object="text">${esc(text)}</div>`);
-      for (const [i,metric] of (node.metrics || []).entries()) parts.push(primitiveMarkup('metric-badge',metric,binding(`${node.id}/metric-${i}`),extra));
-      for(const [i,text] of profile.primary.entries()) parts.push(primitiveMarkup('metric-badge',text,binding(`${node.id}/primary-${i}`),extra));
+      for (const [i,value] of (node.metrics || []).entries()) parts.push(metric(value,`metric-${i}`));
+      if(node.primaryMetric!=null) parts.push(metric(node.primaryMetric,'primary-0'));
       if (node.text) parts.push(`<div class="module-copy" data-mint-object="text">${esc(node.text)}</div>`);
-      for(const [i,text] of profile.secondary.entries()) parts.push(`<div class="profile-secondary" data-mint-object="text">${esc(text)}</div>`);
+      for(const [i,value] of (node.secondaryMetrics||[]).entries()) parts.push(metricMarkup(value,binding(`${node.id}/secondary-${i}`),extra,node.metricPriorities?.[`secondary-${i}`]||'P2'));
       for(const text of profile.details) parts.push(`<div class="module-copy" data-mint-object="text">${esc(text)}</div>`);
-    } else for (const [i,metric] of (node.metrics || []).entries()) parts.push(primitiveMarkup('metric-badge',metric,binding(`${node.id}/metric-${i}`),extra));
+    } else for (const [i,value] of (node.metrics || []).entries()) parts.push(metric(value,`metric-${i}`));
     if (node.status) parts.push(primitiveMarkup('status-chip',node.status,binding(`${node.id}/status`),{...extra,state:node.statusType||'neutral'}));
     if (node.condition) parts.push(primitiveMarkup('risk-strip',node.condition,binding(`${node.id}/condition`),extra));
     if (node.text&&!node.entity) parts.push(`<div class="module-copy" data-mint-object="text">${esc(node.text)}</div>`);
@@ -87,6 +99,7 @@ export function primitiveCss(tokens=theme) {
   ${Object.entries(policy.statusColors).map(([state,color])=>`.vp-status-chip[data-vp-state="${state}"]{background:${p[color]}}`).join('')}
   ${Object.entries(policy.milestoneColors).map(([state,color])=>`.vp-milestone[data-vp-state="${state}"]{border-bottom-color:${p[color]}}`).join('')}
   ${Object.entries(policy.rangeColors).map(([state,color])=>`.vp-time-range[data-vp-state="${state}"]{background:${p[color]}}`).join('')}
+  .metric-number{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px}.vp-metric-badge[data-vp-priority="P0"] .vp-text{font-size:${px(t.heroMetric[0])}px;color:${p.ink}}.vp-metric-badge[data-vp-priority="P2"] .vp-text{font-size:${px(t.diagramNode[1])}px;font-weight:400;color:${p.muted}}.vp-metric-badge[data-vp-priority] .metric-label,.vp-metric-badge[data-vp-priority] .metric-unit{font-size:${px(t.diagramNode[1])}px;font-weight:400;color:${p.muted}}
   .vp-time-range{border-left-width:${s.ruleWidth}px;border-right:${s.ruleWidth}px solid ${p.orange}}`;
 }
 

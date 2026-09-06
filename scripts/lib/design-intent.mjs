@@ -2,6 +2,7 @@
 import {humanCopyReviewIssues} from './presentation-copy.mjs';
 export const visualPrimitives = ['takeaway-band', 'milestone', 'time-range', 'dependency-edge', 'parallel-lane', 'status-chip', 'metric-badge', 'entity-profile', 'risk-strip', 'decision-strip'];
 export const narrativePatterns = ['critical-path-with-parallel-options', 'time-window-dependency', 'primary-with-parallel-options', 'entity-comparison'];
+export const goldenDesignDimensions={fiveSecondMessage:15,titleBodyProof:15,relationshipFidelity:15,hierarchy:15,spaceBalance:15,carrierSuitability:10,colorContrast:5,copyReadability:5,pageRhythm:5};
 
 export function narrativeSupport(slide) {
   const modules = slide.modules || [];
@@ -88,12 +89,17 @@ export function auditDesignRequirements(ir, manifest, { nativePages = null } = {
 export function executiveReviewIssues(review, slideIds, decisionSystems=null) {
   const issues = [], dimensions = ['firstFocus','bodyProvesTitle','relationships','space','carrierSuitability','hierarchy','readingOrder',...(decisionSystems?['relationshipFidelity','semanticProximity']:[])];
   if (!review || review.status !== 'reviewed') return ['EXECUTIVE_REVIEW_REQUIRED'];
+  if(review.reviewContext!=='independent-context'||review.generatorExplanationUsed!==false) issues.push('EXECUTIVE_REVIEW_CONTEXT_NOT_INDEPENDENT');
   for (const id of slideIds) {
     const page = review.slides?.find(s => s.slideId === id);
     if(humanCopyReviewIssues(page).length) issues.push(`HUMAN_PRESENTATION_COPY_NOT_ACCEPTED: ${id}`);
     if (!page || dimensions.some(key => !['pass','fail'].includes(page[key]))) issues.push(`EXECUTIVE_REVIEW_INCOMPLETE: ${id}`);
     else if (dimensions.some(key => page[key] === 'fail')) issues.push(`EXECUTIVE_REVIEW_FAILED: ${id}`);
     if(!page?.evidence?.trim()) issues.push(`EXECUTIVE_REVIEW_OBSERVATION_REQUIRED: ${id}; identify actual focus, supporting objects and whitespace in the rendered page`);
+    if(!page?.actualFirstFocus?.trim()) issues.push(`EXECUTIVE_FIRST_FOCUS_OBSERVATION_REQUIRED: ${id}`);
+    const scores=page?.goldenScores||{},score=Object.entries(goldenDesignDimensions).reduce((sum,[key,max])=>sum+(Number.isFinite(scores[key])&&scores[key]>=0&&scores[key]<=max?scores[key]:NaN),0);
+    if(!Number.isFinite(score)||page.goldenScore!==score) issues.push(`GOLDEN_DESIGN_SCORE_INVALID: ${id}`);
+    else if(score<85) issues.push(`GOLDEN_DESIGN_SCORE_BELOW_PAGE_FLOOR: ${id}/${score}`);
   }
   for (const issue of review.issues || []) if (!['planner','router','canvas','renderer','publisher'].includes(issue.ownerLayer)) issues.push('QA_OWNER_LAYER_INVALID');
   if ((review.issues || []).some(issue=>issue.status!=='resolved')) issues.push('EXECUTIVE_REVIEW_UNRESOLVED');
@@ -110,6 +116,12 @@ export function executiveReviewIssues(review, slideIds, decisionSystems=null) {
       if(!pair||!['independent-decisions','measured-capacity','user-page-boundary'].includes(pair.reason)||!pair.evidence?.trim()||(pair.reason==='measured-capacity'&&!pair.capacityAttemptIds?.length)) issues.push(`CHAPTER_BOUNDARY_UNPROVEN: ${slideIds[i-1]}/${slideIds[i]}`);
     }
   }
+  const pageScores=(review.slides||[]).filter(s=>slideIds.includes(s.slideId)).map(s=>s.goldenScore);
+  if(pageScores.length===slideIds.length&&pageScores.every(Number.isFinite)) {
+    const average=pageScores.reduce((a,b)=>a+b,0)/pageScores.length;
+    if(Math.abs(Number(review.chapter?.goldenAverage)-average)>.01) issues.push('GOLDEN_DESIGN_CHAPTER_SCORE_INVALID');
+    else if(average<90) issues.push(`GOLDEN_DESIGN_CHAPTER_SCORE_BELOW_FLOOR: ${average}`);
+  }
   return issues;
 }
 
@@ -117,6 +129,6 @@ export function executiveReviewIssues(review, slideIds, decisionSystems=null) {
 export function nativeDesignPages(xmlPages, slideIds) {
   return xmlPages.map((xml,i)=>({slideId:slideIds[i],objects:[...xml.matchAll(/<p:(sp|cxnSp)\b[^>]*>[\s\S]*?<\/p:\1>/g)].map(match=>{
     const body=match[0],name=(body.match(/<p:cNvPr\b[^>]*name="([^"]+)"/)?.[1] || '').split('|role:')[0];
-    return {name,kind:match[1]==='cxnSp'?'connector':'shape',forwardArrow:/<a:tailEnd\b[^>]*type="triangle"/.test(body)&&!/<a:xfrm\b[^>]*flipH="1"/.test(body),connected:/<a:stCxn\b/.test(body)&&/<a:endCxn\b/.test(body),width:Number(body.match(/<a:ext\b[^>]*cx="(\d+)"/)?.[1] || 0)};
+    return {name,kind:match[1]==='cxnSp'?'connector':'shape',fontSizesPx:[...body.matchAll(/<a:(?:rPr|defRPr)\b[^>]*\bsz="(\d+)"/g)].map(m=>Number(m[1])/100*96/72),forwardArrow:/<a:tailEnd\b[^>]*type="triangle"/.test(body)&&!/<a:xfrm\b[^>]*flipH="1"/.test(body),connected:/<a:stCxn\b/.test(body)&&/<a:endCxn\b/.test(body),width:Number(body.match(/<a:ext\b[^>]*cx="(\d+)"/)?.[1] || 0)};
   })}));
 }

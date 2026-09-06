@@ -8,6 +8,9 @@ import {capacityEvidence,planOutlinePages} from '../scripts/lib/outline-planner.
 const folder=fs.mkdtempSync(path.join(os.tmpdir(),'mint-rc5-capacity-'));
 const rows=Array.from({length:36},(_,i)=>[`项目${i+1}`,String(i+1),'下期计划','仅试点范围']);
 const source={id:'full',role:'content',sectionId:'test',outlineItem:'1',decisionUnit:'D',claim:'分组核对全部计划，不改变范围',modules:[{id:'table',type:'table',semanticRole:'primaryEvidence',evidenceGroup:'明细',data:{headers:['项目','数量（项）','期间属性','范围'],rows,rowGroups:[0,1,2].map(i=>({label:`完整业务组${i+1}`,start:i*12,end:(i+1)*12})),rowEvidenceRefs:rows.map((_,i)=>['f'+i])},evidenceRefs:rows.map((_,i)=>'f'+i)}],scenePlan:{flow:'vertical',regions:[{id:'r',role:'primary',relation:'stack',weight:'natural',moduleIds:['table']}],readingOrder:['r']}};
+// A fixed vertical scene deliberately tests necessary continuation. Flexible
+// row groups may now fit side by side and should not be forced into more pages.
+source.designCompositionPolicy='user-fixed';
 const result=await planAndMeasureOutline({slides:[source],executionBrief:{decisionSystems:[{id:'D'}]}},theme,path.join(folder,'canvas.html'),path.join(folder,'render'));
 fs.writeFileSync(path.join(folder,'capacity-attempts.json'),JSON.stringify(result.measurements,null,2));
 fs.writeFileSync(path.join(folder,'planned.json'),JSON.stringify(result.ir,null,2));

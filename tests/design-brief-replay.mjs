@@ -1,0 +1,31 @@
+// Optional read-only historical IR replay: isolates capacity changes, never
+// counts as fresh source understanding or current-version authoring acceptance.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {theme} from '../scripts/lib/config.mjs';
+import {planAndMeasureOutline,applyDomLayout} from '../scripts/lib/dom-layout-extractor.mjs';
+import {renderPresentation,exportPresentation} from '../scripts/lib/ppt-renderer.mjs';
+import {resolveSlideExpressions} from '../scripts/lib/expression-router.mjs';
+import {inspectPptxPackage} from '../scripts/lib/pptx-metadata.mjs';
+const [file,decision]=process.argv.slice(2);
+if(!file||!decision) throw new Error('Usage: design-brief-replay.mjs historical-ir.json decisionId');
+const source=JSON.parse(fs.readFileSync(file,'utf8')),slides=source.slides.filter(s=>s.decisionUnit===decision).map(resolveSlideExpressions);
+if(!slides.length) throw new Error('No selected decision');
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-design-replay-'));
+const measured=await planAndMeasureOutline({slides,executionBrief:{decisionSystems:[{id:decision}]}},theme,path.join(dir,'canvas.html'),path.join(dir,'render'));
+const resolved=applyDomLayout(measured.ir,measured.manifest),{presentation}=await renderPresentation(resolved,theme),out=path.join(dir,'replay.pptx');await exportPresentation(presentation,out);
+const pkg=await inspectPptxPackage(out);
+const wanted=slides.flatMap(s=>s.modules).map(m=>({id:m.id,data:m.data,text:m.text}));
+const actual=resolved.slides.flatMap(s=>s.modules).map(m=>({id:m.id,data:m.data,text:m.text}));
+assert.deepEqual(actual,wanted,'Keep all original modules, values and prose unchanged in this layout-only replay');
+assert.deepEqual(measured.manifest.issues,[]);
+const require=createRequire(path.join(process.env.RUNTIME_NODE_MODULES,'package.json'));
+const {FileBlob,PresentationFile}=await import(require.resolve('@oai/artifact-tool'));
+const imported=await PresentationFile.importPptx(await FileBlob.load(out));
+for(const [i,s] of imported.slides.items.entries()) fs.writeFileSync(path.join(dir,`native-${i+1}.png`),new Uint8Array(await (await imported.export({slide:s,format:'png',scale:1})).arrayBuffer()));
+const result={dir,input:file,decision,pages:resolved.slides.length,nativeCharts:pkg.nativeCharts,scope:'historical IR replay, unchanged content; not fresh Planner or full content acceptance',attempts:measured.measurements.map(a=>({id:a.attemptId,phase:a.phase,variant:a.variant,passed:a.passed,issues:a.issues,topology:a.topologySignature}))};
+fs.writeFileSync(path.join(dir,'result.json'),JSON.stringify(result,null,2));
+fs.writeFileSync(path.join(dir,'capacity.json'),JSON.stringify(measured.measurements,null,2));console.log(JSON.stringify(result));

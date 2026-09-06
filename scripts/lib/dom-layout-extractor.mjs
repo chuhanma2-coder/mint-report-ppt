@@ -96,9 +96,15 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
           primitive: element.dataset.visualPrimitive || null, primitiveParent:element.closest('[data-visual-primitive]')?.dataset.visualPrimitive || null,
           bindingId:element.dataset.vpBindingId,edgeId:element.dataset.vpEdgeId,laneId:element.dataset.vpLaneId,parallelTo:element.dataset.vpParallelTo,from:element.dataset.vpFrom,to:element.dataset.vpTo,
           primitiveNodeId:element.dataset.vpNodeId,
+          metricBindingId:element.closest('.vp-metric-badge')?.dataset.vpBindingId || null,
+          metricPriority:element.closest('.vp-metric-badge')?.dataset.vpPriority || null,
+          metricPart:element.classList.contains('metric-label')||element.classList.contains('metric-unit')?'annotation':'value',
           factTargetId:element.closest('[data-vp-node]')?.dataset.vpNode || element.closest('[data-node-id]')?.dataset.nodeId || null,
           borderColor:hex(style.borderBottomColor),borderBottomWidth:parseFloat(style.borderBottomWidth),borderTopWidth:parseFloat(style.borderTopWidth),borderTopColor:hex(style.borderTopColor),borderLeftColor:hex(style.borderLeftColor),borderRightWidth:parseFloat(style.borderRightWidth),borderRightColor:hex(style.borderRightColor),
           role: element.dataset.mintRole || null, priority: element.dataset.mintPriority || null,
+          directorRegionId:element.dataset.directorRegion||element.closest('[data-director-region]')?.dataset.directorRegion||null,
+          directorTreatment:element.dataset.directorTreatment||null,semanticColorRole:element.dataset.semanticColorRole||null,
+          copyMaxLines:element.dataset.copyMaxLines?Number(element.dataset.copyMaxLines):null,
           index: element.dataset.mintIndex == null ? null : Number(element.dataset.mintIndex), rect, inkRect,
           text: element.innerText || "", renderText, fontSizePx: Number.parseFloat(style.fontSize) || null,
           bold: Number(style.fontWeight) >= 600, className: element.className, color: hex(style.color), backgroundColor: hex(style.backgroundColor), accent: style.getPropertyValue('--role-accent').trim(), borderLeftWidth: parseFloat(style.borderLeftWidth),
@@ -158,6 +164,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         }
         for (const text of module.textObjects || []) {
           if (text.overflow) issues.push(`Slide ${slide.slideId} module ${module.id} contains overflowing text`);
+          if(module.copyMaxLines&&text.className==='module-copy'&&(text.renderText||text.text).split('\n').length>module.copyMaxLines) issues.push(`DIRECTOR_COPY_BUDGET_EXCEEDED: ${slide.slideId}/${module.id}`);
           const floor = textFloorPt({...text,tableCell:!!module.table,kind:module.kind,role:module.role});
           if (text.fontSizePx != null && text.fontSizePx * 72 / 96 < floor - .05) issues.push(`Slide ${slide.slideId} module ${module.id} text is below ${floor}pt`);
         }
@@ -191,10 +198,15 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
       const relation=edges.map(e=>{const a=primitives.find(n=>n.nodeId===e.from&&n.primitive==='milestone'),b=primitives.find(n=>n.nodeId===e.to&&n.primitive==='milestone');return a&&b&&a.rect.left<e.rect.left&&e.rect.left<b.rect.left?1:0;});
       const lanes=primitives.filter(p=>p.primitive==='parallel-lane'&&p.parallelTo);
       relation.push(...lanes.map(p=>{const other=primitives.find(n=>n.laneId===p.parallelTo);return other&&Math.abs(other.rect.left-p.rect.left)<30&&Math.abs(other.rect.top-p.rect.top)>p.rect.height?1:0;}));
-      slide.designScores = {hierarchy:Math.min(2,primarySize/secondarySize),relationship:relation.length?2*relation.reduce((a,b)=>a+b,0)/relation.length:0,semanticProximity:proximity.length?proximity.reduce((a,b)=>a+b,0)/proximity.length:0,whitespaceBalance:-Math.max(0,holes)*4,readingOrder:0};
+      const p0=slide.modules.filter(m=>m.priority==='P0'),p1=slide.modules.filter(m=>m.priority==='P1');
+      const maxText=list=>Math.max(0,...list.flatMap(m=>m.textObjects.map(t=>t.fontSizePx||0))),p0Size=maxText(p0),p1Size=maxText(p1);
+      const hierarchySignals={size:p0Size>p1Size*1.08,weight:p0.some(m=>m.textObjects.some(t=>t.bold))&&!p1.every(m=>m.textObjects.some(t=>t.bold)),position:p0.length&&p1.length&&Math.min(...p0.map(m=>m.rect.top))<=Math.min(...p1.map(m=>m.rect.top)),contrast:p0.some(m=>m.backgroundColor&&m.backgroundColor!==p1[0]?.backgroundColor||m.accent&&m.accent!==p1[0]?.accent)};
+      slide.directorHierarchySignals=hierarchySignals;
+      slide.designScores = {hierarchy:Object.values(hierarchySignals).filter(Boolean).length/2,relationship:relation.length?2*relation.reduce((a,b)=>a+b,0)/relation.length:0,semanticProximity:proximity.length?proximity.reduce((a,b)=>a+b,0)/proximity.length:0,whitespaceBalance:-Math.max(0,holes)*4,readingOrder:0};
       slide.compositionScore = Object.values(slide.designScores).reduce((a,b)=>a+b,0)
         + (image && slide.modules.length > 1 ? (image.rect.width > supportWidth ? 2 : -2) : 0);
-      slide.whitespaceReview = slide.visualOccupancy < 0.48; // diagnostic, never a fill target
+      const moduleBottom=Math.max(...slide.modules.map(m=>m.rect.top+m.rect.height)),unusedBottom=Math.max(0,slide.mainBounds.top+slide.mainBounds.height-moduleBottom);
+      slide.whitespaceReview = slide.visualOccupancy < 0.55 && unusedBottom > slide.mainBounds.height*.34; // concentrated unused space, not a fill target
       const locator = page.locator(".mint-ppt-slide").nth(slide.slideIndex);
       if (capture) await locator.screenshot({ path: path.join(outputDir, `slide-${String(slide.slideIndex + 1).padStart(2, "0")}.png`) });
       delete slide.painted;
@@ -220,7 +232,7 @@ export async function planAndMeasureOutline(ir, theme, htmlFile, outputDir, opti
       const gate=auditDesignRequirements({...ir,slides:[local],designRequirements:requirements},result);
       const sceneIssues=measuredSceneIssues(candidate,result.slides?.[0]);
       return {...result,passed:result.passed&&gate.passed&&!sceneIssues.length,issues:[...result.issues,...gate.issues,...sceneIssues]};
-    }, {...options,requireMeasuredProof:true,designRequirements:ir.designRequirements || [],decisionSystems:ir.executionBrief?.decisionSystems||[]});
+    }, {...options,requireMeasuredProof:true,designRequirements:ir.designRequirements || [],decisionSystems:ir.executionBrief?.decisionSystems||[],designBriefs:ir.executionBrief?.designBriefs||[]});
     const grouped = { ...ir, slides: planned.slides };
     writeDesignCanvas(grouped, theme, htmlFile);
     const manifest = await extractDesignLayout({ existingPage: page, htmlFile, outputDir, expectedSlides: grouped.slides.length });

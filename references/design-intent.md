@@ -1,8 +1,38 @@
-# Design intent contract (rc.4)
+# Design director execution contract (rc.6 development)
 
 ## One planning pass
 
-Short and detailed prompts use the same planning workflow. In that pass read the whole source, establish the report-level Presentation Brief, then plan the management story, visible facts, design requirements and page narrative. Do not call a separate prompt optimizer or one model per page. A short prompt is not permission to default to tables. Audience/style requests influence design, not business facts.
+Short and detailed prompts use the same design-then-authoring workflow. Read the whole source, establish the Presentation Brief, then finish the design decisions below before generating IR. A short prompt is not permission to default to tables. Detailed user decisions take precedence; do not expand them into duplicate slogans or new facts. No extra Agent or per-page model call. The scripts validate and execute the brief, but do not themselves call a model; never claim this deterministic step proves short-prompt reasoning quality.
+
+## Reviewed design-director brief (local design development contract)
+
+In `executionBrief.designBriefs`, describe each complete story BEFORE dividing it into pages. One story can cover adjacent related `decisionIds` in the same section. Explain why the evidence belongs together; do not merge unrelated topics just to save a page. Each brief contains the existing source-bound story fields plus a required executable `directorPlan`:
+
+- `id`, `decisionIds`, canonical `sourceRefs`;
+- `objective`, `fiveSecondMessage`, `takeaway`, `visualPurpose`: what the audience should understand, the source-supported leading claim and what the visual must demonstrate. `takeaway` binds the first selected content claim; layout cannot invent an unreviewed title;
+- `carriers: [{moduleId,purpose,priority:"P0|P1|P2"}]`: every planned module, its distinct job and prominence;
+- `scenePlan`: existing flow/regions/readingOrder grammar for the whole story, not pixels;
+- `compositionPolicy`: `flexible` by default; `user-fixed` only for an explicit user composition that must not change;
+- `directorPlan.fiveSecondMessage`, `visualThesis` and `expectedFirstFocus`: the concrete first-focus object and why it leads;
+- `directorPlan.completeComposition`: coarse `banded` regions with percentage ranges, unequal column ratios and complete module references;
+- `directorPlan.alternativeCompositions`: at least one materially different full topology for a non-simple story; changing only spacing or ratios does not count;
+- `directorPlan.carrierBindings`: every module's expression, region, P0/P1/P2 priority, visual treatment and maximum copy lines;
+- `directorPlan.metricEmphasis`, `semanticColors`, `bodyProof`, and `whitespaceIntent`: concrete DOM/native targets and proof, never printable instructions;
+- up to two `alternatives`: genuinely different valid Scene Plans when the first is uncertain, preserving all source relationships;
+- optional `metricEmphasis: [{moduleId,nodeId,field:"metric-0",priority:"P0"}]`; fields also support `primary-0`, `secondary-N`, `duration`;
+- `copyGuidance`, `colorSemantics`, `avoid`: concrete audience wording, semantic emphasis and failure modes, never printable slide text.
+
+Before IR authoring, review facts and design choices and set `designBriefReview={status:"reviewed",canonicalLedgerHash,designSha256}` using exported `designBriefHash(executionBrief)`. Run `preflight.mjs brief.json canonical-ledger.json` as the design-stage checkpoint; only after reading its successful result continue to IR/displayCopy authoring, preserving IDs. This is a real host-model/tool boundary, not a request for users to write a longer prompt. The runtime has no standalone model API or model switcher. Hashes bind an actual review; computing a hash is not the review. The build rejects missing, stale, generic or unbound plans and emits internal `.design-brief.md` and `.director-preview.md` views from that same JSON contract, not a second independent prompt.
+
+Preflight blockers include `GENERIC_DIRECTOR_PLAN`, `NO_VISUAL_FOCUS`, `EXPRESSION_BINDING_MISMATCH`, `FLAT_HIERARCHY`, `TABLE_DEFAULTING`, `EQUIVALENT_ALTERNATIVES`, `CONTEXT_ONLY_STANDALONE`, `UNPROVEN_VISUAL_THESIS`, and `UNINTENTIONAL_WHITESPACE`. Context-only facts join the next supported management story unless the user explicitly fixes that page. A table may be P0 only when precise lookup or reconciliation is the management purpose.
+
+Map copy guidance to `displayCopy`, scene intent to the bound Scene Plan, colors to existing `statusType`, `milestoneState` and `timeRange.variant` semantic tokens. Review this mapping on the rendered page. Prose color/style wishes are not automatically proven by a PASS flag. Preserve single-page/no-split hard requirements separately in the existing requirement ledger. Unsupported animation requests are reported, not simulated through extra static pages.
+
+For structured profile metrics, `displayCopy.nodes[].primaryMetrics` can use `{label,value,unit,scope}`. The renderer separates value from label/unit and applies the brief's metric priority to the actual DOM/native text. Do not copy a metric into a second prose carrier to make it look prominent. P0 targets must be larger than subordinate values; names/qualifiers remain readable. Scalar metrics remain supported.
+
+Capacity testing first tries the complete bound story, then real alternative region arrangements as well as local spacing repair. Generic alternatives retain relationship regions intact; only unbound stack groups may become split groups. Explicit user-fixed compositions retain their topology. No passing complete candidate may be ignored in favor of unnecessary continuation pages. Table rows use natural heights in every candidate.
+
+Review `.design-execution.json` together with actual native renders. Its receipt records planned and actual carrier, region, priority, type size, color role and status. Fill `executive-review.designBriefs` with observed first focus, visual purpose and composition; unreviewed designs block delivery. Each measured-capacity citation must reference an unsuccessful, complete, actually measured candidate covering both adjacent pages, not a successful continuation or duplicate attempt. Matching wording or a numerical occupancy score alone is not design acceptance.
 
 Task-card `presentationBrief` holds audience, meetingContext, communicationGoal, visualTone, language and decisionFirst. Defaults are executive, progress-and-decision-review, decision-first, executive-fintech, zh-CN, true. Preserve explicit choices. Page `designIntent` holds dominantMessage, relationshipTypes, primaryCarrier, focusObjects and focusMetrics. `primaryCarrier` and visualNarrative.readingOrder use actual module IDs, not decorative section names.
 
@@ -26,7 +56,7 @@ Composition accepts a grounded visualNarrative or uses deterministic fallback. I
 
 Canvas candidates retain all business facts, actual readable text sizes and relationship direction. Select among feasible candidates using hierarchy, relationship fidelity, semantic proximity, reading order and whitespace balance. Chapter rhythm is reviewed over thumbnails, not enforced by rotating templates. A sparse short-text page can be correct; a large empty frame is not evidence of high density. No minimum carrier count and no mandatory chart + table + explanation combination.
 
-Executive review records firstFocus, bodyProvesTitle, relationships, space, carrierSuitability, hierarchy and readingOrder per slide. Review source and rendered slides, not just IR. Return issues to planner/router/canvas/renderer/publisher; no direct semantic edits by a visual critic. One complete visual pass and one affected-page repair is the normal budget. Failure remains explicit.
+Executive review uses the generated `.executive-review-input.json`, which intentionally excludes the generating Agent's explanations. It must run in a fresh review context and record `reviewContext:"independent-context"` and `generatorExplanationUsed:false`; either missing declaration blocks delivery. It records the actual first focus, body/title proof, relationships, space, carrier suitability, hierarchy and reading order per slide. Score the nine Golden Design dimensions against their fixed maxima; every page needs 85 and the chapter average needs 90. Review source and rendered slides, not just IR. Return issues to planner/router/canvas/renderer/publisher; no direct semantic edits by a visual critic. One complete visual pass and one affected-page repair is the normal budget. Failure remains explicit.
 
 An optional approved native PPT can supply a **Style Prior**, not content slots. `extract-style-prior.mjs` extracts theme colors/fonts and native typography statistics into a private profile. `--style-profile=...` applies reviewed style tokens to Canvas and compiler without changing the IR. Floors and contrast cannot be weakened by a reference. Margin/rounded-corner/timeline character require explicit profile review; unsupported style observations stay diagnostics, not guessed layout rules.
 

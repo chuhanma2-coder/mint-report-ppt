@@ -1,12 +1,15 @@
+import {sceneLayoutCandidates,sceneTopology,directorTopology} from './scene-plan.mjs';
 // The measurer is a browser-backed dependency; no estimated point budget is used.
-export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3, pageApprovals = [], designRequirements = [], decisionSystems = [], requireMeasuredProof=false } = {}) {
+export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3, pageApprovals = [], designRequirements = [], decisionSystems = [], designBriefs = [], requireMeasuredProof=false } = {}) {
   const groups = new Map(), output = [], measurements = [];
   const fail=message=>{const error=new Error(message);error.capacityAttempts=measurements;throw error;};
   for (const slide of slides) {
     // Only adjacent, explicitly shared decisions may cross outline boundaries.
     // Missing decision intent retains the safe legacy outline grouping.
     const previous = [...groups.values()].at(-1)?.at(-1);
-    const sameDecision = slide.decisionUnit && previous?.decisionUnit === slide.decisionUnit && previous?.sectionId === slide.sectionId && previous?.role === 'content';
+    const design=designBriefs.find(d=>d.decisionIds.includes(slide.decisionUnit));
+    const sameStory=design&&previous&&design.decisionIds.includes(previous.decisionUnit);
+    const sameDecision = (sameStory || slide.decisionUnit && previous?.decisionUnit === slide.decisionUnit) && previous?.sectionId === slide.sectionId && previous?.role === 'content';
     if(decisionSystems.length && slide.role==='content' && !decisionSystems.some(d=>d.id===slide.decisionUnit)) throw new Error(`DECISION_SYSTEM_UNKNOWN: ${slide.id}`);
     if(sameDecision && slide.independentDecision) throw new Error(`DECISION_SYSTEM_SPLIT_CONFLICT: ${slide.id}`);
     const key = slide.role === 'content' ? sameDecision ? [...groups.keys()].at(-1) : decisionSystems.length ? `${slide.sectionId}:${slide.decisionUnit}:${groups.size}` : `${slide.sectionId || ''}:${slide.outlineItem}${slide.independentDecision ? ':'+slide.id : ''}` : `standalone:${slide.id}`;
@@ -14,6 +17,7 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
     groups.get(key).push(slide);
   }
   for (const [outline, input] of groups) {
+    const groupDesign=designBriefs.find(d=>d.decisionIds.includes(input[0]?.decisionUnit));
     let blocks = input.flatMap(slide => {
       const grouped = new Map();
       for (const module of slide.modules || []) {
@@ -44,10 +48,19 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       for (const field of Object.keys(bundle)) bundle[field] = bundle[field].filter(ref => refs.has(ref));
       const page = { ...first, modules, originSlideIds:[...new Set(chosen.map(b=>b.slide.id))], outlineItems:[...new Set(chosen.flatMap(b=>b.slide.outlineItems || [b.slide.outlineItem]))], sourceEvidence:[...new Map(chosen.flatMap(b=>b.slide.sourceEvidence || []).map(e=>[e.id,e])).values()], designRequirementRefs:[...new Set(chosen.flatMap(b=>b.slide.designRequirementRefs || []))], evidenceRefs: [...refs], evidenceBundle: bundle, outlinePart: undefined, outlineSplit: undefined };
       page.semanticObligationRefs=[...new Set(chosen.flatMap(b=>b.slide.semanticObligationRefs||[]))];
+      const design=groupDesign;
+      if(design) {page.scenePlan=structuredClone(design.scenePlan);page.designBriefId=design.id;page.designCompositionPolicy=design.compositionPolicy;page.designAlternatives=structuredClone(design.alternatives||[]);page.directorPlan=structuredClone(design.directorPlan);page.directorComposition=structuredClone(design.directorPlan?.completeComposition);page.directorAlternatives=structuredClone(design.directorPlan?.alternativeCompositions||[]);page.whitespaceIntent=structuredClone(design.directorPlan?.whitespaceIntent);page.decisionUnits=[...new Set(chosen.map(b=>b.slide.decisionUnit))];}
       if(page.scenePlan) {
-        const regions=page.scenePlan.regions.map(r=>({...r,moduleIds:r.moduleIds.flatMap(id=>identities.has(id)?[id]:chosen.filter(b=>b.originalModuleId===id).flatMap(b=>b.modules.map(m=>m.id)))})).filter(r=>r.moduleIds.length);
-        page.scenePlan={...page.scenePlan,regions,readingOrder:page.scenePlan.readingOrder.filter(id=>regions.some(r=>r.id===id)),adjacency:(page.scenePlan.adjacency||[]).filter(a=>identities.has(a.object)&&identities.has(a.near))};
-        if(modules.some(m=>!regions.some(r=>r.moduleIds.includes(m.id)))) throw new Error('DECISION_SYSTEM_SCENE_INCOMPLETE: plan the complete decision system before pagination');
+        const subset=scene=>{
+          const regions=scene.regions.map(r=>({...r,moduleIds:r.moduleIds.flatMap(id=>identities.has(id)?[id]:chosen.filter(b=>b.originalModuleId===id).flatMap(b=>b.modules.map(m=>m.id)))})).filter(r=>r.moduleIds.length);
+          return {...scene,regions,readingOrder:scene.readingOrder.filter(id=>regions.some(r=>r.id===id)),adjacency:(scene.adjacency||[]).filter(a=>identities.has(a.object)&&identities.has(a.near))};
+        };
+        page.scenePlan=subset(page.scenePlan);
+        page.designAlternatives=(page.designAlternatives||[]).map(subset);
+        const subsetDirector=composition=>({...composition,bands:composition.bands.map(b=>({...b,moduleRefs:b.moduleRefs.flatMap(id=>identities.has(id)?[id]:chosen.filter(x=>x.originalModuleId===id).flatMap(x=>x.modules.map(m=>m.id)))})).filter(b=>b.moduleRefs.length)});
+        if(page.directorComposition) page.directorComposition=subsetDirector(page.directorComposition);
+        page.directorAlternatives=(page.directorAlternatives||[]).map(subsetDirector);
+        if(modules.some(m=>!page.scenePlan.regions.some(r=>r.moduleIds.includes(m.id)))) throw new Error('DECISION_SYSTEM_SCENE_INCOMPLETE: plan the complete decision system before pagination');
       }
       if (start !== 0) {
         // Capacity repair cannot invent an unreviewed replacement claim. Keep
@@ -56,7 +69,12 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       }
       // Do not drop different authored conclusions during consolidation.
       for (const claim of new Set(chosen.map(block => block.slide.claim))) if (claim && claim !== page.claim && blocks.findIndex(block => block.slide.claim === claim) >= start && !modules.some(module => `${module.title || ''} ${module.text || ''}`.includes(claim))) {
-        page.modules = [...page.modules, { id: `${first.id}-claim-${page.modules.length}`, type: 'text', semanticRole: 'managementConclusion', text: claim, evidenceRefs: [], visibleFacts: [] }];
+        const id=`${first.id}-claim-${page.modules.length}`;
+        page.modules = [...page.modules, { id, type: 'text', semanticRole: 'managementConclusion', text: claim, evidenceRefs: [], visibleFacts: [] }];
+        for(const scene of [page.scenePlan,...(page.designAlternatives||[])].filter(Boolean)) {
+          scene.regions.push({id,role:'contextual',relation:'stack',weight:'natural',moduleIds:[id]});scene.readingOrder.push(id);
+        }
+        for(const composition of [page.directorComposition,...(page.directorAlternatives||[])].filter(Boolean)) composition.bands.push({id,share:[8,14],columns:[1],moduleRefs:[id]});
       }
       let fitted = null;
       let bestScore = -Infinity;
@@ -65,10 +83,12 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
       const repeated=page.modules.filter(m=>m.text&&m.text===m.title).map(m=>m.id);
       page.capacityRepairs=[{step:'deduplicate',status:repeated.length?'applied':'not-applicable',changedModuleIds:repeated,operation:'remove exact duplicate body, retain title and all unique facts'}];
       page.modules=page.modules.map(m=>m.text&&m.text===m.title?{...m,text:''}:m);
-      const variants = page.scenePlan ? ['scene-plan','content-first'] : page.compositionClassification?.narrativeAccepted ? ['narrative-flow','primary-above','primary-rail'] : ['story-bands', 'balanced', 'primary-rail', 'primary-above', 'single'];
+      const variants = page.scenePlan ? sceneLayoutCandidates(page) : (page.compositionClassification?.narrativeAccepted ? ['narrative-flow','primary-above','primary-rail'] : ['story-bands', 'balanced', 'primary-rail', 'primary-above', 'single']).map(variant=>({variant}));
       for (const density of ['standard', 'compact']) {
-        for (const variant of variants) {
-        const candidate = { ...page, measuredComposition: page.scenePlan?'scene-plan':variant, measuredDensity: density,measuredSceneVariant:variant==='content-first'?'content-first':'authored' };
+        for (const choice of variants) {
+        const variant=choice.variant;
+        const chosenComposition=choice.directorComposition;
+        const candidate = { ...page,...(choice.scenePlan?{scenePlan:choice.scenePlan}:{}),...(chosenComposition?{directorComposition:chosenComposition,modules:page.modules.map(m=>({...m,directorRegionId:chosenComposition.bands.find(b=>b.moduleRefs.includes(m.id))?.id||m.directorRegionId}))}:{}), measuredComposition: page.directorComposition?'director-plan':page.scenePlan?'scene-plan':variant, measuredDensity: density,measuredSceneVariant:page.scenePlan?variant:'authored' };
         let result;
         try {result=await measure(candidate);} catch(error) {result={passed:false,issues:[error.message],slides:[]};}
         const evidence=capacityEvidence(result.slides?.[0]);
@@ -76,7 +96,7 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
         const layoutSignature=JSON.stringify([evidence.moduleBounds,evidence.objectSizes]);
         const duplicate=measurements.find(m=>m.outlineItem===outline&&m.start===start&&m.end===end&&m.layoutSignature===layoutSignature);
         measurements.push({ attemptId:`capacity-${measurements.length+1}`,phase,outlineItem: outline,decisionSystem:page.decisionUnit, start, end, variant, density, passed: result.passed, issues: result.issues || [],
-          layoutSignature,equivalentTo:duplicate?.attemptId || null,effectiveRepair:evidence.measured&&!duplicate,
+          layoutSignature,topologySignature:candidate.directorComposition?directorTopology(candidate.directorComposition):candidate.scenePlan?sceneTopology(candidate.scenePlan,variant):variant,equivalentTo:duplicate?.attemptId || null,effectiveRepair:evidence.measured&&!duplicate,
           objectRepairs:result.slides?.[0]?.repairOperations || [],
           candidate:structuredClone(candidate),evidenceGroups:chosen.map(b=>b.key),
           ...evidence,visualOccupancy:result.slides?.[0]?.visualOccupancy??null,localOverflowOnly:result.issues?.length>0&&result.issues.every(i=>/module|text/i.test(i)),
@@ -104,6 +124,7 @@ export async function planOutlinePages(slides, measure, { maxAutomaticParts = 3,
     else {
       const fullAttempts=measurements.filter(m=>m.outlineItem===outline&&m.phase==='complete');
       if(requireMeasuredProof&&fullAttempts.some(a=>!a.measured)) fail(`CAPACITY_MEASUREMENT_MISSING: ${outline}; cannot justify splitting without complete browser candidates`);
+      if(groupDesign?.compositionPolicy!=='user-fixed'&&new Set(fullAttempts.map(a=>a.topologySignature)).size<2) fail(`CAPACITY_CANDIDATE_DIVERSITY_REQUIRED: ${outline}; splitting requires at least two materially different complete compositions`);
       if (designRequirements.some(r=>r.strength==='hard'&&r.type==='single-page'&&(r.scope==='report'||input.some(s=>s.id===r.slideId)))) fail(`HARD_SINGLE_PAGE_CAPACITY: ${outline}; cannot split, drop facts, or shrink below floors`);
       // Expand only explicit business row groups, and only after the original
       // complete outline fails. Preserve every row, qualifier and source map.

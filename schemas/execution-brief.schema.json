@@ -2,8 +2,28 @@
   "$schema":"https://json-schema.org/draft/2020-12/schema",
   "$id":"https://mint.local/schemas/execution-brief.schema.json",
   "type":"object",
-  "required":["canonicalLedgerHash","audience","communicationGoal","managementObjective","managementIntent","decisionSystems","requirementsReview","semanticReview"],
+  "required":["canonicalLedgerHash","audience","communicationGoal","managementObjective","managementIntent","decisionSystems","requirementsReview","semanticReview","designBriefs","designBriefReview"],
   "properties":{
+    "designBriefReview":{"type":"object","required":["status","canonicalLedgerHash","designSha256"],"properties":{"status":{"const":"reviewed"},"canonicalLedgerHash":{"type":"string"},"designSha256":{"type":"string"}},"additionalProperties":false},
+    "designBriefs":{"type":"array","minItems":1,"items":{"type":"object","required":["id","decisionIds","sourceRefs","objective","fiveSecondMessage","takeaway","visualPurpose","carriers","scenePlan","compositionPolicy","copyGuidance","colorSemantics","avoid","directorPlan"],"properties":{
+      "id":{"type":"string","minLength":1},"decisionIds":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string"}},"sourceRefs":{"type":"array","minItems":1,"items":{"type":"string"}},
+      "takeaway":{"type":"string","minLength":1},"objective":{"type":"string","minLength":1},"fiveSecondMessage":{"type":"string","minLength":1},"visualPurpose":{"type":"string","minLength":1},"copyGuidance":{"type":"string","minLength":1},"colorSemantics":{"type":"string","minLength":1},"avoid":{"type":"string","minLength":1},
+      "carriers":{"type":"array","minItems":1,"items":{"type":"object","required":["moduleId","purpose","priority"],"properties":{"moduleId":{"type":"string"},"purpose":{"type":"string","minLength":1},"priority":{"enum":["P0","P1","P2"]}},"additionalProperties":false}},
+      "scenePlan":{"$ref":"slide-ir.schema.json#/$defs/slide/properties/scenePlan"},"compositionPolicy":{"enum":["flexible","user-fixed"]},"alternatives":{"type":"array","maxItems":2,"items":{"$ref":"slide-ir.schema.json#/$defs/slide/properties/scenePlan"}},
+      "metricEmphasis":{"type":"array","items":{"type":"object","required":["moduleId","nodeId","field","priority"],"properties":{"moduleId":{"type":"string"},"nodeId":{"type":"string"},"field":{"type":"string","pattern":"^(duration|metric-[0-9]+|primary-0|secondary-[0-9]+)$"},"priority":{"enum":["P0","P1","P2"]}},"additionalProperties":false}},
+      "directorPlan":{"type":"object","required":["fiveSecondMessage","visualThesis","expectedFirstFocus","completeComposition","alternativeCompositions","carrierBindings","metricEmphasis","semanticColors","bodyProof","whitespaceIntent"],"properties":{
+        "fiveSecondMessage":{"type":"string","minLength":1},
+        "visualThesis":{"type":"string","minLength":1},
+        "expectedFirstFocus":{"type":"object","required":["objectRef","reason"],"properties":{"objectRef":{"type":"string","minLength":1},"reason":{"type":"string","minLength":1}},"additionalProperties":false},
+        "completeComposition":{"$ref":"#/$defs/composition"},
+        "alternativeCompositions":{"type":"array","maxItems":2,"items":{"$ref":"#/$defs/composition"}},
+        "carrierBindings":{"type":"array","minItems":1,"items":{"type":"object","required":["moduleId","expression","regionId","priority","visualTreatment","copyBudget"],"properties":{"moduleId":{"type":"string","minLength":1},"expression":{"type":"string","minLength":1},"regionId":{"type":"string","minLength":1},"priority":{"enum":["P0","P1","P2"]},"visualTreatment":{"enum":["hero-metric","primary-visual","supporting-evidence","natural-table","inline-callout","context-note"]},"copyBudget":{"type":"object","required":["maxLines"],"properties":{"maxLines":{"type":"integer","minimum":1,"maximum":12}},"additionalProperties":false}},"additionalProperties":false}},
+        "metricEmphasis":{"type":"array","items":{"type":"object","required":["moduleId","nodeId","field","priority"],"properties":{"moduleId":{"type":"string"},"nodeId":{"type":"string"},"field":{"type":"string","pattern":"^(duration|metric-[0-9]+|primary-0|secondary-[0-9]+)$"},"priority":{"enum":["P0","P1","P2"]}},"additionalProperties":false}},
+        "semanticColors":{"type":"array","items":{"type":"object","required":["targetId","role"],"properties":{"targetId":{"type":"string","minLength":1},"role":{"enum":["primary","progress","risk","target","neutral","highlight","comparison"]}},"additionalProperties":false}},
+        "bodyProof":{"type":"array","minItems":1,"items":{"type":"object","required":["moduleRefs","reason"],"properties":{"moduleRefs":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string"}},"reason":{"type":"string","minLength":1}},"additionalProperties":false}},
+        "whitespaceIntent":{"type":"object","required":["intentional","reason"],"properties":{"intentional":{"type":"boolean"},"reason":{"type":["string","null"]}},"additionalProperties":false}
+      },"additionalProperties":false}
+    },"additionalProperties":false}},
     "presentationCopyPolicy":{"type":"object","properties":{"language":{"type":"string"},"instructionOnlyPhrases":{"type":"array","items":{"type":"string"}},"englishExceptions":{"type":"array","items":{"type":"object","required":["text","reason"],"properties":{"text":{"type":"string"},"reason":{"enum":["proper-name","user-request","necessary-term"]},"justification":{"type":"string"}},"additionalProperties":false}}},"additionalProperties":false},
     "presentationCopyReview":{"type":"object","required":["status","canonicalLedgerHash","copySha256"],"properties":{"status":{"const":"reviewed"},"canonicalLedgerHash":{"type":"string"},"copySha256":{"type":"string"}},"additionalProperties":false},
     "preflightMode":{"enum":["auto","preview","off"],"default":"auto"},
@@ -13,5 +33,8 @@
     "decisionSystems":{"type":"array","minItems":1,"items":{"type":"object","required":["id","managementQuestion","sourceRefs"],"properties":{"id":{"type":"string"},"managementQuestion":{"type":"string"},"sourceRefs":{"type":"array","minItems":1,"items":{"type":"string"}}},"additionalProperties":false}},
     "decisionBoundaryReviews":{"type":"array","items":{"type":"object","required":["before","after","status","canonicalLedgerHash","beforeDecision","afterDecision","whyNotSupportingEvidence"],"properties":{"before":{"type":"string"},"after":{"type":"string"},"status":{"const":"reviewed"},"canonicalLedgerHash":{"type":"string"},"beforeDecision":{"type":"string"},"afterDecision":{"type":"string"},"whyNotSupportingEvidence":{"type":"string"}},"additionalProperties":false}},
     "keyClaims":{"type":"array"},"relationshipHints":{"type":"array"},"designRequirements":{"type":"array"},"semanticObligations":{"type":"array"},"visualDirection":{"type":"object"},"pageConstraints":{"type":"object"},"requirementsReview":{"type":"object"},"semanticReview":{"type":"object"},"ambiguities":{"type":"array"}
-  },"additionalProperties":false
+  },"additionalProperties":false,
+  "$defs":{
+    "composition":{"type":"object","required":["flow","bands"],"properties":{"flow":{"const":"banded"},"bands":{"type":"array","minItems":1,"maxItems":6,"items":{"type":"object","required":["id","share","columns","moduleRefs"],"properties":{"id":{"type":"string","minLength":1},"share":{"type":"array","prefixItems":[{"type":"number","minimum":5,"maximum":95},{"type":"number","minimum":5,"maximum":95}],"items":false},"columns":{"type":"array","minItems":1,"maxItems":4,"items":{"type":"number","exclusiveMinimum":0}},"moduleRefs":{"type":"array","minItems":1,"uniqueItems":true,"items":{"type":"string"}}},"additionalProperties":false}},"readingOrder":{"type":"array","items":{"type":"string"}}},"additionalProperties":false}
+  }
 }

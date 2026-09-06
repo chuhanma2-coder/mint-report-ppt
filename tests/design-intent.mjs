@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {regulatoryFixture} from './fixtures/design-intent.mjs';
-import {narrativeSupport,validateDesignLedger,auditDesignRequirements,executiveReviewIssues} from '../scripts/lib/design-intent.mjs';
+import {narrativeSupport,validateDesignLedger,auditDesignRequirements,executiveReviewIssues,goldenDesignDimensions} from '../scripts/lib/design-intent.mjs';
 import {classifySlideComposition} from '../scripts/lib/composition-classifier.mjs';
 import {resolveSlideExpressions} from '../scripts/lib/expression-router.mjs';
 import {createTaskCard,resolveWorkPackage} from '../scripts/lib/task-card.mjs';
@@ -44,11 +44,11 @@ await assert.rejects(()=>planOutlinePages([slide],async()=>({passed:false,issues
 console.log('design-intent: contracts, fallback, owner scope, merge and blocking passed');
 const dimensions=['firstFocus','bodyProvesTitle','relationships','space','carrierSuitability','hierarchy','readingOrder','relationshipFidelity','semanticProximity'];
 const {humanCopyChecks}=await import('../scripts/lib/presentation-copy.mjs');
-const passPage={slideId:'p',...Object.fromEntries(dimensions.map(d=>[d,'pass'])),humanPresentationCopy:{...Object.fromEntries(humanCopyChecks.map(d=>[d,'pass'])),evidence:'Reviewed synthetic prose, names and values, no instruction text.'}};
+const passPage={slideId:'p',actualFirstFocus:'Main metric',...Object.fromEntries(dimensions.map(d=>[d,'pass'])),goldenScores:Object.fromEntries(Object.entries(goldenDesignDimensions).map(([k,max])=>[k,max])),goldenScore:100,humanPresentationCopy:{...Object.fromEntries(humanCopyChecks.map(d=>[d,'pass'])),evidence:'Reviewed synthetic prose, names and values, no instruction text.'}};
 assert.ok(executiveReviewIssues({status:'reviewed',slides:[passPage]},['p']).some(i=>i.startsWith('EXECUTIVE_REVIEW_OBSERVATION_REQUIRED')));
-const reviewed={status:'reviewed',slides:[{...passPage,evidence:'Main metric precedes supporting comparison.'},{...passPage,slideId:'q',evidence:'Second decision has distinct evidence.'}]};
+const reviewed={status:'reviewed',reviewContext:'independent-context',generatorExplanationUsed:false,slides:[{...passPage,evidence:'Main metric precedes supporting comparison.'},{...passPage,slideId:'q',evidence:'Second decision has distinct evidence.'}]};
 assert.ok(executiveReviewIssues(reviewed,['p','q'],[]).some(i=>i.startsWith('CHAPTER_REVIEW_REQUIRED')));
-reviewed.chapter={slideIds:['p','q'],titleChain:'Decision then separate action',crossDecisionEvidence:'Adjacent content reviewed together.',adjacentPages:[{before:'p',after:'q',reason:'measured-capacity',evidence:'Whole candidate overflowed.'}]};
+reviewed.chapter={slideIds:['p','q'],titleChain:'Decision then separate action',crossDecisionEvidence:'Adjacent content reviewed together.',goldenAverage:100,adjacentPages:[{before:'p',after:'q',reason:'measured-capacity',evidence:'Whole candidate overflowed.'}]};
 assert.ok(executiveReviewIssues(reviewed,['p','q'],[]).some(i=>i.startsWith('CHAPTER_BOUNDARY_UNPROVEN')));
 reviewed.chapter.adjacentPages[0].capacityAttemptIds=['attempt-1'];
 assert.deepEqual(executiveReviewIssues(reviewed,['p','q'],[]),[]);

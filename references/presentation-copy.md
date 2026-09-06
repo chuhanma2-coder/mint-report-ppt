@@ -2,7 +2,7 @@
 
 ## Three boundaries, one Planner
 
-Raw Source and its unchanged canonical ledger supply business facts. Execution Brief/Design Requirements supply instructions, never extra business claims. `displayCopy` is the reviewed audience wording. Do this in the existing Planner pass; no Prompt Optimizer or additional Agent.
+Raw Source and its unchanged canonical ledger supply business facts. Execution Brief/Design Requirements supply instructions, never extra business claims. `displayCopy` is the reviewed audience wording. Author it after the design-director brief in the same Agent workflow; no additional Agent. See `design-intent.md` for structured metric parts and priority binding.
 
 Every visible module in IR 1.7/planning 2.7 requires `displayCopy`; root `presentationCopyVersion` is 1. The build rejects absent copy, stale review, unknown copy fields and unmapped nodes/relations. `projectPresentationCopy` is shared by Canvas and native renderer. It never uses module text or node keywords as a copy fallback. Older component fixtures remain testable, but production old IR cannot bypass this contract.
 

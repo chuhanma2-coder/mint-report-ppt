@@ -4,12 +4,15 @@ import crypto from 'node:crypto';
 import {executiveReviewIssues} from './lib/design-intent.mjs';
 import {copyTextIssues} from './lib/presentation-copy.mjs';
 import {inspectPptxPackage} from './lib/pptx-metadata.mjs';
+import {designAcceptanceIssues} from './lib/execution-brief.mjs';
 const [pptx,reviewFile]=process.argv.slice(2);
 if(!pptx||!reviewFile) throw new Error('Usage: audit-design-delivery.mjs candidate.pptx executive-review.json');
 const read=suffix=>JSON.parse(fs.readFileSync(pptx+suffix,'utf8'));
 const ir=read('.resolved-ir.json'),review=JSON.parse(fs.readFileSync(reviewFile,'utf8'));
 const hash=crypto.createHash('sha256').update(fs.readFileSync(pptx)).digest('hex');
-const reviewIssues=executiveReviewIssues(review,ir.slides.map(s=>s.id),ir.executionBrief?.decisionSystems),issues=[...reviewIssues];
+const reviewIssues=[...executiveReviewIssues(review,ir.slides.map(s=>s.id),ir.executionBrief?.decisionSystems),...designAcceptanceIssues(review,ir,read('.outline-measurements.json'))],issues=[...reviewIssues];
+const execution=read('.design-execution.json');
+if(!execution.passed||execution.pptxSha256!==hash) {issues.push('DESIGN_EXECUTION_NOT_VERIFIED');reviewIssues.push('DESIGN_EXECUTION_NOT_VERIFIED');}
 const copyIssues=copyTextIssues((await inspectPptxPackage(pptx)).visibleText,ir.executionBrief?.presentationCopyPolicy);
 reviewIssues.push(...copyIssues);issues.push(...copyIssues);
 if(review.pptxSha256!==hash) issues.push('EXECUTIVE_REVIEW_STALE: hash must match the actual reviewed PPT');

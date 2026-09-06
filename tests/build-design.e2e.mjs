@@ -10,6 +10,8 @@ import {createCanonicalLedger,inventoryCanonicalInput} from '../scripts/lib/cano
 import {CURRENT_SLIDE_IR_VERSION,CURRENT_PLANNING_SCHEMA_VERSION} from '../scripts/lib/ir-version.mjs';
 import {presentationCopyHash,humanCopyChecks} from '../scripts/lib/presentation-copy.mjs';
 import {inspectPptxPackage} from '../scripts/lib/pptx-metadata.mjs';
+import {designBriefHash} from '../scripts/lib/execution-brief.mjs';
+import {goldenDesignDimensions} from '../scripts/lib/design-intent.mjs';
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-build-design-'));
 const ir=regulatoryFixture(),source={sourceUnits:[]};
 for(const [i,m] of ir.slides[0].modules.entries()) {
@@ -36,6 +38,13 @@ for(const s of ir.slides) Object.assign(s,{claimType:'source-supported',claimSup
 ir.presentationCopyVersion=1;
 for(const s of ir.slides) for(const m of s.modules) m.displayCopy={title:m.title||'',text:m.text||'',...(m.value!==undefined?{value:m.value,unit:m.unit||''}:{}),...(m.data?.nodes?{nodes:m.data.nodes.map(n=>({id:n.id,name:n.label,summary:n.text,primaryMetrics:n.metrics||[],status:n.status,condition:n.condition,duration:n.duration,timeRangeLabel:n.timeRange?.label})),edges:(m.data.edges||[]).map(e=>({id:e.id,label:e.label||''})),lanes:(m.data.lanes||[]).map(e=>({id:e.id,label:e.label||''}))}:{})};
 ir.executionBrief.presentationCopyReview={status:'reviewed',canonicalLedgerHash:canonical.sha256,copySha256:presentationCopyHash(ir)};
+ir.executionBrief.designBriefs=ir.slides.map(s=>{
+  const priorities=s.modules.map((_,i)=>i?'P1':'P0'),shares=s.modules.length===4?[[8,10],[52,56],[27,31],[7,9]]:s.modules.map(()=>[72,88]),complete={flow:'banded',bands:s.modules.map((m,i)=>({id:'region-'+m.id,share:shares[i],columns:[1],moduleRefs:[m.id]}))},alternative=s.modules.length>1?{flow:'banded',bands:[{id:'body',share:[72,88],columns:s.modules.map((_,i)=>i?1:2),moduleRefs:s.modules.map(m=>m.id)}]}:null;
+  const metricEmphasis=s.modules.flatMap(m=>(m.data?.nodes||[]).flatMap(n=>n.duration?[{moduleId:m.id,nodeId:n.id,field:'duration',priority:'P0'}]:n.metrics?.length?[{moduleId:m.id,nodeId:n.id,field:'metric-0',priority:'P0'}]:[])).slice(0,1);
+  return {id:'design-'+s.id,decisionIds:[s.decisionUnit],sourceRefs:canonical.units.map(u=>u.id),objective:s.claim,fiveSecondMessage:s.claim,visualPurpose:'Preserve the source relationships',copyGuidance:'Concise source-supported prose',colorSemantics:'Use existing semantic state colors',avoid:'Do not replace relationships with a table',compositionPolicy:'flexible',carriers:s.modules.map((m,i)=>({moduleId:m.id,purpose:m.semanticRole,priority:priorities[i]})),scenePlan:{flow:'vertical',regions:s.modules.map(m=>({id:'r-'+m.id,role:'primary',relation:'stack',weight:'natural',moduleIds:[m.id]})),readingOrder:s.modules.map(m=>'r-'+m.id)},directorPlan:{fiveSecondMessage:s.claim,visualThesis:'页面主体以来源关系和关键证据直接证明标题',expectedFirstFocus:{objectRef:metricEmphasis.length?`${metricEmphasis[0].moduleId}/${metricEmphasis[0].nodeId}/${metricEmphasis[0].field}`:s.modules[0].id,reason:'这是当前管理判断的主要载体'},completeComposition:complete,alternativeCompositions:alternative?[alternative]:[],carrierBindings:s.modules.map((m,i)=>({moduleId:m.id,expression:m.expression?.variant||m.expression?.type||m.type,regionId:'region-'+m.id,priority:priorities[i],visualTreatment:i?'supporting-evidence':metricEmphasis.length?'hero-metric':'primary-visual',copyBudget:{maxLines:8}})),metricEmphasis,semanticColors:[{targetId:s.modules[0].id,role:'highlight'}],bodyProof:[{moduleRefs:s.modules.map(m=>m.id),reason:'来源关系与证据共同证明标题'}],whitespaceIntent:{intentional:s.modules.length===1,reason:s.modules.length===1?'单一来源事实保持可读焦点，不编造填充内容':null}}};
+});
+ir.executionBrief.designBriefs.forEach((d,i)=>{d.takeaway=ir.slides[i].claim;});
+ir.executionBrief.designBriefReview={status:'reviewed',canonicalLedgerHash:canonical.sha256,designSha256:designBriefHash(ir.executionBrief)};
 for(const [name,value] of Object.entries({ir,source,card}))fs.writeFileSync(path.join(dir,name+'.json'),JSON.stringify(value));
 const file=path.join(dir,'candidate.pptx');
 const build=spawnSync(process.execPath,['scripts/build-section-ppt.mjs',path.join(dir,'source.json'),path.join(dir,'ir.json'),path.join(dir,'card.json'),'测试负责人',file],{encoding:'utf8',maxBuffer:10_000_000});
@@ -43,15 +52,19 @@ assert.equal(build.status,0,build.stderr+build.stdout);
 const report=JSON.parse(fs.readFileSync(file+'.build.json'));
 assert.equal(report.deliveryApproved,false);assert.equal(report.passed,true);
 assert.equal(report.slides,2);
+const finalWithoutReview=spawnSync(process.execPath,['scripts/audit-final-ppt.mjs',file,path.join(dir,'card.json')],{encoding:'utf8',maxBuffer:10_000_000});
+assert.equal(finalWithoutReview.status,1,'Final technical audit cannot bypass pending executive review');
+assert.match(finalWithoutReview.stdout,/EXECUTIVE_REVIEW_REQUIRED/);
 const pending=spawnSync(process.execPath,['scripts/audit-design-delivery.mjs',file,file+'.executive-review.json'],{encoding:'utf8'});
 assert.equal(pending.status,1,'A technical build must not pass pending executive review');
 assert.equal(report.pptxSha256,crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
 // A fabricated all-pass form is a negative gate fixture, not visual acceptance.
 const review=JSON.parse(fs.readFileSync(file+'.executive-review.json'));
 review.status='reviewed';review.issues=[];
-for(const page of review.slides) {for(const k of Object.keys(page)) if(page[k]===null)page[k]=k==='evidence'?'Synthetic negative gate fixture':'pass';page.humanPresentationCopy={...Object.fromEntries(humanCopyChecks.map(k=>[k,'pass'])),evidence:'Synthetic gate fixture'};}
+for(const page of review.slides) {for(const k of Object.keys(page)) if(page[k]===null)page[k]=k==='evidence'?'Synthetic negative gate fixture':k==='actualFirstFocus'?'Synthetic visible focus':'pass';page.goldenScores=Object.fromEntries(Object.entries(goldenDesignDimensions).map(([k,max])=>[k,max]));page.goldenScore=100;page.humanPresentationCopy={...Object.fromEntries(humanCopyChecks.map(k=>[k,'pass'])),evidence:'Synthetic gate fixture'};}
 for(const d of review.decisionSystems) for(const k of Object.keys(d)) if(d[k]===null)d[k]='pass';
 Object.assign(review.chapter,{titleChain:'Synthetic sequence',crossDecisionEvidence:'Separate source topics'});
+review.chapter.goldenAverage=100;
 for(const p of review.chapter.adjacentPages)Object.assign(p,{reason:'independent-decisions',evidence:'Synthetic separate topics'});
 review.slides[0].humanPresentationCopy.markdownSchema='fail';
 fs.writeFileSync(file+'.executive-review.json',JSON.stringify(review));

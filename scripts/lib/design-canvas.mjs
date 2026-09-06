@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { chartDisplayModel } from "./chart-display-model.mjs";
 import {projectPresentationCopy} from './presentation-copy.mjs';
 import { primitiveMarkup, primitiveCss, visualModuleMarkup, repairPrimitiveLayout } from './visual-primitives.mjs';
-import {sceneMarkup,sceneCss,sceneRepairCss,sceneAttachmentCss,layoutAttachments,networkOrder,layoutNetworks} from './scene-plan.mjs';
+import {sceneMarkup,directorMarkup,sceneCss,directorCss,sceneRepairCss,sceneAlternativeCss,sceneAttachmentCss,layoutAttachments,networkOrder,layoutNetworks} from './scene-plan.mjs';
 
 const esc = value => String(value ?? "").replace(/[&<>\"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
 const json = value => esc(JSON.stringify(value ?? {}));
@@ -13,7 +13,7 @@ function moduleMarkup(module, index, placement = '') {
   const type = module.expression?.type || module.type;
   const role = module.semanticRole || "supportingEvidence";
   const priority = module.visualPriority || (["chart", "table", "diagram"].includes(type) ? "P1" : ["managementConclusion", "decision"].includes(role) ? "P0" : ["primaryEvidence", "risk", "action", "boundary"].includes(role) ? "P1" : "P2");
-const attrs = `style="${placement}" data-mint-object="module" data-mint-index="${index}" data-mint-id="${esc(module.id || `M${index + 1}`)}" data-mint-kind="${esc(type)}" data-mint-role="${esc(role)}" data-mint-priority="${priority}" data-mint-band="${esc(module.compositionBand || "")}" data-mint-semantic="${json({ expression: module.expression, data: module.data, imageTextReview: module.imageTextReview, evidenceRefs: module.evidenceRefs })}"`;
+const attrs = `style="${placement}" data-mint-object="module" data-mint-index="${index}" data-mint-id="${esc(module.id || `M${index + 1}`)}" data-mint-kind="${esc(type)}" data-mint-role="${esc(role)}" data-mint-priority="${priority}" data-mint-band="${esc(module.compositionBand || "")}" data-director-region="${esc(module.directorRegionId||'')}" data-director-treatment="${esc(module.directorTreatment||'')}" data-semantic-color-role="${esc(module.semanticColorRole||'')}" data-copy-max-lines="${esc(module.copyBudget?.maxLines||'')}" data-mint-semantic="${json({ expression: module.expression, data: module.data, imageTextReview: module.imageTextReview, evidenceRefs: module.evidenceRefs })}"`;
   const title = module.title ? `<div class="module-title" data-mint-object="text">${esc(module.title)}</div>` : "";
   const visual = visualModuleMarkup(module);
   if (visual != null) return `<section class="module visual-narrative" ${attrs}>${title}${visual}${module.text ? `<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>` : ''}</section>`;
@@ -64,6 +64,7 @@ const attrs = `style="${placement}" data-mint-object="module" data-mint-index="$
 }
 
 function composition(slide) {
+  if(slide.directorComposition) return 'director-plan';
   if(slide.scenePlan) return 'scene-plan';
   if (slide.measuredComposition) return slide.measuredComposition;
   const modules = slide.modules || [], explicitPrimary = modules.findIndex(module => module.visualPriority === "P0"), primary = explicitPrimary >= 0 ? explicitPrimary : modules.findIndex(module => module.semanticRole === "primaryEvidence");
@@ -107,7 +108,7 @@ function slideMarkup(slide, index) {
   }
   const order = slide.compositionClassification?.narrativeAccepted ? slide.visualNarrative?.readingOrder || [] : [];
   const indexes = [...order.map(id=>modules.findIndex(m=>m.id===id)).filter(i=>i>=0), ...modules.map((_,i)=>i).filter(i=>!order.includes(modules[i].id))];
-  const content = slide.scenePlan ? sceneMarkup(slide,moduleMarkup) : railPrimary >= 0 ? moduleMarkup(modules[railPrimary],railPrimary) + `<aside class="support-rail">${modules.map((m,i)=>i===railPrimary?'':moduleMarkup(m,i)).join('')}</aside>` : indexes.map(i=>moduleMarkup(modules[i],i,placements[i])).join('');
+  const content = slide.directorComposition ? directorMarkup(slide,moduleMarkup) : slide.scenePlan ? sceneMarkup(slide,moduleMarkup) : railPrimary >= 0 ? moduleMarkup(modules[railPrimary],railPrimary) + `<aside class="support-rail">${modules.map((m,i)=>i===railPrimary?'':moduleMarkup(m,i)).join('')}</aside>` : indexes.map(i=>moduleMarkup(modules[i],i,placements[i])).join('');
   return `<article class="mint-ppt-slide ${comp} ${slide.measuredDensity === 'compact' ? 'compact' : ''}" data-slide-index="${index}" data-slide-id="${esc(slide.id)}" data-composition="${comp}">
     <header><h1 data-mint-object="title">${esc(slide.claim)}</h1>${slide.showManagementQuestion && slide.managementQuestion ? `<p data-mint-object="question">${esc(slide.managementQuestion)}</p>` : ""}</header>
     <main data-band-count="${bandCount}">${content}</main>
@@ -132,6 +133,9 @@ ${Object.entries(theme.semanticColors.roleAccents || {}).map(([role,color]) => `
 .narrative[data-mint-role="managementConclusion"],.narrative[data-mint-role="action"],.narrative[data-mint-role="risk"],.metric{border-left:4px solid var(--role-accent,${p.mint});background:${p.paper}}
 [data-mint-role="risk"] .module-title,[data-mint-role="boundary"] .module-title{color:${theme.semanticColors.riskHeading}}
 .module-copy{font-size:${fontPx('body')}px;line-height:1.3;white-space:pre-wrap}
+.module[data-mint-priority="P0"]{position:relative;z-index:2}.module[data-mint-priority="P0"] .module-title{font-size:${fontPx('contentTitle',1)}px;font-weight:800}.module[data-mint-priority="P1"]{z-index:1}.module[data-mint-priority="P2"]{opacity:.84}
+.module[data-director-treatment="hero-metric"] .metric-value,.module[data-mint-priority="P0"] .metric-value{font-size:${fontPx('heroMetric')}px;font-weight:800}
+.module[data-semantic-color-role="risk"]{--role-accent:${p.coral};background:${p.coralLight}}.module[data-semantic-color-role="progress"]{--role-accent:${p.mint};background:${p.mintLight}}.module[data-semantic-color-role="target"]{--role-accent:${p.blue};background:${p.blueLight}}.module[data-semantic-color-role="highlight"]{--role-accent:${p.orange};background:${p.orangeLight}}
 .narrative[data-mint-priority="P0"] .module-copy{font-size:${fontPx('body',1)}px;font-weight:600}
 .metric-value{font-size:${fontPx('heroMetric',1)}px;font-weight:800;color:${theme.semanticColors.metricText};line-height:1.3}
 .metric-cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px}.metric-cells .metric-value{font-size:${fontPx('heroMetric')}px}
@@ -169,7 +173,9 @@ ${primitiveCss(theme)}
 .profile-identity{font-size:${fontPx('diagramNode')}px;font-weight:700;color:${p.muted}}
 .profile-secondary{font-size:${fontPx('supportBody',1)}px;line-height:1.25;border-top:1px solid ${p.line};padding-top:8px;white-space:pre-wrap}
 ${sceneCss}
+${directorCss}
 ${sceneRepairCss}
+${sceneAlternativeCss}
 ${sceneAttachmentCss}
 .narrative-flow main{grid-template-columns:1fr}
 </style></head><body>${ir.slides.map(slideMarkup).join("")}<script>

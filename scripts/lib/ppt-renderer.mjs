@@ -270,7 +270,7 @@ function addVisualPrimitives(slide, measured, theme, font, index) {
   // Canvas reserves a small right-hand wrap guard, then freezes its lines. The
   // native frame includes that measured unused guard so Office does not rewrap
   // a last CJK glyph; it never expands beyond the measured primitive surface.
-  for(const [j,text] of measured.textObjects.entries()) addText(slide,text.renderText || text.text,text.className==='vp-text'?{...text.contentRect,width:text.rect.width}:text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,bold:text.bold,color:text.color || theme.palette.ink},`mint|${text.primitiveParent==='dependency-edge'?'edge-label':'visual-text'}|${index}-${j}|text-role:${textRole({...text,kind:measured.kind,role:measured.role})}${text.factTargetId?'|fact-target:'+encodeURIComponent(text.factTargetId):''}`);
+  for(const [j,text] of measured.textObjects.entries()) addText(slide,text.renderText || text.text,text.className.split(/\s+/).includes('vp-text')?{...text.contentRect,width:text.rect.width}:text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,bold:text.bold,color:text.color || theme.palette.ink},`mint|${text.primitiveParent==='dependency-edge'?'edge-label':'visual-text'}|${index}-${j}|text-role:${textRole({...text,kind:measured.kind,role:measured.role})}${text.factTargetId?'|fact-target:'+encodeURIComponent(text.factTargetId):''}${text.metricBindingId?'|design-target:'+encodeURIComponent(text.metricBindingId)+'|metric-part:'+text.metricPart:''}`);
 }
 
 function addDiagram(slide, module, frame, theme, font, index, measured = null) {

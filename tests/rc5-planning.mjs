@@ -24,7 +24,7 @@ const pages=await planOutlinePages([{...slide,scenePlan:undefined,modules:[slide
 assert.equal(measured[0],2);assert.equal(pages.slides.length,1);
 const profile={id:'p',entity:true,label:'对象',primaryMetric:{value:12,unit:'项',scope:'本体'},secondaryMetrics:[{value:20,unit:'项',scope:'集团'}],characteristics:['不同特点']};
 assert.equal(entityProfileFields(profile).secondary[0],'集团 20 项');
-assert.match(visualModuleMarkup({id:'m',expression:{variant:'entity-comparison'},data:{nodes:[profile]}}),/集团 20 项/);
+assert.match(visualModuleMarkup({id:'m',expression:{variant:'entity-comparison'},data:{nodes:[profile]}}).replace(/<[^>]+>/g,' ').replace(/\s+/g,' '),/集团 20 项/);
 const fact={text:'甲预计全年80万元',fact:{subjects:['甲'],value:'80',unit:'万元',time:'全年',status:'预计'},factReview:{status:'reviewed',sourceText:'甲预计全年80万元'}};
 assert.deepEqual(structuredFactIssues(fact,fact.fact,'甲全年预计80万元'),[]);
 assert.ok(structuredFactIssues(fact,{...fact.fact,status:'实际'},'甲全年实际80万元').length);

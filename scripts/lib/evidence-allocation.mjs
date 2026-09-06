@@ -70,8 +70,8 @@ export function allocateSlideEvidence(slide) {
     modules.push({ ...module, ownedEvidenceRefs, _sourceIndex: undefined });
   }
   const p0 = modules.filter(module => module.visualPriority === "P0");
-  if (p0.length > 1) p0.slice(1).forEach(module => { module.visualPriority = "P1"; });
-  if (!modules.some(module => module.visualPriority === "P0")) {
+  if (!slide.designBriefId && p0.length > 1) p0.slice(1).forEach(module => { module.visualPriority = "P1"; });
+  if (!slide.designBriefId && !modules.some(module => module.visualPriority === "P0")) {
     const lead = modules.find(module => !["chart", "table", "diagram"].includes(typeOf(module)) && ["managementConclusion", "decision", "primaryEvidence", "metric"].includes(module.semanticRole));
     if (lead) lead.visualPriority = "P0";
   }

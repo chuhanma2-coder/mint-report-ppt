@@ -3,7 +3,6 @@ import crypto from 'node:crypto';
 export const humanCopyChecks=['markdownSchema','pipeDensity','fieldLeakage','instructionLeakage','languageMix','labelStacking','sourceColloquialism','sentenceLength','duplicateMetrics','hierarchy'];
 const copyKeys=['title','text','value','unit','nodes','edges','lanes','dataMode'];
 const nodeKeys=['id','name','headline','primaryMetrics','summary','secondaryMetrics','status','condition','duration','timeRangeLabel'];
-const metric=value=>typeof value==='object'?[value.scope,value.label,value.value,value.unit].filter(v=>v!==undefined&&v!=='').join(' '):String(value);
 const strings=value=>typeof value==='string'?[value]:Array.isArray(value)?value.flatMap(strings):value&&typeof value==='object'?Object.values(value).flatMap(strings):[];
 export function presentationCopyHash(ir) {
   return crypto.createHash('sha256').update(JSON.stringify({policy:ir.executionBrief?.presentationCopyPolicy||{},slides:ir.slides.map(s=>({id:s.id,claim:s.claim,modules:s.modules.map(m=>({id:m.id,displayCopy:m.displayCopy}))}))})).digest('hex');
@@ -26,7 +25,7 @@ export function projectPresentationCopy(ir) {
         if(n.timeRange&&!p.timeRangeLabel) throw new Error(`DISPLAY_TIME_RANGE_REQUIRED: ${n.id}`);
         const cleaned={...n};
         for(const key of ['label','name','text','identity','headlineTag','primaryMetric','secondaryMetrics','characteristics','keywords','scope','caveat','status','condition','duration','metrics']) delete cleaned[key];
-        return {...cleaned,label:p.name,identity:p.headline,text:p.summary,metrics:(p.primaryMetrics||[]).map(metric),secondaryMetrics:p.secondaryMetrics||[],status:p.status,condition:p.condition,duration:p.duration,...(n.timeRange?{timeRange:{...n.timeRange,label:p.timeRangeLabel}}:{})};
+        return {...cleaned,label:p.name,identity:p.headline,text:p.summary,metrics:p.primaryMetrics||[],secondaryMetrics:p.secondaryMetrics||[],status:p.status,condition:p.condition,duration:p.duration,...(n.timeRange?{timeRange:{...n.timeRange,label:p.timeRangeLabel}}:{})};
       });
       for(const field of ['edges','lanes']) if(data[field]?.length) {
         if(!Array.isArray(c[field])||c[field].length!==data[field].length||new Set(c[field].map(e=>e.id)).size!==data[field].length) throw new Error(`DISPLAY_RELATION_COVERAGE: ${m.id}/${field}`);

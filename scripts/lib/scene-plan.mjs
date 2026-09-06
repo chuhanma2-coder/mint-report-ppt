@@ -86,7 +86,7 @@ export function sceneMarkup(slide,render) {
     const r=s.regions.find(r=>r.id===id);
     if(['anchor','overlay'].includes(r.relation)) {
       const renderId=id=>render(modules.find(m=>m.id===id),modules.findIndex(m=>m.id===id));
-      return `<div class="scene-region scene-${r.relation} side-${r.side} weight-${r.weight}" data-scene-target="${r.targetId}" data-scene-role="${r.role}"><div class="scene-target">${renderId(r.targetId)}</div><aside class="scene-annotation">${r.moduleIds.filter(id=>id!==r.targetId).map(renderId).join('')}</aside></div>`;
+      return `<div class="scene-region scene-${r.relation} side-${r.side} weight-${r.weight}" data-scene-region="${r.id}" data-scene-target="${r.targetId}" data-scene-role="${r.role}"><div class="scene-target">${renderId(r.targetId)}</div><aside class="scene-annotation">${r.moduleIds.filter(id=>id!==r.targetId).map(renderId).join('')}</aside></div>`;
     }
     let groups=r.moduleIds.map(id=>[id]);
     const repair=slide.measuredSceneVariant==='content-first'&&['split','grid','comparison','adjacent-to'].includes(r.relation);
@@ -97,7 +97,19 @@ export function sceneMarkup(slide,render) {
     const renderGroup=g=>g.map(id=>{const m=modules.find(m=>m.id===id);return render(r.relation==='network'?{...m,measuredTopology:'network'}:m,modules.findIndex(m=>m.id===id));}).join('');
     const weights=groups.map(g=>g.some(id=>modules.find(m=>m.id===id)?.semanticRole==='primaryEvidence')?2:1);
     const style=repair&&groups.length>1?` style="grid-template-columns:${weights.map(w=>`minmax(0,${w}fr)`).join(' ')}"`:'';
-    return `<div class="scene-region scene-${r.relation} weight-${r.weight}" data-scene-role="${r.role}"${style}>${groups.map(g=>g.length>1?`<div class="scene-cluster">${renderGroup(g)}</div>`:renderGroup(g)).join('')}</div>`;
+    return `<div class="scene-region scene-${r.relation} weight-${r.weight}" data-scene-region="${r.id}" data-scene-role="${r.role}"${style}>${groups.map(g=>g.length>1?`<div class="scene-cluster">${renderGroup(g)}</div>`:renderGroup(g)).join('')}</div>`;
+  }).join('')}</div>`;
+}
+
+export function directorMarkup(slide,render) {
+  const composition=slide.directorComposition;
+  if(!composition?.bands?.length) throw new Error('DIRECTOR_COMPOSITION_REQUIRED');
+  const modules=slide.modules||[],known=new Set(modules.map(m=>m.id)),assigned=composition.bands.flatMap(b=>b.moduleRefs||[]);
+  if(assigned.length!==known.size||new Set(assigned).size!==known.size||assigned.some(id=>!known.has(id))) throw new Error('DIRECTOR_COMPOSITION_COVERAGE');
+  const total=composition.bands.reduce((sum,b)=>sum+(b.share[0]+b.share[1])/2,0)||100;
+  return `<div class="director-scene">${composition.bands.map(b=>{
+    const share=(b.share[0]+b.share[1])/2/total*100,columns=b.columns.map(n=>`minmax(0,${n}fr)`).join(' ');
+    return `<section class="director-band" data-director-region="${b.id}" style="grid-row:span ${Math.max(1,Math.round(share))};grid-template-columns:${columns}">${b.moduleRefs.map(id=>{const m=modules.find(m=>m.id===id);return render(m,modules.indexOf(m));}).join('')}</section>`;
   }).join('')}</div>`;
 }
 
@@ -131,7 +143,35 @@ export function measuredSceneIssues(slide,layout) {
 }
 
 export const sceneCss=`.semantic-scene{display:flex;gap:24px;align-items:start;min-width:0}.scene-vertical{flex-direction:column}.scene-horizontal{flex-direction:row}.scene-region{min-width:0;display:grid;gap:20px;align-items:start;width:100%}.scene-horizontal>.weight-major{flex:2}.scene-horizontal>.weight-supporting{flex:1}.scene-comparison,.scene-parallel,.scene-split,.scene-grid,.scene-matrix{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}.scene-sequence{grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}.scene-stack,.scene-dominant,.scene-supporting,.scene-adjacent-to{grid-template-columns:minmax(0,1fr)}.scene-plan>main{display:block}.compact .semantic-scene{gap:18px}.compact .scene-region{gap:14px}`;
+export const directorCss=`.director-plan main{display:block;height:100%}.director-scene{display:grid;height:100%;min-height:0;grid-template-rows:repeat(100,minmax(0,1fr));gap:0}.director-band{display:grid;gap:20px;min-width:0;min-height:0;align-items:start;align-content:start;padding-bottom:18px}.director-band:last-child{padding-bottom:0}.director-band>.module{width:100%;max-height:100%}.compact .director-band{gap:14px;padding-bottom:14px}`;
 export const sceneRepairCss=`.scene-cluster{display:grid;gap:14px;min-width:0;align-content:start}.scene-content-first .module{padding:8px 12px}.scene-content-first .scene-cluster .narrative{background:transparent}.scene-content-first .scene-region{align-content:start}`;
+
+// Change actual topology, not just padding. Keep every relationship region
+// intact; context may span the body columns. No content or business routing.
+export function sceneLayoutCandidates(page) {
+  if(page.directorComposition) {
+    const candidates=[{directorComposition:page.directorComposition,scenePlan:page.scenePlan,variant:'director-primary'}];
+    if(page.designCompositionPolicy!=='user-fixed') for(const alternative of page.directorAlternatives||[]) candidates.push({directorComposition:alternative,scenePlan:page.scenePlan,variant:'director-alternative'});
+    const seen=new Set();return candidates.filter(c=>{const key=directorTopology(c.directorComposition);if(seen.has(key))return false;seen.add(key);return true;});
+  }
+  const scene=page.scenePlan;
+  const candidates=[{scenePlan:scene,variant:'authored'},{scenePlan:scene,variant:'content-first'}];
+  if(page.designCompositionPolicy==='user-fixed') return candidates;
+  for(const alternative of page.designAlternatives||[]) candidates.push({scenePlan:alternative,variant:'authored'});
+  const body=scene.regions.filter(r=>r.role!=='contextual');
+  if(body.length>=2&&body.length<=4) candidates.push({scenePlan:scene,variant:'paired-regions'});
+  const splittable=scene.regions.some(r=>r.relation==='stack'&&!r.relationshipRefs?.length&&r.moduleIds.length>1);
+  if(splittable) candidates.push({scenePlan:{...scene,regions:scene.regions.map(r=>r.relation==='stack'&&!r.relationshipRefs?.length&&r.moduleIds.length>1?{...r,relation:'split'}:r)},variant:'content-first'});
+  const seen=new Set();
+  return candidates.filter(c=>{const key=JSON.stringify(c);if(seen.has(key))return false;seen.add(key);return true;});
+}
+export function directorTopology(composition) {
+  return JSON.stringify((composition?.bands||[]).map(b=>[b.moduleRefs,b.columns.map(v=>v===Math.max(...b.columns)?'major':'minor')]));
+}
+export function sceneTopology(scene,variant) {
+  return JSON.stringify({flow:variant==='paired-regions'?'paired-regions':scene.flow,regions:scene.regions.map(r=>[r.id,r.relation,r.moduleIds,r.targetId,r.side]),order:scene.readingOrder});
+}
+export const sceneAlternativeCss=`.semantic-scene.scene-paired-regions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}.scene-paired-regions>.scene-region[data-scene-role="contextual"]{grid-column:1/-1}`;
 
 export const sceneAttachmentCss=`.scene-network{grid-template-columns:minmax(0,1fr)}.scene-target,.scene-annotation{min-width:0}.scene-annotation{display:grid;gap:12px}.scene-anchor.side-start,.scene-anchor.side-end{grid-template-columns:minmax(0,2fr) minmax(220px,1fr)}.scene-anchor.side-start .scene-annotation{grid-column:1;grid-row:1}.scene-anchor.side-start .scene-target{grid-column:2;grid-row:1}.scene-anchor.side-before .scene-annotation{grid-row:1}.scene-overlay{position:relative;border:1px solid currentColor}.scene-overlay .scene-annotation{position:absolute;max-width:100%;inset-inline-end:0;top:0}.scene-overlay.side-start .scene-annotation{inset-inline-start:0;inset-inline-end:auto}.scene-overlay.side-after .scene-annotation{top:auto;bottom:0}`;
 
