@@ -4,6 +4,8 @@
   "type":"object",
   "required":["canonicalLedgerHash","audience","communicationGoal","managementObjective","managementIntent","decisionSystems","requirementsReview","semanticReview"],
   "properties":{
+    "presentationCopyPolicy":{"type":"object","properties":{"language":{"type":"string"},"instructionOnlyPhrases":{"type":"array","items":{"type":"string"}},"englishExceptions":{"type":"array","items":{"type":"object","required":["text","reason"],"properties":{"text":{"type":"string"},"reason":{"enum":["proper-name","user-request","necessary-term"]},"justification":{"type":"string"}},"additionalProperties":false}}},"additionalProperties":false},
+    "presentationCopyReview":{"type":"object","required":["status","canonicalLedgerHash","copySha256"],"properties":{"status":{"const":"reviewed"},"canonicalLedgerHash":{"type":"string"},"copySha256":{"type":"string"}},"additionalProperties":false},
     "preflightMode":{"enum":["auto","preview","off"],"default":"auto"},
     "canonicalLedgerHash":{"type":"string"},"audience":{"type":"string"},"meetingContext":{"type":"string"},"communicationGoal":{"type":"string"},"managementObjective":{"type":"string"},
     "managementIntent":{"enum":["status","diagnose","explain","compare","decide","plan","recommend","reconcile"]},

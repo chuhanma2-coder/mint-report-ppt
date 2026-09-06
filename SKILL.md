@@ -36,11 +36,13 @@ Read these only when needed:
 - `references/design-layout.md` before rendering or repairing layout/design.
 - `references/quality-gates.md` before review, diagnosis, or delivery.
 - `references/design-intent.md` before planning, authoring new visual primitives, or using a style reference.
+- `references/presentation-copy.md` before writing or reviewing visible text: explicit displayCopy, source-component review and Human Presentation Copy gate.
 
 Read `references/readability-repair.md` before generation or upgrading an old source model; it defines the current raw-source anchors, reviewed fact components and measured pagination contract.
 
 ## Non-negotiable contracts
 
+- Presentation Copy: Raw Source alone supplies facts. In the existing Planner pass, author every module's `displayCopy` for human readers, separate from raw text and design instructions. Do not serialize fields, print visual keywords or join attributes with pipes. Preserve all factual components, not every original sentence. Chinese-first with reviewed proper-name/necessary/user-requested English exceptions. Canvas and PPT consume the same reviewed copy. Human Presentation Copy must pass before DESIGN acceptance; see its reference for the versioned contract.
 - Visible source completeness: every supplied fact is allocated to and actually rendered by a visible body module by default. Decision-critical units are `required-visible`; supporting detail is `supporting-visible`; only `traceability` material may live solely in notes. Appendices are forbidden unless the task card explicitly sets `allowAppendix: true`. Without that authorization, extra detail becomes a normal body page. Any omission requires explicit user approval and a reason. `build-section-ppt` writes both a destination ledger and a visible-fact ledger; source IDs attached to a module do not prove that their content is visible. Never delete evidence to fit a slide.
 - Aggregation is not summarization: consolidation may reorganize and visually downgrade information, never remove unique facts, caveats, risks, actions or cases. A Decision System may contain multiple related judgments, evidence and responses; neither one sentence nor one carrier defines a page.
 - DOMAIN-AGNOSTIC: business entities, owners and test names never select pagination, routing, composition, hierarchy or color. Design decisions use management intent, factual roles, supported relationships and measured readability.

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chartDisplayModel } from "./chart-display-model.mjs";
+import {projectPresentationCopy} from './presentation-copy.mjs';
 import { primitiveMarkup, primitiveCss, visualModuleMarkup, repairPrimitiveLayout } from './visual-primitives.mjs';
 import {sceneMarkup,sceneCss,sceneRepairCss,sceneAttachmentCss,layoutAttachments,networkOrder,layoutNetworks} from './scene-plan.mjs';
 
@@ -114,6 +115,7 @@ function slideMarkup(slide, index) {
 }
 
 export function createDesignCanvas(ir, theme) {
+  ir=projectPresentationCopy(ir);
   const p = theme.palette;
   const fontPx = (role, index = 0) => theme.typographyPt[role][index] * 96 / 72;
   return `<!doctype html><html><head><meta charset="utf-8"><style>

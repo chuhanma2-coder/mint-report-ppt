@@ -2,7 +2,9 @@
 
 Source-grounded editable PowerPoint collaboration, followed by optional publication of the actual final PPT as offline read-only HTML.
 
-**Current candidate: v0.4.0-rc.5. Not a fully visually accepted or Windows-certified release.**
+**Current candidate: v0.4.0-rc.6. Not a fully visually accepted or Windows-certified release.**
+
+rc.6 adds explicit, source-reviewed Presentation Copy and a blocking Human Presentation Copy gate. Design hints and raw field strings are not automatic visible-text fallbacks. See [contract](references/presentation-copy.md) and [acceptance record](references/rc6-copy-acceptance.md).
 
 - [中文操作说明与可直接复制的 Prompt](使用说明.md)
 - [rc.5 本轮修复及真实验收状态](references/rc5-repair-acceptance.md)

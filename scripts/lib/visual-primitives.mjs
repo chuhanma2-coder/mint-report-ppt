@@ -33,17 +33,18 @@ export function visualModuleMarkup(module) {
     const parts = [primitiveMarkup(node.entity ? 'entity-profile' : 'milestone',node.label || node.name || node.id,binding(node.id),extra)];
     if (node.timeRange) parts.push(primitiveMarkup('time-range',node.timeRange.label,binding(`${node.id}/range`),{...extra,start:node.timeRange.start,end:node.timeRange.end,state:node.timeRange.variant||'uncertainty'}));
     if (node.duration) parts.push(primitiveMarkup('metric-badge',node.duration,binding(`${node.id}/duration`),extra));
-    for (const [i,metric] of (node.metrics || []).entries()) parts.push(primitiveMarkup('metric-badge',metric,binding(`${node.id}/metric-${i}`),extra));
     if(node.entity) {
       const profile=entityProfileFields(node);
       for(const [i,text] of profile.identity.entries()) parts.push(`<div class="profile-identity" data-mint-object="text">${esc(text)}</div>`);
+      for (const [i,metric] of (node.metrics || []).entries()) parts.push(primitiveMarkup('metric-badge',metric,binding(`${node.id}/metric-${i}`),extra));
       for(const [i,text] of profile.primary.entries()) parts.push(primitiveMarkup('metric-badge',text,binding(`${node.id}/primary-${i}`),extra));
+      if (node.text) parts.push(`<div class="module-copy" data-mint-object="text">${esc(node.text)}</div>`);
       for(const [i,text] of profile.secondary.entries()) parts.push(`<div class="profile-secondary" data-mint-object="text">${esc(text)}</div>`);
       for(const text of profile.details) parts.push(`<div class="module-copy" data-mint-object="text">${esc(text)}</div>`);
-    }
+    } else for (const [i,metric] of (node.metrics || []).entries()) parts.push(primitiveMarkup('metric-badge',metric,binding(`${node.id}/metric-${i}`),extra));
     if (node.status) parts.push(primitiveMarkup('status-chip',node.status,binding(`${node.id}/status`),{...extra,state:node.statusType||'neutral'}));
     if (node.condition) parts.push(primitiveMarkup('risk-strip',node.condition,binding(`${node.id}/condition`),extra));
-    if (node.text) parts.push(`<div class="module-copy" data-mint-object="text">${esc(node.text)}</div>`);
+    if (node.text&&!node.entity) parts.push(`<div class="module-copy" data-mint-object="text">${esc(node.text)}</div>`);
     return `<div class="vp-node" data-vp-node="${esc(node.id)}">${parts.join('')}</div>`;
   };
   if (kind === 'entity-comparison') return `<div class="vp-profiles">${nodes.map(nodeMarkup).join('')}</div>`;
@@ -71,7 +72,7 @@ export function visualModuleMarkup(module) {
       }
       pieces.push(nodeMarkup(node));
     });
-    const label=lane.label ? primitiveMarkup('parallel-lane',`${lane.relationship==='parallel'?'并行 · ':''}${lane.label}`,binding(lane.id),{laneId:lane.id,parallelTo:lane.parallelTo || ''}) : '';
+    const label=lane.label ? primitiveMarkup('parallel-lane',`${!module.displayCopy&&lane.relationship==='parallel'?'并行 · ':''}${lane.label}`,binding(lane.id),{laneId:lane.id,parallelTo:lane.parallelTo || ''}) : '';
     return `<div class="vp-lane">${label}<div class="vp-track">${pieces.join('')}</div></div>`;
   }).join('');
   if (usedEdges.size!==edges.length) throw new Error(`NARRATIVE_EDGE_UNREPRESENTED: ${module.id}; cross-lane edges require an explicit network expression`);

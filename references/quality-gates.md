@@ -1,5 +1,9 @@
 # Quality gates
 
+## Human Presentation Copy (rc.6)
+
+In addition to source/technical/design requirements, every actual rendered page must pass all ten checks in `presentation-copy.md`. The build emits a pending form, not an automatic approval. Unreviewed or failed prose blocks DESIGN PASS in `audit-design-delivery.mjs`. Review source-supported meaning and audience wording separately: no Markdown serialization, design-keyword leakage, gratuitous bilingual tags or repeated metric dumps. The native PPT text is checked again so a clean IR alone cannot approve a dirty artifact.
+
 ## Ownership and rollback
 
 | Class | Examples | Return to |

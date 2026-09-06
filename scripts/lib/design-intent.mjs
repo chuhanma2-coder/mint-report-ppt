@@ -1,4 +1,5 @@
 // Semantic design contracts. This module never generates facts or coordinates.
+import {humanCopyReviewIssues} from './presentation-copy.mjs';
 export const visualPrimitives = ['takeaway-band', 'milestone', 'time-range', 'dependency-edge', 'parallel-lane', 'status-chip', 'metric-badge', 'entity-profile', 'risk-strip', 'decision-strip'];
 export const narrativePatterns = ['critical-path-with-parallel-options', 'time-window-dependency', 'primary-with-parallel-options', 'entity-comparison'];
 
@@ -89,6 +90,7 @@ export function executiveReviewIssues(review, slideIds, decisionSystems=null) {
   if (!review || review.status !== 'reviewed') return ['EXECUTIVE_REVIEW_REQUIRED'];
   for (const id of slideIds) {
     const page = review.slides?.find(s => s.slideId === id);
+    if(humanCopyReviewIssues(page).length) issues.push(`HUMAN_PRESENTATION_COPY_NOT_ACCEPTED: ${id}`);
     if (!page || dimensions.some(key => !['pass','fail'].includes(page[key]))) issues.push(`EXECUTIVE_REVIEW_INCOMPLETE: ${id}`);
     else if (dimensions.some(key => page[key] === 'fail')) issues.push(`EXECUTIVE_REVIEW_FAILED: ${id}`);
     if(!page?.evidence?.trim()) issues.push(`EXECUTIVE_REVIEW_OBSERVATION_REQUIRED: ${id}; identify actual focus, supporting objects and whitespace in the rendered page`);

@@ -371,7 +371,9 @@ function addMeasuredChart(slide, measured, theme, font, index) {
   for (const text of measured.textObjects.filter(item => item.className === 'module-title')) addText(slide, text.text, text.contentRect, { typeface: font, fontSizePt: text.fontSizePx * 72 / 96, bold: true, color: theme.palette.ink }, `mint|chart-title|${index}`);
 }
 
+import {projectPresentationCopy} from './presentation-copy.mjs';
 export async function renderPresentation(ir, theme) {
+  ir=projectPresentationCopy(ir);
   const { Presentation } = await artifactTool(), presentation = Presentation.create({ slideSize: { width: theme.slide.width, height: theme.slide.height } });
   const font = theme.fonts.cjk, diagnostics = [];
   for (const [slideIndex, spec] of ir.slides.entries()) {

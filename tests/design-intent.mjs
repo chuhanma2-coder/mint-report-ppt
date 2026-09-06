@@ -43,7 +43,8 @@ assert.throws(()=>applyStylePrior(theme,{...style,slots:['chart']}),/STYLE_CONTE
 await assert.rejects(()=>planOutlinePages([slide],async()=>({passed:false,issues:['overflow']}),{designRequirements:ir.designRequirements}),/HARD_SINGLE_PAGE_CAPACITY/);
 console.log('design-intent: contracts, fallback, owner scope, merge and blocking passed');
 const dimensions=['firstFocus','bodyProvesTitle','relationships','space','carrierSuitability','hierarchy','readingOrder','relationshipFidelity','semanticProximity'];
-const passPage={slideId:'p',...Object.fromEntries(dimensions.map(d=>[d,'pass']))};
+const {humanCopyChecks}=await import('../scripts/lib/presentation-copy.mjs');
+const passPage={slideId:'p',...Object.fromEntries(dimensions.map(d=>[d,'pass'])),humanPresentationCopy:{...Object.fromEntries(humanCopyChecks.map(d=>[d,'pass'])),evidence:'Reviewed synthetic prose, names and values, no instruction text.'}};
 assert.ok(executiveReviewIssues({status:'reviewed',slides:[passPage]},['p']).some(i=>i.startsWith('EXECUTIVE_REVIEW_OBSERVATION_REQUIRED')));
 const reviewed={status:'reviewed',slides:[{...passPage,evidence:'Main metric precedes supporting comparison.'},{...passPage,slideId:'q',evidence:'Second decision has distinct evidence.'}]};
 assert.ok(executiveReviewIssues(reviewed,['p','q'],[]).some(i=>i.startsWith('CHAPTER_REVIEW_REQUIRED')));

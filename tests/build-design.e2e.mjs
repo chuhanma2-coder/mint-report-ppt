@@ -8,6 +8,8 @@ import {regulatoryFixture} from './fixtures/design-intent.mjs';
 import {createTaskCard} from '../scripts/lib/task-card.mjs';
 import {createCanonicalLedger,inventoryCanonicalInput} from '../scripts/lib/canonical-source-ledger.mjs';
 import {CURRENT_SLIDE_IR_VERSION,CURRENT_PLANNING_SCHEMA_VERSION} from '../scripts/lib/ir-version.mjs';
+import {presentationCopyHash,humanCopyChecks} from '../scripts/lib/presentation-copy.mjs';
+import {inspectPptxPackage} from '../scripts/lib/pptx-metadata.mjs';
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-build-design-'));
 const ir=regulatoryFixture(),source={sourceUnits:[]};
 for(const [i,m] of ir.slides[0].modules.entries()) {
@@ -30,6 +32,10 @@ source.canonicalLedgerFile='canonical.json';fs.writeFileSync(path.join(dir,'cano
 Object.assign(ir,{schemaVersion:CURRENT_SLIDE_IR_VERSION,slideIrVersion:CURRENT_SLIDE_IR_VERSION,planningSchemaVersion:CURRENT_PLANNING_SCHEMA_VERSION});
 ir.executionBrief={preflightMode:'auto',canonicalLedgerHash:canonical.sha256,audience:'test',communicationGoal:'test',managementObjective:'validate native binding',managementIntent:'explain',designRequirements:ir.designRequirements,semanticObligations:[],decisionSystems:ir.slides.map(s=>({id:s.decisionUnit,managementQuestion:s.managementQuestion,sourceRefs:canonical.units.map(u=>u.id)})),requirementsReview:{status:'reviewed',promptSha256:'synthetic-fixture'},semanticReview:{status:'reviewed',canonicalLedgerHash:canonical.sha256}};
 for(const s of ir.slides) Object.assign(s,{claimType:'source-supported',claimSupportRefs:canonical.units.map(u=>u.id),claimReview:{status:'reviewed',claim:s.claim,canonicalLedgerHash:canonical.sha256,...Object.fromEntries(['forecast','range','causality','subject','unit','condition','scope'].map(k=>[k,'not-applicable']))}});
+// These clean synthetic strings are the reviewed copy of this fixture only.
+ir.presentationCopyVersion=1;
+for(const s of ir.slides) for(const m of s.modules) m.displayCopy={title:m.title||'',text:m.text||'',...(m.value!==undefined?{value:m.value,unit:m.unit||''}:{}),...(m.data?.nodes?{nodes:m.data.nodes.map(n=>({id:n.id,name:n.label,summary:n.text,primaryMetrics:n.metrics||[],status:n.status,condition:n.condition,duration:n.duration,timeRangeLabel:n.timeRange?.label})),edges:(m.data.edges||[]).map(e=>({id:e.id,label:e.label||''})),lanes:(m.data.lanes||[]).map(e=>({id:e.id,label:e.label||''}))}:{})};
+ir.executionBrief.presentationCopyReview={status:'reviewed',canonicalLedgerHash:canonical.sha256,copySha256:presentationCopyHash(ir)};
 for(const [name,value] of Object.entries({ir,source,card}))fs.writeFileSync(path.join(dir,name+'.json'),JSON.stringify(value));
 const file=path.join(dir,'candidate.pptx');
 const build=spawnSync(process.execPath,['scripts/build-section-ppt.mjs',path.join(dir,'source.json'),path.join(dir,'ir.json'),path.join(dir,'card.json'),'测试负责人',file],{encoding:'utf8',maxBuffer:10_000_000});
@@ -40,4 +46,19 @@ assert.equal(report.slides,2);
 const pending=spawnSync(process.execPath,['scripts/audit-design-delivery.mjs',file,file+'.executive-review.json'],{encoding:'utf8'});
 assert.equal(pending.status,1,'A technical build must not pass pending executive review');
 assert.equal(report.pptxSha256,crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
+// A fabricated all-pass form is a negative gate fixture, not visual acceptance.
+const review=JSON.parse(fs.readFileSync(file+'.executive-review.json'));
+review.status='reviewed';review.issues=[];
+for(const page of review.slides) {for(const k of Object.keys(page)) if(page[k]===null)page[k]=k==='evidence'?'Synthetic negative gate fixture':'pass';page.humanPresentationCopy={...Object.fromEntries(humanCopyChecks.map(k=>[k,'pass'])),evidence:'Synthetic gate fixture'};}
+for(const d of review.decisionSystems) for(const k of Object.keys(d)) if(d[k]===null)d[k]='pass';
+Object.assign(review.chapter,{titleChain:'Synthetic sequence',crossDecisionEvidence:'Separate source topics'});
+for(const p of review.chapter.adjacentPages)Object.assign(p,{reason:'independent-decisions',evidence:'Synthetic separate topics'});
+review.slides[0].humanPresentationCopy.markdownSchema='fail';
+fs.writeFileSync(file+'.executive-review.json',JSON.stringify(review));
+const blocked=spawnSync(process.execPath,['scripts/audit-design-delivery.mjs',file,file+'.executive-review.json'],{encoding:'utf8'});
+assert.equal(blocked.status,1);const gate=JSON.parse(blocked.stdout);assert.equal(gate.acceptance.content,'PASS');assert.equal(gate.acceptance.technical,'PASS');assert.equal(gate.acceptance.design,'NOT_ACCEPTED');assert.ok(gate.issues.some(i=>i.includes('HUMAN_PRESENTATION_COPY')));
+const pkg=await inspectPptxPackage(file),slideXml=await pkg.zip.file(pkg.slides[0]).async('string');
+pkg.zip.file(pkg.slides[0],slideXml.replace('<a:t>','<a:t>visualNarrative | '));fs.writeFileSync(file,await pkg.zip.generateAsync({type:'nodebuffer'}));
+const leaked=spawnSync(process.execPath,['scripts/audit-design-delivery.mjs',file,file+'.executive-review.json'],{encoding:'utf8'});
+assert.ok(JSON.parse(leaked.stdout).issues.includes('COPY_SCHEMA_LEAK'),'Actual PPT leakage must fail even when IR is clean');
 console.log(JSON.stringify({passed:true,dir,scope:'synthetic full CLI, not prompt invariance or mentor acceptance'}));

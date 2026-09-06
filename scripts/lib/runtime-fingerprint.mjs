@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 // Only execution contracts belong in the installed runtime, never past run reports.
-export const runtimeReferences=['workflow.md','expression-routing.md','design-layout.md','quality-gates.md','design-intent.md','readability-repair.md','rc5-planning.md'];
+export const runtimeReferences=['workflow.md','expression-routing.md','design-layout.md','quality-gates.md','design-intent.md','readability-repair.md','rc5-planning.md','presentation-copy.md'];
 export function runtimeFingerprint(root) {
   const files = [];
   function walk(directory) {

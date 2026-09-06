@@ -3,12 +3,13 @@
   "$id": "https://mint.local/schemas/slide-ir.schema.json",
   "title": "Mint Report Slide IR",
   "type": "object",
-  "required": ["schemaVersion", "slideIrVersion", "planningSchemaVersion", "reportId", "slides", "executionBrief"],
+  "required": ["schemaVersion", "slideIrVersion", "planningSchemaVersion", "reportId", "slides", "executionBrief", "presentationCopyVersion"],
   "anyOf": [{"required":["sectionId"]},{"required":["sectionIds"]}],
   "properties": {
-    "schemaVersion": { "const": "1.6" },
-    "slideIrVersion": { "const": "1.6" },
-    "planningSchemaVersion": { "const": "2.6" },
+    "schemaVersion": { "const": "1.7" },
+    "slideIrVersion": { "const": "1.7" },
+    "planningSchemaVersion": { "const": "2.7" },
+    "presentationCopyVersion":{"const":1},
     "executionBrief": {"$ref":"execution-brief.schema.json"},
     "sectionIds": {"$ref":"#/$defs/refList"},
     "designRequirements": {"type":"array","items":{"$ref":"#/$defs/designRequirement"}},
@@ -107,8 +108,9 @@
     },
     "module": {
       "type": "object",
-      "required": ["type", "semanticRole"],
+      "required": ["type", "semanticRole", "displayCopy"],
       "properties": {
+        "displayCopy":{"$ref":"#/$defs/displayCopy"},
         "id": { "type": "string" },
         "visualPriority":{"enum":["P0","P1","P2"]},
         "primitive":{"enum":["takeaway-band","status-chip","metric-badge","risk-strip","decision-strip"]},
@@ -135,6 +137,8 @@
       },
       "additionalProperties": true
     },
+    "displayCopy":{"type":"object","properties":{"title":{"type":"string"},"text":{"type":"string"},"value":{},"unit":{"type":"string"},"dataMode":{"const":"bound-values"},"nodes":{"type":"array","items":{"type":"object","required":["id","name"],"properties":{"id":{"type":"string"},"name":{"type":"string"},"headline":{"type":"string"},"primaryMetrics":{"type":"array","maxItems":2,"items":{"type":["string","object","number"]}},"summary":{"type":"string"},"secondaryMetrics":{"type":"array"},"status":{"type":"string"},"condition":{"type":"string"},"duration":{"type":"string"},"timeRangeLabel":{"type":"string"}},"additionalProperties":false}},"edges":{"type":"array","items":{"$ref":"#/$defs/copyRelation"}},"lanes":{"type":"array","items":{"$ref":"#/$defs/copyRelation"}}},"additionalProperties":false},
+    "copyRelation":{"type":"object","required":["id"],"properties":{"id":{"type":"string"},"label":{"type":"string"},"condition":{"type":"string"}},"additionalProperties":false},
     "refList": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
   }
 }

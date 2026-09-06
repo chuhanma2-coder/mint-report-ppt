@@ -31,7 +31,7 @@ foreach ($entry in @('SKILL.md','VERSION','RELEASE-FINGERPRINT','package.json','
   Copy-Item -LiteralPath (Join-Path $Source $entry) -Destination $target -Recurse
 }
 [System.IO.Directory]::CreateDirectory((Join-Path $target 'references')) | Out-Null
-foreach ($reference in @('workflow.md','expression-routing.md','design-layout.md','quality-gates.md','design-intent.md','readability-repair.md','rc5-planning.md')) {
+foreach ($reference in @('workflow.md','expression-routing.md','design-layout.md','quality-gates.md','design-intent.md','readability-repair.md','rc5-planning.md','presentation-copy.md')) {
   Copy-Item -LiteralPath (Join-Path $Source "references\$reference") -Destination (Join-Path $target 'references')
 }
 Write-Host "Installed mint-report-ppt $version at $target (previous installation backed up)"

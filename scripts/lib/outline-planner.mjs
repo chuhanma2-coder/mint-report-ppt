@@ -200,6 +200,7 @@ function splitTableBlock(block) {
     let remainder=module.text||'';for(const n of module.reconciliationNotes||[]) remainder=remainder.replace(n.text,'');
     const text=[...reconciliationNotes.map(n=>n.text),...(i===groups.length-1?[remainder.trim()]:[])].filter(Boolean).join('\n');
     const part={...module,id:`${module.id}-group-${i+1}`,evidenceGroup:group.label,title:group.label,text,evidenceRefs,visibleFacts:(module.visibleFacts||[]).filter(f=>evidenceRefs.includes(f.sourceUnitId)),reconciliationNotes,data:{...module.data,rows:module.data.rows.slice(group.start,group.end),rowGroups:undefined,rowEvidenceRefs:undefined}};
+    if(part.displayCopy) part.displayCopy={...part.displayCopy,title:part.title,text:part.text};
     return {key:group.label,slide:block.slide,modules:[part],originalModuleId:module.id};
   });
 }
