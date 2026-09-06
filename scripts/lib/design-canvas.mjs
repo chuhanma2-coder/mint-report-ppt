@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chartDisplayModel } from "./chart-display-model.mjs";
-import { primitiveMarkup, primitiveCss, visualModuleMarkup } from './visual-primitives.mjs';
-import {sceneMarkup,sceneCss,sceneRepairCss} from './scene-plan.mjs';
+import { primitiveMarkup, primitiveCss, visualModuleMarkup, repairPrimitiveLayout } from './visual-primitives.mjs';
+import {sceneMarkup,sceneCss,sceneRepairCss,sceneAttachmentCss,layoutAttachments,networkOrder,layoutNetworks} from './scene-plan.mjs';
 
 const esc = value => String(value ?? "").replace(/[&<>\"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char]);
 const json = value => esc(JSON.stringify(value ?? {}));
@@ -36,6 +36,16 @@ const attrs = `style="${placement}" data-mint-object="module" data-mint-index="$
   if (type === "chart") return `<section class="module chart" ${attrs}>${title}<div class="chart-preview"></div></section>`;
   if (type === "diagram") {
     const nodes = module.data?.nodes || [], edges = module.data?.edges || [];
+    if(edges.length>1 || module.measuredTopology==='network') {
+      const order=networkOrder(nodes,edges),columns=Math.max(0,...order.map(n=>n.level))+1;
+      if(nodes.length>10&&!nodes.every(n=>n.group)) throw new Error('NETWORK_GROUPING_REQUIRED: '+module.id);
+      const graph=order.map(({id,level})=>{
+        const node=nodes.find(n=>String(n.id)===id);
+        const text=[node.label||node.name||id,node.text,node.timeRange?[node.timeRange.start,node.timeRange.end].join(' – '):null,node.condition,node.status,node.duration,...(node.metrics||[])].filter(Boolean).join('\n');
+        return `<div class="diagram-node" data-node-id="${esc(id)}" data-actor-slot="${nodes.indexOf(node)%3}" style="grid-column:${level+1}">${esc(text)}</div>`;
+      }).join('');
+      return `<section class="module diagram" ${attrs}>${title}<div class="diagram-network" data-network-edges="${json(edges)}"><div class="network-nodes" style="grid-template-columns:repeat(${columns},fit-content(360px))">${graph}</div></div>${module.text?`<div class="module-copy" data-mint-object="text">${esc(module.text)}</div>`:''}</section>`;
+    }
     const byId = new Map(nodes.map(node => [String(node.id), node]));
     const actorSlot = id => Math.max(0, nodes.findIndex(node => String(node.id) === String(id))) % 3;
     const used = new Set();
@@ -138,6 +148,7 @@ ${Object.entries(theme.semanticColors.roleAccents || {}).map(([role,color]) => `
 .diagram-edge{text-align:center}
 .edge-label{font-size:${fontPx('diagramEdge',1)}px;line-height:1.2;margin-bottom:16px}
 .edge-arrow{font-size:26px;line-height:1}
+.diagram-network{position:relative;min-width:0}.network-nodes{display:grid;gap:32px 160px;padding:0 32px;align-items:center}.network-edge{position:absolute;inset:0;pointer-events:none}.network-segment{position:absolute;border-top:2px solid ${p.mint};transform-origin:0 0}.network-segment.last:after{content:'';position:absolute;right:-1px;top:-6px;border-left:9px solid ${p.mint};border-top:5px solid transparent;border-bottom:5px solid transparent}.network-edge .edge-label{position:absolute;margin:0;background:${p.page};padding:3px 5px;white-space:pre-wrap}
 .story-bands main{grid-template-columns:repeat(12,minmax(0,1fr))}
 .balanced main{grid-template-columns:repeat(2,minmax(0,1fr))}
 .primary-rail main{grid-template-columns:minmax(0,1.8fr) minmax(360px,.8fr)}
@@ -152,14 +163,20 @@ ${Object.entries(theme.semanticColors.roleAccents || {}).map(([role,color]) => `
 .compact .edge-label{font-size:${fontPx('diagramEdge')}px}
 .compact header h1{font-size:${fontPx('denseTitle')}px}
 ${primitiveCss(theme)}
+.vp-text{padding-right:.6em}
 .profile-identity{font-size:${fontPx('diagramNode')}px;font-weight:700;color:${p.muted}}
 .profile-secondary{font-size:${fontPx('supportBody',1)}px;line-height:1.25;border-top:1px solid ${p.line};padding-top:8px;white-space:pre-wrap}
 ${sceneCss}
 ${sceneRepairCss}
+${sceneAttachmentCss}
 .narrative-flow main{grid-template-columns:1fr}
 </style></head><body>${ir.slides.map(slideMarkup).join("")}<script>
 (() => {
 const chartDisplayModel = ${chartDisplayModel.toString()};
+const layoutNetworks = ${layoutNetworks.toString()};
+const layoutAttachments = ${layoutAttachments.toString()};
+const repairPrimitiveLayout = ${repairPrimitiveLayout.toString()};
+window.mintRelayoutAttachments=layoutAttachments;
 function renderCharts() {
   for (const module of document.querySelectorAll('.module.table')) {
     const semantic = JSON.parse(module.dataset.mintSemantic), focus = semantic.expression?.focusRows || [];
@@ -220,6 +237,7 @@ function renderCharts() {
     arrow.style.height = height + 'px'; arrow.style.display = 'flex';
     arrow.style.alignItems = 'center'; arrow.style.justifyContent = 'center';
   }
+  layoutNetworks();
   for (const module of document.querySelectorAll('.module.chart')) {
     const semantic = JSON.parse(module.dataset.mintSemantic), host = module.querySelector('.chart-preview');
     const model = chartDisplayModel(semantic.data, semantic.expression, host.clientWidth, ${JSON.stringify(p)});
@@ -251,8 +269,9 @@ function renderCharts() {
       host.appendChild(element);
     }
   }
+  layoutAttachments();
 }
-Promise.all([document.fonts.ready,...[...document.images].map(i=>i.decode())]).then(()=>{try{renderCharts();document.documentElement.dataset.renderReady='true'}catch(error){document.documentElement.dataset.renderError=error.message;document.documentElement.dataset.renderReady='true'}});
+Promise.all([document.fonts.ready,...[...document.images].map(i=>i.decode())]).then(()=>{try{repairPrimitiveLayout();renderCharts();document.documentElement.dataset.renderReady='true'}catch(error){document.documentElement.dataset.renderError=error.message;document.documentElement.dataset.renderReady='true'}});
 })();
 </script></body></html>`;
 }

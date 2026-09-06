@@ -29,3 +29,10 @@ const fakeVisible = auditVisibleFactContent(source, { slides: [{ id: "P1", role:
 assert.equal(fakeVisible.passed, false);
 assert.match(fakeVisible.issues.join(" "), /VISIBLE_FACT_NOT_RENDERED/);
 console.log(JSON.stringify({ passed: true, tests: 17 }));
+// A number elsewhere in a multi-entity carrier cannot satisfy this entity's fact.
+const scopedSource={sourceUnits:[{id:'amount',text:'项目甲 100万元',visibility:'required-visible'}]};
+const scopedIr={slides:[{id:'p',role:'content',modules:[{id:'profiles',type:'diagram',data:{nodes:[{id:'a',label:'项目甲',text:'100万元'},{id:'b',label:'项目乙',text:'200万元'}]},visibleFacts:[{sourceUnitId:'amount',targetId:'a',text:'项目甲 100万元'}]}]}]};
+assert.equal(auditVisibleFactContent(scopedSource,scopedIr).passed,true);
+assert.equal(auditVisibleFactContent(scopedSource,scopedIr,{renderedModules:[{slideId:'p',moduleId:'profiles',text:'项目甲 200万元 项目乙 100万元',targets:{a:'项目甲 200万元',b:'项目乙 100万元'}}]}).passed,false);
+assert.equal(auditVisibleFactContent(scopedSource,scopedIr,{renderedModules:[{slideId:'p',moduleId:'profiles',text:'项目甲 100万元 项目乙 200万元',targets:{a:'项目甲 100万元',b:'项目乙 200万元'}}]}).passed,true);
+console.log('Node-local fact bindings reject swapped entity numbers');

@@ -155,7 +155,7 @@ try {
   if (measuredOutlineIssues.length) throw new Error(measuredOutlineIssues.join('; '));
   fs.writeFileSync(`${output}.outline-measurements.json`, JSON.stringify(measured.measurements, null, 2));
   if (!domManifest.passed) throw new Error(`DOM design gate failed: ${domManifest.issues.join("; ")}`);
-  const renderedModules = domManifest.slides.flatMap(slide => slide.modules.map(module => ({ slideId: slide.slideId, moduleId: module.id, text: module.text })));
+  const renderedModules = domManifest.slides.flatMap(slide => slide.modules.map(module => ({ slideId: slide.slideId, moduleId: module.id, text: module.text,targets:Object.fromEntries([...new Set(module.textObjects.map(t=>t.factTargetId).filter(Boolean))].map(id=>[id,module.textObjects.filter(t=>t.factTargetId===id).map(t=>t.text).join(' ')])) })));
   const renderedCoverage = auditVisibleFactContent(source, measured.ir, { renderedModules });
   fs.writeFileSync(`${output}.rendered-fact-coverage.json`, JSON.stringify(renderedCoverage, null, 2));
   if (!renderedCoverage.passed) throw new Error(`Rendered source gate failed: ${renderedCoverage.issues.join('; ')}`);
@@ -188,13 +188,14 @@ try {
   fs.writeFileSync(`${output}.native-design-requirements.json`,JSON.stringify(nativeDesignGate,null,2));
   if(!nativeDesignGate.passed) throw new Error(nativeDesignGate.issues.join('; '));
   const executiveIssues=executiveReviewIssues(null,resolved.slides.map(s=>s.id),authored.executionBrief.decisionSystems);
-  fs.writeFileSync(`${output}.executive-review.json`,JSON.stringify({status:'pending',pptxSha256:sha(fs.readFileSync(output)),issues:executiveIssues,decisionSystems:authored.executionBrief.decisionSystems.map(d=>({id:d.id,storyConcentration:null,riskResponseProximity:null,supportingEvidenceRole:null,mergeNecessity:null,titleChain:null,paginationJustification:null,pathEvidenceBalance:null,evidence:null})),slides:resolved.slides.map(s=>({slideId:s.id,firstFocus:null,bodyProvesTitle:null,relationships:null,space:null,carrierSuitability:null,hierarchy:null,readingOrder:null,relationshipFidelity:null,semanticProximity:null}))},null,2));
+  fs.writeFileSync(`${output}.executive-review.json`,JSON.stringify({status:'pending',pptxSha256:sha(fs.readFileSync(output)),issues:executiveIssues,chapter:{slideIds:resolved.slides.map(s=>s.id),titleChain:null,crossDecisionEvidence:null,adjacentPages:resolved.slides.slice(1).map((s,i)=>({before:resolved.slides[i].id,after:s.id,reason:null,evidence:null,capacityAttemptIds:[]}))},decisionSystems:authored.executionBrief.decisionSystems.map(d=>({id:d.id,storyConcentration:null,riskResponseProximity:null,supportingEvidenceRole:null,mergeNecessity:null,titleChain:null,paginationJustification:null,pathEvidenceBalance:null,evidence:null})),slides:resolved.slides.map(s=>({slideId:s.id,firstFocus:null,bodyProvesTitle:null,relationships:null,space:null,carrierSuitability:null,hierarchy:null,readingOrder:null,relationshipFidelity:null,semanticProximity:null,evidence:null}))},null,2));
   const parity = await compareRenderedSlides({ referenceDir: designDir, candidateDir: auditRenderDir, slideCount: resolved.slides.length, outputFile: parityFile });
   if (!parity.passed) throw new Error(`Visual parity gate failed: ${parity.issues.join("; ")}`);
   timing.write();
   fs.writeFileSync(`${output}.build.json`, `${JSON.stringify({ passed: true, status: 'technical-candidate-awaiting-visual-review', releaseReady: false, deliveryApproved:false, buildElapsedSeconds:(Date.now()-buildStartedAt)/1000, pptxSha256:sha(fs.readFileSync(output)), runtime, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, visibleFactFile, designFile, domManifest: path.join(designDir, "dom-layout.json"), parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, diagnostics, warnings: executiveIssues, skillVersion, themeVersion: theme.themeVersion }, null, 2)}\n`);
   console.log(JSON.stringify({ passed: true, status: 'technical-candidate-awaiting-visual-review', releaseReady: false, deliveryApproved:false, buildElapsedSeconds:(Date.now()-buildStartedAt)/1000, pptxSha256:sha(fs.readFileSync(output)), runtime, output, resolvedFile, auditFile, coverageFile, allocatedCoverageFile, visibleFactFile, designFile, parityFile, powerPointRenderGate: "required-before-release", slides: resolved.slides.length, warnings: executiveIssues, authority: "pptx", skillVersion, themeVersion: theme.themeVersion }, null, 2));
 } catch (error) {
+  if(error.capacityAttempts) fs.writeFileSync(`${output}.outline-measurements.json`,JSON.stringify(error.capacityAttempts,null,2));
   if(fs.existsSync(path.dirname(output))) timing.write();
   const failure = { passed: false, status: 'failed', releaseReady: false, error: error.message };
   fs.writeFileSync(`${output}.build.json`, JSON.stringify(failure, null, 2));

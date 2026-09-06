@@ -58,6 +58,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         // A browser single-line paragraph can wrap to two lines in PowerPoint too.
         element.style.minHeight = `${height + lineHeight}px`;
       }
+      window.mintRelayoutAttachments?.();
     });
     const slides = await page.locator(".mint-ppt-slide").evaluateAll(nodes => nodes.map((slide, slideIndex) => {
       const slideRect = slide.getBoundingClientRect();
@@ -67,7 +68,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         const textRange = document.createRange(); textRange.selectNodeContents(element);
         const inkRect = rel(textRange.getBoundingClientRect());
         let renderText = element.innerText || '';
-        if (element.classList.contains('module-copy') || element.classList.contains('diagram-node')) {
+        if (element.classList.contains('module-copy') || element.classList.contains('diagram-node') || element.classList.contains('vp-text')) {
           // Freeze the measured CJK line breaks. The native importer's generic
           // wrap estimator can otherwise put too many glyphs on one line.
           const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT), lines = [];
@@ -95,6 +96,7 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
           primitive: element.dataset.visualPrimitive || null, primitiveParent:element.closest('[data-visual-primitive]')?.dataset.visualPrimitive || null,
           bindingId:element.dataset.vpBindingId,edgeId:element.dataset.vpEdgeId,laneId:element.dataset.vpLaneId,parallelTo:element.dataset.vpParallelTo,from:element.dataset.vpFrom,to:element.dataset.vpTo,
           primitiveNodeId:element.dataset.vpNodeId,
+          factTargetId:element.closest('[data-vp-node]')?.dataset.vpNode || element.closest('[data-node-id]')?.dataset.nodeId || null,
           borderColor:hex(style.borderBottomColor),borderBottomWidth:parseFloat(style.borderBottomWidth),borderTopWidth:parseFloat(style.borderTopWidth),borderTopColor:hex(style.borderTopColor),borderLeftColor:hex(style.borderLeftColor),borderRightWidth:parseFloat(style.borderRightWidth),borderRightColor:hex(style.borderRightColor),
           role: element.dataset.mintRole || null, priority: element.dataset.mintPriority || null,
           index: element.dataset.mintIndex == null ? null : Number(element.dataset.mintIndex), rect, inkRect,
@@ -110,6 +112,11 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
       const modules = [...slide.querySelectorAll("main [data-mint-object='module']")].map(element => ({ ...info(element), textObjects: [...element.querySelectorAll("[data-mint-object='text'], th, td, .diagram-node, .bar-row span, .bar-row b")].map(info), chart: element.dataset.chartModel ? { rect: rel(element.querySelector('.chart-preview').getBoundingClientRect()), model: JSON.parse(element.dataset.chartModel) } : null, diagramRelations: [...element.querySelectorAll('.diagram-rel')].map(row => ({ nodes: [...row.querySelectorAll('.diagram-node')].map(info), label: info(row.querySelector('.edge-label')), arrow: info(row.querySelector('.edge-arrow')) })), table: element.querySelector('table') ? { rect: rel(element.querySelector('table').getBoundingClientRect()), rows: [...element.querySelectorAll('tr')].map(row => ({ rect: rel(row.getBoundingClientRect()), cells: [...row.cells].map(info) })) } : null }));
       for (const module of modules) {
         const element = slide.querySelector(`main [data-mint-index="${module.index}"]`), image = element?.querySelector('img');
+        const graph=element.querySelector('.diagram-network');
+        if(graph) {
+          const origin=rel(graph.getBoundingClientRect());
+          module.network={nodes:[...graph.querySelectorAll('.diagram-node')].map(info),edges:[...graph.querySelectorAll('.network-edge')].map(edge=>({id:edge.dataset.edgeId,from:edge.dataset.from,to:edge.dataset.to,label:info(edge.querySelector('.edge-label')),points:JSON.parse(edge.dataset.points).map(([x,y])=>[x+origin.left,y+origin.top])}))};
+        }
         module.primitives = [...element.querySelectorAll('[data-visual-primitive]')].map(p=>{const item=info(p);return {...item,nodeId:item.primitiveNodeId};});
         if (image) module.image = { rect: rel(image.getBoundingClientRect()), naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
         const bounds = [...module.textObjects.filter(t=>t.text.trim()).map(t=>t.inkRect), module.table?.rect, module.chart?.rect, module.image?.rect].filter(r=>r&&r.width>0&&r.height>0);
@@ -131,7 +138,8 @@ export async function extractDesignLayout({ htmlFile, outputDir, expectedSlides 
         painted.push(...[...range.getClientRects()].map(rel));
       }
       for (const element of slide.querySelectorAll('img, [data-chart-primitive="rect"], [data-chart-primitive="circle"]')) painted.push(rel(element.getBoundingClientRect()));
-      return { slideIndex, slideId: slide.dataset.slideId, composition: slide.dataset.composition, bandCount: Number(slide.querySelector('main').dataset.bandCount), width: slideRect.width, height: slideRect.height, title, question, modules, painted };
+      const attachments=[...slide.querySelectorAll('[data-scene-target]')].map(e=>({relation:e.classList.contains('scene-overlay')?'overlay':'anchor',targetId:e.dataset.sceneTarget,side:['before','after','start','end'].find(s=>e.classList.contains('side-'+s)),rect:rel(e.getBoundingClientRect()),target:rel(e.querySelector('.scene-target').getBoundingClientRect()),annotation:rel(e.querySelector('.scene-annotation').getBoundingClientRect())}));
+      return { slideIndex, slideId: slide.dataset.slideId, composition: slide.dataset.composition, bandCount: Number(slide.querySelector('main').dataset.bandCount), width: slideRect.width, height: slideRect.height, mainBounds:rel(slide.querySelector('main').getBoundingClientRect()), title, question, modules, painted,attachments,repairOperations:JSON.parse(slide.dataset.capacityOperations || '[]') };
     }));
     if (expectedSlides != null && slides.length !== expectedSlides) throw new Error(`Design canvas has ${slides.length} slides; expected ${expectedSlides}`);
     if (capture) fs.mkdirSync(outputDir, { recursive: true });
@@ -212,7 +220,7 @@ export async function planAndMeasureOutline(ir, theme, htmlFile, outputDir, opti
       const gate=auditDesignRequirements({...ir,slides:[local],designRequirements:requirements},result);
       const sceneIssues=measuredSceneIssues(candidate,result.slides?.[0]);
       return {...result,passed:result.passed&&gate.passed&&!sceneIssues.length,issues:[...result.issues,...gate.issues,...sceneIssues]};
-    }, {...options,designRequirements:ir.designRequirements || [],decisionSystems:ir.executionBrief?.decisionSystems||[]});
+    }, {...options,requireMeasuredProof:true,designRequirements:ir.designRequirements || [],decisionSystems:ir.executionBrief?.decisionSystems||[]});
     const grouped = { ...ir, slides: planned.slides };
     writeDesignCanvas(grouped, theme, htmlFile);
     const manifest = await extractDesignLayout({ existingPage: page, htmlFile, outputDir, expectedSlides: grouped.slides.length });
@@ -230,6 +238,6 @@ export function applyDomLayout(ir, manifest) {
       const sizes = (item.textObjects || []).map(text => text.fontSizePx * 72 / 96).filter(Number.isFinite);
       return { title: { fontSizePt: sizes[0] || 18 }, body: { fontSizePt: sizes.at(-1) || 17 } };
     });
-    return { ...slide, domModules: ordered, geometry: layout.composition, typography: { title: { fontSizePt: layout.title.fontSizePx * 72 / 96 }, question: layout.question ? { fontSizePt: layout.question.fontSizePx * 72 / 96 } : null, modules: moduleTypography }, layout: { title: layout.title.rect, claim: layout.question?.rect || { left: 0, top: 0, width: 0, height: 0 }, modules: frames, layoutVariant: layout.composition, occupancy: layout.visualOccupancy, visualOccupancy: layout.visualOccupancy, compositeApplied: layout.bandCount >= 2 || layout.modules.some(m=>(m.primitives || []).filter(p=>['parallel-lane','entity-profile'].includes(p.primitive)).length>=2), errors: [] } };
+    return { ...slide, domModules: ordered, sceneAttachments:layout.attachments, geometry: layout.composition, typography: { title: { fontSizePt: layout.title.fontSizePx * 72 / 96 }, question: layout.question ? { fontSizePt: layout.question.fontSizePx * 72 / 96 } : null, modules: moduleTypography }, layout: { title: layout.title.rect, claim: layout.question?.rect || { left: 0, top: 0, width: 0, height: 0 }, modules: frames, layoutVariant: layout.composition, occupancy: layout.visualOccupancy, visualOccupancy: layout.visualOccupancy, compositeApplied: layout.bandCount >= 2 || layout.modules.some(m=>(m.primitives || []).filter(p=>['parallel-lane','entity-profile'].includes(p.primitive)).length>=2), errors: [] } };
   }) };
 }

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {packageSkill} from '../scripts/package-skill.mjs';
+import {runtimeReferences,runtimeFingerprint} from '../scripts/lib/runtime-fingerprint.mjs';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const dest=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'mint-runtime-package-')),'mint-report-ppt');
+assert.equal(packageSkill(root,dest).sha256,runtimeFingerprint(root).sha256);
+assert.deepEqual(fs.readdirSync(path.join(dest,'references')).sort(),[...runtimeReferences].sort());
+assert.equal(fs.existsSync(path.join(dest,'tests')),false);
+assert.throws(()=>packageSkill(root,dest),/PACKAGE_DESTINATION_EXISTS/);
+const installer=fs.readFileSync(path.join(root,'scripts/install-windows.ps1'),'utf8');
+for(const ref of runtimeReferences) assert.ok(installer.includes(`'${ref}'`));
+console.log('Runtime package matches code fingerprint; historical reports and fixtures excluded');

@@ -18,6 +18,13 @@ export function validateExecutionBrief(brief,ledger,slides=[]) {
     if(!systems.has(slide.decisionUnit)) issues.push(`DECISION_SYSTEM_UNKNOWN: ${slide.id}`);
     if(slide.independentDecision && !slide.independenceReason?.trim()) issues.push(`INDEPENDENCE_UNPROVEN: ${slide.id}`);
   }
+  const content=slides.filter(s=>s.role==='content');
+  for(let i=1;i<content.length;i++) {
+    const a=content[i-1],b=content[i];
+    if(a.sectionId!==b.sectionId||a.decisionUnit===b.decisionUnit) continue;
+    const review=brief.decisionBoundaryReviews?.find(r=>r.before===a.decisionUnit&&r.after===b.decisionUnit);
+    if(review?.status!=='reviewed'||review.canonicalLedgerHash!==ledger.sha256||!review.beforeDecision?.trim()||!review.afterDecision?.trim()||review.beforeDecision===review.afterDecision||!review.whyNotSupportingEvidence?.trim()) issues.push(`DECISION_BOUNDARY_REVIEW_REQUIRED: ${a.id}/${b.id}; different topics or carriers do not justify separate decisions`);
+  }
   for(const obligation of brief.semanticObligations || []) {
     if(!obligation.id||!semanticRelations.includes(obligation.type)||obligation.strength!=='semantic-hard'||!obligation.sourceRefs?.length||obligation.sourceRefs.some(id=>!known.has(id))||!obligation.reason?.trim()) issues.push(`SEMANTIC_OBLIGATION_INVALID: ${obligation.id}`);
     if(obligation.review?.status!=='reviewed'||obligation.review.canonicalLedgerHash!==ledger.sha256) issues.push(`SEMANTIC_CONTEXT_REVIEW_REQUIRED: ${obligation.id}`);

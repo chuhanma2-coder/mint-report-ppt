@@ -88,3 +88,51 @@ export function primitiveCss(tokens=theme) {
   ${Object.entries(policy.rangeColors).map(([state,color])=>`.vp-time-range[data-vp-state="${state}"]{background:${p[color]}}`).join('')}
   .vp-time-range{border-left-width:${s.ruleWidth}px;border-right:${s.ruleWidth}px solid ${p.orange}}`;
 }
+
+// Bounded, browser-measured repair of existing primitives. No text, font,
+// relationship or source binding changes. Width goes to the actual wrapping
+// bottleneck, not equally to every node and arrow.
+export function repairPrimitiveLayout() {
+  for(const scene of document.querySelectorAll('.scene-content-first')) {
+    const slide=scene.closest('.mint-ppt-slide'),operations=[];
+    for(const lane of scene.querySelectorAll('.vp-lane')) {
+      const before=lane.getBoundingClientRect().height;
+      lane.style.margin='6px 0';lane.style.gap='6px';
+      operations.push({step:'containers',beforeHeight:before,afterHeight:lane.getBoundingClientRect().height,status:'applied',operation:'reduce lane wrappers without changing text or font'});
+    }
+    for(const track of scene.querySelectorAll('.vp-track,.vp-profiles')) {
+      const parts=[...track.children],before=track.getBoundingClientRect().height;
+      if(!parts.length) continue;
+      for(const node of parts.filter(p=>p.classList.contains('vp-node'))) {
+        node.style.padding='4px';node.style.gap='6px';
+        for(const surface of node.querySelectorAll('.vp')) surface.style.padding='4px 8px';
+      }
+      const available=track.getBoundingClientRect().width-8*(parts.length-1);
+      const minima=parts.map(p=>p.classList.contains('vp-dependency-edge')?90:180);
+      if(minima.reduce((a,b)=>a+b,0)>available) continue;
+      track.style.display='grid';track.style.gap='8px';
+      const apply=widths=>{track.style.gridTemplateColumns=widths.map(w=>w+'px').join(' ');};
+      const score=()=>parts.reduce((sum,p)=>sum+p.getBoundingClientRect().height,0)*.01+track.getBoundingClientRect().height+
+        [...track.querySelectorAll('[data-mint-object="text"]')].reduce((sum,p)=>sum+Math.max(0,p.scrollWidth-p.clientWidth-1)*100,0);
+      const spare=available-minima.reduce((a,b)=>a+b,0);
+      const widths=minima.map((w,i)=>w+spare*(parts[i].classList.contains('vp-node')?1:0)/parts.filter(p=>p.classList.contains('vp-node')).length);
+      apply(widths);let best=score(),transfers=0;
+      // Finite coordinate descent: actual wrap heights choose transfers. Equal
+      // maxima can need several steps, hence a small total-height tie breaker.
+      for(let round=0;round<20;round++) {
+        let choice=null,value=best;
+        for(let to=0;to<parts.length;to++) for(let from=0;from<parts.length;from++) {
+          if(to===from||widths[from]-24<minima[from]) continue;
+          const test=[...widths];test[to]+=24;test[from]-=24;apply(test);
+          const measured=score();if(measured<value-.1){value=measured;choice=test;}
+        }
+        if(!choice){apply(widths);break;}
+        widths.splice(0,widths.length,...choice);apply(widths);best=value;transfers++;
+      }
+      operations.push({step:'object-internals',moduleId:track.closest('[data-mint-id]')?.dataset.mintId,
+        beforeHeight:before,afterHeight:track.getBoundingClientRect().height,widths,transfers,
+        status:Math.abs(before-track.getBoundingClientRect().height)>.5?'applied':'no-effect'});
+    }
+    slide.dataset.capacityOperations=JSON.stringify(operations);
+  }
+}

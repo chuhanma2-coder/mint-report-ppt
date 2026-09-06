@@ -47,7 +47,7 @@
         "derivation":{"type":"object","required":["inputs","logic","result"],"properties":{"inputs":{"$ref":"#/$defs/refList"},"logic":{"type":"string","minLength":1},"result":{"type":"string"}},"additionalProperties":false},
         "semanticObligationRefs":{"$ref":"#/$defs/refList"},
         "independenceReason":{"type":"string"},
-        "scenePlan":{"type":"object","required":["flow","regions","readingOrder"],"properties":{"flow":{"enum":["vertical","horizontal"]},"regions":{"type":"array","minItems":1,"items":{"type":"object","required":["id","role","relation","weight","moduleIds"],"properties":{"id":{"type":"string"},"role":{"enum":["dominant","primary","supporting","contextual"]},"relation":{"enum":["stack","split","sequence","parallel","comparison","grid","matrix","network","dominant","supporting","adjacent-to","overlay","anchor"]},"weight":{"enum":["major","supporting","natural"]},"moduleIds":{"$ref":"#/$defs/refList"},"relationshipRefs":{"$ref":"#/$defs/refList"}},"additionalProperties":false}},"readingOrder":{"$ref":"#/$defs/refList"},"adjacency":{"type":"array","items":{"type":"object","required":["object","near"],"properties":{"object":{"type":"string"},"near":{"type":"string"}},"additionalProperties":false}}},"additionalProperties":false},
+"scenePlan":{"type":"object","required":["flow","regions","readingOrder"],"properties":{"flow":{"enum":["vertical","horizontal"]},"regions":{"type":"array","minItems":1,"items":{"type":"object","required":["id","role","relation","weight","moduleIds"],"properties":{"id":{"type":"string"},"role":{"enum":["dominant","primary","supporting","contextual"]},"relation":{"enum":["stack","split","sequence","parallel","comparison","grid","matrix","network","dominant","supporting","adjacent-to","overlay","anchor"]},"weight":{"enum":["major","supporting","natural"]},"moduleIds":{"$ref":"#/$defs/refList"},"relationshipRefs":{"$ref":"#/$defs/refList"},"targetId":{"type":"string"},"side":{"enum":["before","after","start","end"]}},"additionalProperties":false}},"readingOrder":{"$ref":"#/$defs/refList"},"adjacency":{"type":"array","items":{"type":"object","required":["object","near"],"properties":{"object":{"type":"string"},"near":{"type":"string"}},"additionalProperties":false}}},"additionalProperties":false},
         "semanticIntent": { "type": "string", "minLength": 1 },
         "outlineItem": { "type": "string" },
         "storyCluster": { "type": "string" },
@@ -126,7 +126,7 @@
           "items": {
             "type": "object",
             "required": ["sourceUnitId", "text"],
-            "properties": { "sourceUnitId": { "type": "string", "minLength": 1 }, "text": { "type": "string", "minLength": 1 },"binding":{"type":"object"} },
+            "properties": { "sourceUnitId": { "type": "string", "minLength": 1 }, "text": { "type": "string", "minLength": 1 },"binding":{"type":"object"},"targetId":{"type":"string","minLength":1} },
             "additionalProperties": false
           }
         },

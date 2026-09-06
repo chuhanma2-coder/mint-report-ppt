@@ -45,17 +45,20 @@ export function auditVisibleFactContent(source, ir, { renderedModules = null } =
     const payload = renderedModules ? normalizedText(rendered?.text || '') : visibleModulePayload(module);
     for (const fact of module.visibleFacts || []) {
       const id = String(fact.sourceUnitId || ""), text = normalizedText(fact.text);
+      const node=fact.targetId&&module.data?.nodes?.find(n=>n.id===fact.targetId);
+      const local=fact.targetId ? renderedModules ? normalizedText(rendered?.targets?.[fact.targetId] || '') : node ? visibleModulePayload({data:{nodes:[node]}}) : '' : payload;
+      if(fact.targetId&&!node) issues.push(`FACT_TARGET_UNKNOWN: ${id}/${fact.targetId}`);
       if (!units.has(id)) issues.push(`VISIBLE_FACT_UNKNOWN_SOURCE: slide ${slide.id} module ${module.id || "(unnamed)"} maps unknown source ${id || "(empty)"}`);
       else if (fact.binding) {
-        const bindingIssues=structuredFactIssues(units.get(id),fact.binding,payload);
+        const bindingIssues=structuredFactIssues(units.get(id),fact.binding,local);
         if(bindingIssues.length) issues.push(...bindingIssues.map(issue=>`${issue}: ${id}`));
-        else {if(!mapped.has(id)) mapped.set(id,[]);mapped.get(id).push({slideId:slide.id,moduleId:module.id,text:fact.text||Object.values(fact.binding).flat().join(' ')});}
+        else {if(!mapped.has(id)) mapped.set(id,[]);mapped.get(id).push({slideId:slide.id,moduleId:module.id,targetId:fact.targetId,text:fact.text||Object.values(fact.binding).flat().join(' ')});}
       }
       else if (!text) issues.push(`VISIBLE_FACT_EMPTY: slide ${slide.id} module ${module.id || "(unnamed)"} maps ${id} without visible text`);
-      else if (!payload.includes(text)) issues.push(`VISIBLE_FACT_NOT_RENDERED: slide ${slide.id} module ${module.id || "(unnamed)"} declares ${id} but its text is absent from the rendered module payload`);
+      else if (!local.includes(text)) issues.push(`VISIBLE_FACT_NOT_RENDERED: slide ${slide.id} module ${module.id || "(unnamed)"} declares ${id} but its text is absent from the rendered carrier`);
       else {
         if (!mapped.has(id)) mapped.set(id, []);
-        mapped.get(id).push({ slideId: slide.id, moduleId: module.id || null, text: fact.text });
+        mapped.get(id).push({ slideId: slide.id, moduleId: module.id || null, targetId:fact.targetId, text: fact.text });
       }
     }
   }
@@ -66,7 +69,9 @@ export function auditVisibleFactContent(source, ir, { renderedModules = null } =
     const visible = destinations.map(destination => {
       const slide = (ir.slides || []).find(item => item.id === destination.slideId);
       const module = slide?.modules?.find(item => item.id === destination.moduleId);
-      return renderedModules ? normalizedText(renderedModules.find(item => item.slideId === destination.slideId && item.moduleId === destination.moduleId)?.text || '') : visibleModulePayload(module);
+      const rendered=renderedModules?.find(item=>item.slideId===destination.slideId&&item.moduleId===destination.moduleId);
+      if(destination.targetId) return renderedModules?normalizedText(rendered?.targets?.[destination.targetId]||''):visibleModulePayload({data:{nodes:module.data.nodes.filter(n=>n.id===destination.targetId)}});
+      return renderedModules ? normalizedText(rendered?.text || '') : visibleModulePayload(module);
     }).join(' ');
     if(unit.fact && unit.factReview?.status==='reviewed' && unit.factReview.sourceText===unit.text) {
       const structured=destinations.every(d=>(ir.slides||[]).find(s=>s.id===d.slideId)?.modules.find(m=>m.id===d.moduleId)?.visibleFacts.some(f=>f.sourceUnitId===id&&f.binding));

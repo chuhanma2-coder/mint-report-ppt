@@ -13,3 +13,7 @@ assert.ok(claimSupportIssues([{...slide,claim:'甲已完成'}],ledger).length);
 assert.ok(claimSupportIssues([{...slide,claimType:'derived',derivation:{inputs:[],logic:'',result:slide.claim}}],ledger).length);
 assert.ok(validateExecutionBrief({...brief,semanticObligations:[{...o,type:'parallel',activities:['a','b'],commonGoal:'交付',concurrent:true,hasPrecedence:true}]},ledger).length);
 console.log('Brief preview, grounded obligations and claim-review binding tests passed');
+const second={...slide,id:'P2',outlineItem:'1',decisionUnit:'D2',independentDecision:true,independenceReason:'different carrier'};
+const multi={...brief,decisionSystems:[...brief.decisionSystems,{id:'D2',managementQuestion:'支持证据？',sourceRefs:['S1']}]};
+assert.ok(validateExecutionBrief(multi,ledger,[{...slide,outlineItem:'1'},second]).some(x=>x.startsWith('DECISION_BOUNDARY_REVIEW_REQUIRED')));
+assert.deepEqual(validateExecutionBrief({...multi,decisionBoundaryReviews:[{before:'D1',after:'D2',status:'reviewed',canonicalLedgerHash:ledger.sha256,beforeDecision:'项目实施授权',afterDecision:'独立资产处置授权',whyNotSupportingEvidence:'两项授权互不作为另一项的证据；已逐项核对原始范围'}]},ledger,[{...slide,outlineItem:'1'},second]),[]);

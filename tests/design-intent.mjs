@@ -42,3 +42,12 @@ assert.throws(()=>applyStylePrior(theme,{...style,typographyPt:{body:[8,10]}}),/
 assert.throws(()=>applyStylePrior(theme,{...style,slots:['chart']}),/STYLE_CONTENT_SLOTS_FORBIDDEN/);
 await assert.rejects(()=>planOutlinePages([slide],async()=>({passed:false,issues:['overflow']}),{designRequirements:ir.designRequirements}),/HARD_SINGLE_PAGE_CAPACITY/);
 console.log('design-intent: contracts, fallback, owner scope, merge and blocking passed');
+const dimensions=['firstFocus','bodyProvesTitle','relationships','space','carrierSuitability','hierarchy','readingOrder','relationshipFidelity','semanticProximity'];
+const passPage={slideId:'p',...Object.fromEntries(dimensions.map(d=>[d,'pass']))};
+assert.ok(executiveReviewIssues({status:'reviewed',slides:[passPage]},['p']).some(i=>i.startsWith('EXECUTIVE_REVIEW_OBSERVATION_REQUIRED')));
+const reviewed={status:'reviewed',slides:[{...passPage,evidence:'Main metric precedes supporting comparison.'},{...passPage,slideId:'q',evidence:'Second decision has distinct evidence.'}]};
+assert.ok(executiveReviewIssues(reviewed,['p','q'],[]).some(i=>i.startsWith('CHAPTER_REVIEW_REQUIRED')));
+reviewed.chapter={slideIds:['p','q'],titleChain:'Decision then separate action',crossDecisionEvidence:'Adjacent content reviewed together.',adjacentPages:[{before:'p',after:'q',reason:'measured-capacity',evidence:'Whole candidate overflowed.'}]};
+assert.ok(executiveReviewIssues(reviewed,['p','q'],[]).some(i=>i.startsWith('CHAPTER_BOUNDARY_UNPROVEN')));
+reviewed.chapter.adjacentPages[0].capacityAttemptIds=['attempt-1'];
+assert.deepEqual(executiveReviewIssues(reviewed,['p','q'],[]),[]);

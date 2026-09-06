@@ -98,7 +98,9 @@ export async function auditFinalFacts({file,source,ir,layouts}) {
         issues.push(...imageIssues.map(x=>`${slide.id}/${module.id}: ${x}`));
         if (!imageIssues.length) text.push(...review.regions.map(r=>r.text||''));
       }
-      renderedModules.push({slideId:slide.id,moduleId:module.id,text:text.join(' ')});
+      const targets={};
+      for(const e of owned) {const id=e.name?.match(/\|fact-target:([^|]+)/)?.[1];if(id) {const key=decodeURIComponent(id);targets[key]=[targets[key],e.text||''].filter(Boolean).join(' ');}}
+      renderedModules.push({slideId:slide.id,moduleId:module.id,text:text.join(' '),targets});
     }
   }
   const coverage=auditVisibleFactContent(source,ir,{renderedModules}); issues.push(...coverage.issues);

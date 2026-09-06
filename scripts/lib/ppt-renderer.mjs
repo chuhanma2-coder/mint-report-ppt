@@ -267,10 +267,31 @@ function addVisualPrimitives(slide, measured, theme, font, index) {
       } else slide.shapes.add({geometry:'line',name:name+'|rule',position:{left:p.rect.left,top:p.rect.top+p.rect.height-1,width:p.rect.width,height:0},line:{fill:p.borderColor,width:p.borderBottomWidth}});
     }
   }
-  for(const [j,text] of measured.textObjects.entries()) addText(slide,text.renderText || text.text,text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,bold:text.bold,color:text.color || theme.palette.ink},`mint|${text.primitiveParent==='dependency-edge'?'edge-label':'visual-text'}|${index}-${j}|text-role:${textRole({...text,kind:measured.kind,role:measured.role})}`);
+  // Canvas reserves a small right-hand wrap guard, then freezes its lines. The
+  // native frame includes that measured unused guard so Office does not rewrap
+  // a last CJK glyph; it never expands beyond the measured primitive surface.
+  for(const [j,text] of measured.textObjects.entries()) addText(slide,text.renderText || text.text,text.className==='vp-text'?{...text.contentRect,width:text.rect.width}:text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,bold:text.bold,color:text.color || theme.palette.ink},`mint|${text.primitiveParent==='dependency-edge'?'edge-label':'visual-text'}|${index}-${j}|text-role:${textRole({...text,kind:measured.kind,role:measured.role})}${text.factTargetId?'|fact-target:'+encodeURIComponent(text.factTargetId):''}`);
 }
 
 function addDiagram(slide, module, frame, theme, font, index, measured = null) {
+  if(measured?.network) {
+    for(const node of measured.network.nodes) {
+      const name=`mint|diagram-node|${index}|binding:${encodeURIComponent(node.nodeId)}`;
+      slide.shapes.add({geometry:'rect',name:name+'|bg',position:node.rect,fill:node.backgroundColor,line:{fill:node.borderLeftColor,width:2}});
+      addText(slide,node.renderText||node.text,node.contentRect,{typeface:font,fontSizePt:node.fontSizePx*72/96,bold:true,color:node.color},name+'|text-role:diagramNode|fact-target:'+encodeURIComponent(node.nodeId));
+    }
+    for(const edge of measured.network.edges) {
+      const name=`mint|diagram-edge|${index}|binding:${encodeURIComponent(edge.id)}|from:${encodeURIComponent(edge.from)}|to:${encodeURIComponent(edge.to)}`;
+      const points=edge.points.filter((p,i,a)=>i===0||p[0]!==a[i-1][0]||p[1]!==a[i-1][1]);
+      for(let i=1;i<points.length;i++) {
+        const anchor=([left,top])=>slide.shapes.add({geometry:'rect',name:name+'|anchor',position:{left,top,width:0.1,height:0.1},fill:'none',line:noLine});
+        const line=slide.shapes.connect(anchor(points[i-1]),anchor(points[i]),{kind:'straight',line:{fill:theme.palette.mint,width:2},...(i===points.length-1?{tail:{type:'triangle',width:'med',length:'med'}}:{})});line.name=name+'|segment:'+i;
+      }
+      if(edge.label.text) addText(slide,edge.label.text,edge.label.contentRect,{typeface:font,fontSizePt:edge.label.fontSizePx*72/96,color:edge.label.color},name+'|edge-label|text-role:diagramEdge');
+    }
+    for(const text of measured.textObjects.filter(t=>['module-title','module-copy'].includes(t.className))) addText(slide,text.renderText||text.text,text.contentRect,{typeface:font,fontSizePt:text.fontSizePx*72/96,bold:text.bold,color:text.color},`mint|diagram-note|${index}`);
+    return;
+  }
   if (measured?.diagramRelations) {
     for (const [i, relation] of measured.diagramRelations.entries()) {
       const shapes = [];
@@ -355,6 +376,7 @@ export async function renderPresentation(ir, theme) {
   const font = theme.fonts.cjk, diagnostics = [];
   for (const [slideIndex, spec] of ir.slides.entries()) {
     const slide = presentation.slides.add(); slide.background.fill = theme.palette.page;
+    for(const attachment of spec.sceneAttachments||[]) if(attachment.relation==='overlay') slide.shapes.add({geometry:'rect',name:`mint|scene-overlay|target:${encodeURIComponent(attachment.targetId)}`,position:attachment.rect,fill:'none',line:{fill:theme.palette.ink,width:1}});
     addText(slide, spec.claim, spec.layout.title, { typeface: font, fontSizePt: spec.typography?.title?.fontSizePt || (spec.role === "cover" ? 40 : 30), bold: true, color: theme.palette.ink }, `mint|title|${slideIndex}`);
     if (spec.showManagementQuestion && spec.managementQuestion && spec.role === "content") addText(slide, spec.managementQuestion, spec.layout.claim, { typeface: font, fontSizePt: spec.typography?.question?.fontSizePt || 15, color: theme.palette.muted }, `mint|question|${slideIndex}`);
     for (const [index, module] of spec.modules.entries()) {

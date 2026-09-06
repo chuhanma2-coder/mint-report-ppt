@@ -1,5 +1,7 @@
 # rc.5 聚焦增量优化：开发检查点报告
 
+后续状态见 [rc5-r07-r06-followup.md](rc5-r07-r06-followup.md)。下文保留此前检查点记录，不代表后续全部完成；R07 已补通用实现，R06 已补测量证据，真实 Fresh/多页 Golden 验收仍未完成。
+
 记录日期：2026-09-06。基线：`0.4.0-rc.4 / 2eec88271be8c419d70d8e6f860b198c7bfa55a4`。
 
 **TECHNICALLY PASSED（已执行的回归范围）；VISUALLY NOT ACCEPTED（整体交付质量）。不能宣布 rc.5 候选实现完成。**

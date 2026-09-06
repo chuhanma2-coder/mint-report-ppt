@@ -2,6 +2,8 @@
 
 ## 1. Coordinator: shared task card
 
+For a solo report without a card, the Agent can create the required internal card and continue in the same task. Do not require a separate user card-making turn. Multi-owner work needs one shared coordinator card. `sectionId` is resolved from the explicit owner/scope; it is not a mandatory user prompt placeholder.
+
 > 请使用 $mint-report-ppt。先读取我提供的分工、大纲及会议要求，只生成统一任务卡，不制作PPT。保持负责人、正式章节ID和大纲顺序。为每个负责人汇总其全部章节到Work Package，并记录汇报对象、目的和风格。使用当前安装版本，不沿用旧版布局决定。
 
 Run `node scripts/create-task-card.mjs config.json report.mint-ppt-task.json`. Task cards fix identity, scope, order and Presentation Brief, not pagination. All owners use the same card; upgrade it once with the coordinator when versions change, preserving business assignments. Do not hand-edit the hash.

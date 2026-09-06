@@ -27,8 +27,12 @@ if (Test-Path $target) {
   Move-Item -LiteralPath $target -Destination "$target.backup-$stamp"
 }
 [System.IO.Directory]::CreateDirectory($target) | Out-Null
-foreach ($entry in @('SKILL.md','VERSION','RELEASE-FINGERPRINT','package.json','agents','assets','references','schemas','scripts','tests')) {
+foreach ($entry in @('SKILL.md','VERSION','RELEASE-FINGERPRINT','package.json','agents','assets','schemas','scripts')) {
   Copy-Item -LiteralPath (Join-Path $Source $entry) -Destination $target -Recurse
+}
+[System.IO.Directory]::CreateDirectory((Join-Path $target 'references')) | Out-Null
+foreach ($reference in @('workflow.md','expression-routing.md','design-layout.md','quality-gates.md','design-intent.md','readability-repair.md','rc5-planning.md')) {
+  Copy-Item -LiteralPath (Join-Path $Source "references\$reference") -Destination (Join-Path $target 'references')
 }
 Write-Host "Installed mint-report-ppt $version at $target (previous installation backed up)"
 Write-Host "Browser for Design Canvas: $browser"

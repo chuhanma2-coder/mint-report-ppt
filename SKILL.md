@@ -14,6 +14,7 @@ Produce a strong first-draft PPTX that leaders can edit directly. After the firs
 - Use the Presentations Skill directly for a generic final-PPT-only deliverable.
 - Never invoke or modify `mint-report-deck` as a fallback.
 - Use the bundled presentation runtime and `@oai/artifact-tool`; never use `python-pptx`.
+- A separate prompt-optimization step is unnecessary. For solo work without a task card, create the required internal card and continue in the same task; for parallel owners, use one shared coordinator card. Resolve explicit owner/scope without requiring the user to type section IDs.
 - Do not expose a draft HTML workfile, embed ZIPs, sync PPT edits back to IR, or implement PDF export. The build may create a temporary internal 1920×1080 Design Canvas solely for browser layout and verification; users receive the native PPTX, not that internal canvas.
 
 ## Required pipeline

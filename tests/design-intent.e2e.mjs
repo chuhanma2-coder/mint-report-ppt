@@ -13,7 +13,9 @@ import {planAndMeasureOutline,applyDomLayout} from '../scripts/lib/dom-layout-ex
 import {renderPresentation,exportPresentation} from '../scripts/lib/ppt-renderer.mjs';
 import {inspectPptxPackage} from '../scripts/lib/pptx-metadata.mjs';
 import {auditDesignRequirements,nativeDesignPages} from '../scripts/lib/design-intent.mjs';
+import {auditFinalFacts} from '../scripts/lib/final-facts.mjs';
 const ir=regulatoryFixture();
+ir.slides[0].modules.find(m=>m.id==='banks').visibleFacts=[{sourceUnitId:'bank-fact',targetId:'bank-a',text:'银行甲 KES 688B'}];
 ir.slides=ir.slides.map(s=>allocateSlideEvidence(resolveSlideExpressions(classifySlideComposition(s))));
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'mint-rc4-design-'));
 const measured=await planAndMeasureOutline(ir,theme,path.join(dir,'canvas.html'),path.join(dir,'render'));
@@ -30,6 +32,9 @@ fs.writeFileSync(path.join(dir,'native-layout.json'),JSON.stringify(nativeLayout
 const nativePng=await imported.export({slide:imported.slides.items[0],format:'png',scale:1});
 fs.writeFileSync(path.join(dir,'native.png'),new Uint8Array(await nativePng.arrayBuffer()));
 assert.deepEqual(artifactLayoutIssues(nativeLayout),[]);
+const scopedFacts=await auditFinalFacts({file,source:{sourceUnits:[{id:'bank-fact',text:'银行甲 KES 688B',visibility:'required-visible'}]},ir:resolved,layouts:[nativeLayout]});
+assert.deepEqual(scopedFacts.issues,[]);
+assert.match(scopedFacts.renderedModules.find(m=>m.moduleId==='banks').targets['bank-a'],/688B/);
 const nativePages=nativeDesignPages([xml],resolved.slides.map(s=>s.id));
 assert.deepEqual(auditDesignRequirements(resolved,measured.manifest,{nativePages}).issues,[]);
 assert.equal(pkg.fullSlideImages.length,0);

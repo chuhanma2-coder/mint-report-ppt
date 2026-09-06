@@ -91,6 +91,7 @@ export function executiveReviewIssues(review, slideIds, decisionSystems=null) {
     const page = review.slides?.find(s => s.slideId === id);
     if (!page || dimensions.some(key => !['pass','fail'].includes(page[key]))) issues.push(`EXECUTIVE_REVIEW_INCOMPLETE: ${id}`);
     else if (dimensions.some(key => page[key] === 'fail')) issues.push(`EXECUTIVE_REVIEW_FAILED: ${id}`);
+    if(!page?.evidence?.trim()) issues.push(`EXECUTIVE_REVIEW_OBSERVATION_REQUIRED: ${id}; identify actual focus, supporting objects and whitespace in the rendered page`);
   }
   for (const issue of review.issues || []) if (!['planner','router','canvas','renderer','publisher'].includes(issue.ownerLayer)) issues.push('QA_OWNER_LAYER_INVALID');
   if ((review.issues || []).some(issue=>issue.status!=='resolved')) issues.push('EXECUTIVE_REVIEW_UNRESOLVED');
@@ -98,6 +99,14 @@ export function executiveReviewIssues(review, slideIds, decisionSystems=null) {
     const chapter=review.decisionSystems?.find(d=>d.id===system.id);
     const checks=['storyConcentration','riskResponseProximity','supportingEvidenceRole','mergeNecessity','titleChain','paginationJustification','pathEvidenceBalance'];
     if(!chapter||checks.some(k=>chapter[k]!=='pass')||!chapter.evidence?.trim()) issues.push(`DECISION_SYSTEM_REVIEW_REQUIRED: ${system.id}`);
+  }
+  if(decisionSystems && slideIds.length>1) {
+    const chapter=review.chapter;
+    if(!chapter||JSON.stringify(chapter.slideIds)!==JSON.stringify(slideIds)||!chapter.titleChain?.trim()||!chapter.crossDecisionEvidence?.trim()) issues.push('CHAPTER_REVIEW_REQUIRED: inspect all neighboring pages, not only Planner-declared decision groups');
+    for(let i=1;i<slideIds.length;i++) {
+      const pair=chapter?.adjacentPages?.find(p=>p.before===slideIds[i-1]&&p.after===slideIds[i]);
+      if(!pair||!['independent-decisions','measured-capacity','user-page-boundary'].includes(pair.reason)||!pair.evidence?.trim()||(pair.reason==='measured-capacity'&&!pair.capacityAttemptIds?.length)) issues.push(`CHAPTER_BOUNDARY_UNPROVEN: ${slideIds[i-1]}/${slideIds[i]}`);
+    }
   }
   return issues;
 }
